@@ -216,4 +216,106 @@
                 <div class="order-total">Toplam: ${order.totalAmount.toFixed(2)} TL</div>
                 <div class="order-actions">
                     <button class="pay-button">Ödendi</button>
-                    <button class="print-
+                    <button class="print-button">Yazdır</button>
+                </div>
+            `;
+
+            // "Ödendi" butonuna tıklama dinleyicisi ekle
+            const payButton = orderCard.querySelector('.pay-button');
+            payButton.addEventListener('click', () => {
+                console.log('Sipariş ödendi:', order);
+                // Sunucuya siparişin ödendiğini bildir
+                socket.emit('orderPaid', { 
+                    orderId: orderCard.dataset.orderId, 
+                    tableName: order.tableName, 
+                    totalAmount: order.totalAmount 
+                });
+                orderCard.remove(); // Sipariş kartını ekrandan kaldır
+                playNotificationSound('payment'); // İsteğe bağlı olarak ödeme sesi çal
+            });
+
+            // "Yazdır" butonuna tıklama dinleyicisi ekle
+            const printButton = orderCard.querySelector('.print-button');
+            printButton.addEventListener('click', () => {
+                console.log('Fiş yazdırma isteği:', order);
+                printOrderReceipt(order); // Yazdırma fonksiyonunu çağır
+            });
+
+            // En yeni siparişi en üste ekle
+            ordersContainer.prepend(orderCard);
+        }
+
+        // printOrderReceipt fonksiyonu: Sipariş fişini yazdırmak için yeni bir pencere açar
+        function printOrderReceipt(order) {
+            // Yazdırılacak HTML içeriğini oluştur (template literal kullanarak değişkenleri doğru yorumla)
+            let printContent = `
+                <div class="receipt-container">
+                    <div class="receipt-header">--- Olimpiyat Kokoreç ---</div>
+                    <p class="receipt-info">Masa: ${order.tableName}</p>
+                    <p class="receipt-info">Tarih: ${new Date().toLocaleString()}</p>
+                    <hr>
+                    <div class="receipt-items">
+            `;
+
+            order.items.forEach(item => {
+                printContent += `<p class="receipt-item">${item.productName} (${item.quantity} adet) - ${item.totalPrice.toFixed(2)} TL</p>`;
+            });
+
+            printContent += `
+                    </div>
+                    <hr>
+                    <div class="receipt-total">TOPLAM: ${order.totalAmount.toFixed(2)} TL</div>
+                    <div class="receipt-footer">Afiyet Olsun! Teşekkürler!</div>
+                </div>
+            `;
+
+            // Yeni bir pencerede yazdırma içeriğini göster
+            let printWindow = window.open('', '_blank');
+            printWindow.document.write('<!DOCTYPE html><html><head><title>Fiş - ' + order.tableName + '</title>');
+            printWindow.document.write('<style>');
+            // @media print stillerini buraya da kopyalayın ki yazdırma penceresinde de uygulansın
+            printWindow.document.write(`
+                /* POS Fişi Stilleri - YAZDIRMA PENCERESİ İÇİN */
+                @page {
+                    size: 58mm auto; /* 58mm genişlik, yükseklik içeriğe göre ayarlanır */
+                    margin: 0; /* Sayfa kenar boşluklarını kaldır */
+                }
+                body {
+                    width: 58mm; /* Body genişliğini fiş genişliğiyle sınırla */
+                    margin: 0;
+                    font-family: 'Consolas', 'Courier New', monospace; /* Fişler için mono-uzaylı font daha iyi olabilir */
+                    font-size: 10px; /* Daha küçük font boyutu */
+                    line-height: 1.2;
+                    color: #000;
+                }
+                .receipt-container {
+                    padding: 5mm; /* İç boşluk */
+                    box-sizing: border-box;
+                }
+                .receipt-header, .receipt-footer {
+                    text-align: center;
+                    margin-bottom: 5px;
+                }
+                .receipt-info p, .receipt-item {
+                    margin: 2px 0;
+                    white-space: pre-wrap; /* Uzun isimler için satır atlama */
+                }
+                .receipt-total {
+                    font-weight: bold;
+                    text-align: right;
+                    margin-top: 10px;
+                    font-size: 11px;
+                }
+                hr {
+                    border: 0;
+                    border-top: 1px dashed #888; /* Daha ince, noktalı çizgi */
+                    margin: 5px 0;
+                }
+            `);
+            printWindow.document.write('</style>');
+            printWindow.document.write('</head><body>');
+            printWindow.document.write(printContent); // Hazırlanan içeriği yazdır
+            printWindow.document.write('</body></html>');
+            printWindow.document.close();
+            printWindow.focus(); // Yeni pencereye odaklan
+            print
