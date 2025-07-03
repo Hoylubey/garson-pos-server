@@ -4,125 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mutfak / Kasa Ekranı</title>
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js">
-        function addOrderToDisplay(order) {
-        const ordersContainer = document.getElementById('ordersContainer');
-        const orderCard = document.createElement('div');
-        orderCard.className = 'order-card';
-        orderCard.id = `order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`; // Benzersiz ID
-
-        // Sipariş ID'sini saklamak için bir data attribute ekleyelim
-        orderCard.dataset.orderId = orderCard.id;
-
-        // Yazdırılabilir içeriği oluşturma
-        let printableContentHtml = `
-            <div class="printable-content">
-                <p style="text-align: center; font-weight: bold;">--- GARSON UYGULAMASI FİŞİ ---</p>
-                <p>Masa: ${order.tableName}</p>
-                <p>Tarih: ${new Date().toLocaleString()}</p>
-                <p>-------------------------------------------------</p>
-        `;
-
-        order.items.forEach(item => {
-            printableContentHtml += `
-                <p style="margin-left: 10px;">
-                    ${item.productName} (${item.quantity} adet) - ${item.totalPrice.toFixed(2)} TL
-                </p>
-            `;
-        });
-
-        printableContentHtml += `
-                <p>-------------------------------------------------</p>
-                <p style="font-weight: bold;">TOPLAM: ${order.totalAmount.toFixed(2)} TL</p>
-                <p>-------------------------------------------------</p>
-                <p style="text-align: center; margin-top: 20px;">Afiyet Olsun! Teşekkürler!</p>
-            </div>
-        `;
-
-        // Sipariş kartının genel HTML içeriği
-        orderCard.innerHTML = `
-            <div class="order-header">Masa: ${order.tableName}</div>
-            <div class="order-details">
-                ${order.items.map(item => `
-                    <div class="order-item">
-                        ${item.productName} (${item.quantity} adet) - ${item.totalPrice.toFixed(2)} TL
-                    </div>
-                `).join('')}
-            </div>
-            <div class="order-total">Toplam: ${order.totalAmount.toFixed(2)} TL</div>
-            <div class="order-actions">
-                <button class="pay-button">Ödendi</button>
-                <button class="print-button">Yazdır</button> </div>
-        `;
-
-        // Yazdırılabilir içeriği gizli bir div'e veya doğrudan kartın içine ekleyebiliriz
-        // Bu örnekte, yazdırma sırasında sadece belirli içeriği görünür yapmak için CSS kullanıyoruz.
-        // Fiş içeriğini ayrı bir elemana eklemek daha iyi bir pratik olabilir.
-        // Şimdilik, yazdırma fonksiyonu direkt DOM'daki bilgiyi kullanacak şekilde yapalım.
-
-        // "Ödendi" butonuna tıklama dinleyicisi
-        const payButton = orderCard.querySelector('.pay-button');
-        payButton.addEventListener('click', () => {
-            console.log('Sipariş ödendi:', order);
-            socket.emit('orderPaid', { orderId: orderCard.dataset.orderId, tableName: order.tableName, totalAmount: order.totalAmount });
-            orderCard.remove(); // Sipariş kartını ekrandan kaldır
-            playNotificationSound('payment');
-        });
-
-        // "Yazdır" butonuna tıklama dinleyicisi
-        const printButton = orderCard.querySelector('.print-button');
-        printButton.addEventListener('click', () => {
-            console.log('Fiş yazdırma isteği:', order);
-            printOrderReceipt(order); // Yazdırma fonksiyonunu çağır
-        });
-
-        ordersContainer.prepend(orderCard);
-    }
-
-    // Yeni yazdırma fonksiyonu
-    function printOrderReceipt(order) {
-        // Yazdırılacak HTML içeriğini oluştur
-        let printWindow = window.open('', '_blank');
-        printWindow.document.write('<html><head><title>Fiş - ' + order.tableName + '</title>');
-        printWindow.document.write('<style>');
-        printWindow.document.write(`
-            body { font-family: sans-serif; font-size: 12px; margin: 20px; }
-            .receipt-header { text-align: center; font-weight: bold; margin-bottom: 15px; }
-            .receipt-info { margin-bottom: 10px; }
-            .receipt-items { margin-bottom: 10px; }
-            .receipt-item { margin-left: 10px; margin-bottom: 3px; }
-            .receipt-total { font-weight: bold; text-align: right; margin-top: 15px; }
-            .receipt-footer { text-align: center; margin-top: 20px; }
-            hr { border: 0; border-top: 1px dashed #ccc; margin: 10px 0; }
-        `);
-        printWindow.document.write('</style>');
-        printWindow.document.write('</head><body>');
-
-        printWindow.document.write('<div class="receipt-header">--- GARSON UYGULAMASI FİŞİ ---</div>');
-        printWindow.document.write('<div class="receipt-info">');
-        printWindow.document.write(`<p>Masa: ${order.tableName}</p>`);
-        printWindow.document.write(`<p>Tarih: ${new Date().toLocaleString()}</p>`);
-        printWindow.document.write('<hr>');
-        printWindow.document.write('</div>');
-
-        printWindow.document.write('<div class="receipt-items">');
-        order.items.forEach(item => {
-            printWindow.document.write(`<p class="receipt-item">${item.productName} (${item.quantity} adet) - ${item.totalPrice.toFixed(2)} TL</p>`);
-        });
-        printWindow.document.write('</div>');
-
-        printWindow.document.write('<hr>');
-        printWindow.document.write('<div class="receipt-total">Toplam: ${order.totalAmount.toFixed(2)} TL</div>');
-        printWindow.document.write('<div class="receipt-footer">Afiyet Olsun! Teşekkürler!</div>');
-
-        printWindow.document.write('</body></html>');
-        printWindow.document.close();
-        printWindow.focus();
-        printWindow.print();
-        // printWindow.close(); // Yazdırma penceresini yazdırma işlemi bittikten sonra kapatmak isteyebilirsiniz.
-                             // Bazı tarayıcılarda bu direkt yazdırma penceresini açar, bazılarında PDF olarak kaydetme seçeneği sunar.
-    }
-    </script>
+    
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script> 
+    
     <style>
         /* CSS stilleri buraya */
         body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
@@ -186,62 +70,62 @@
             animation: ring 0.5s ease-in-out 3; /* 3 kez çal */
         }
         .order-actions {
-        display: flex; /* Butonları yan yana hizala */
-        gap: 10px; /* Butonlar arasına boşluk bırak */
-        margin-top: 15px; /* Üstteki içerikten boşluk bırak */
-    }
-
-    .pay-button, .print-button { /* Hem ödendi hem de yazdır butonu için ortak stil */
-        flex: 1; /* Mevcut alanı eşit paylaşsınlar */
-        color: white;
-        border: none;
-        padding: 10px 15px;
-        border-radius: 5px;
-        cursor: pointer;
-        font-size: 1em;
-        box-sizing: border-box;
-    }
-
-    .pay-button {
-        background-color: #28a745; /* Yeşil tonu */
-    }
-
-    .pay-button:hover {
-        background-color: #218838;
-    }
-
-    .print-button {
-        background-color: #007bff; /* Mavi tonu */
-    }
-
-    .print-button:hover {
-        background-color: #0056b3;
-    }
-
-    /* Yazdırma işlemi için gerekli stil - Sadece çıktıda görünür */
-    @media print {
-        body * {
-            visibility: hidden; /* Her şeyi gizle */
+            display: flex; /* Butonları yan yana hizala */
+            gap: 10px; /* Butonlar arasına boşluk bırak */
+            margin-top: 15px; /* Üstteki içerikten boşluk bırak */
         }
-        .printable-content, .printable-content * {
-            visibility: visible; /* Sadece yazdırılabilir içeriği göster */
+
+        .pay-button, .print-button { /* Hem ödendi hem de yazdır butonu için ortak stil */
+            flex: 1; /* Mevcut alanı eşit paylaşsınlar */
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            box-sizing: border-box;
         }
-        .printable-content {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%; /* Tam genişlikte yazdır */
+
+        .pay-button {
+            background-color: #28a745; /* Yeşil tonu */
         }
-        .order-actions {
-            display: none; /* Yazdırma çıktısında butonları gizle */
+
+        .pay-button:hover {
+            background-color: #218838;
         }
-    }
+
+        .print-button {
+            background-color: #007bff; /* Mavi tonu */
+        }
+
+        .print-button:hover {
+            background-color: #0056b3;
+        }
+
+        /* Yazdırma işlemi için gerekli stil - Sadece çıktıda görünür */
+        @media print {
+            body * {
+                visibility: hidden; /* Her şeyi gizle */
+            }
+            .printable-content, .printable-content * {
+                visibility: visible; /* Sadece yazdırılabilir içeriği göster */
+            }
+            .printable-content {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%; /* Tam genişlikte yazdır */
+            }
+            .order-actions {
+                display: none; /* Yazdırma çıktısında butonları gizle */
+            }
+        }
     </style>
 </head>
 <body>
     <h1>Mutfak / Kasa Ekranı</h1>
     <div id="orders-container">
-        </div>
+    </div>
 
     <div id="notificationBell" class="notification-bell">🔔</div>
     <audio id="notificationSound" src="notification.mp3" preload="auto"></audio> 
@@ -249,37 +133,120 @@
     <script>
         // Socket.IO istemcisini başlat
         // BURAYI KENDİ SUNUCU ADRESİNİZLE DEĞİŞTİRMELİSİNİZ!
-        // Eğer sunucunuz http://localhost:3000 adresinde çalışıyorsa:
         const socket = io('https://garson-pos-server.onrender.com'); 
 
         const ordersContainer = document.getElementById('orders-container');
         const notificationSound = document.getElementById('notificationSound');
         const notificationBell = document.getElementById('notificationBell');
 
+        // addOrderToDisplay fonksiyonu
+        function addOrderToDisplay(order) {
+            const orderCard = document.createElement('div');
+            orderCard.className = 'order-card';
+            orderCard.id = `order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`; // Benzersiz ID
+
+            // Sipariş ID'sini saklamak için bir data attribute ekleyelim
+            orderCard.dataset.orderId = orderCard.id;
+
+            // Sipariş kartının genel HTML içeriği
+            orderCard.innerHTML = `
+                <div class="order-header">Masa: ${order.tableName}</div>
+                <div class="order-details">
+                    ${order.items.map(item => `
+                        <div class="order-item">
+                            ${item.productName} (${item.quantity} adet) - ${item.totalPrice.toFixed(2)} TL
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="order-total">Toplam: ${order.totalAmount.toFixed(2)} TL</div>
+                <div class="order-actions">
+                    <button class="pay-button">Ödendi</button>
+                    <button class="print-button">Yazdır</button>
+                </div>
+            `;
+
+            // "Ödendi" butonuna tıklama dinleyicisi
+            const payButton = orderCard.querySelector('.pay-button');
+            payButton.addEventListener('click', () => {
+                console.log('Sipariş ödendi:', order);
+                socket.emit('orderPaid', { orderId: orderCard.dataset.orderId, tableName: order.tableName, totalAmount: order.totalAmount });
+                orderCard.remove(); // Sipariş kartını ekrandan kaldır
+                playNotificationSound('payment');
+            });
+
+            // "Yazdır" butonuna tıklama dinleyicisi
+            const printButton = orderCard.querySelector('.print-button');
+            printButton.addEventListener('click', () => {
+                console.log('Fiş yazdırma isteği:', order);
+                printOrderReceipt(order); // Yazdırma fonksiyonunu çağır
+            });
+
+            ordersContainer.prepend(orderCard);
+        }
+
+        // Yeni yazdırma fonksiyonu
+        function printOrderReceipt(order) {
+            // Yazdırılacak HTML içeriğini oluştur
+            let printWindow = window.open('', '_blank');
+            printWindow.document.write('<html><head><title>Fiş - ' + order.tableName + '</title>');
+            printWindow.document.write('<style>');
+            printWindow.document.write(`
+                body { font-family: sans-serif; font-size: 12px; margin: 20px; }
+                .receipt-header { text-align: center; font-weight: bold; margin-bottom: 15px; }
+                .receipt-info { margin-bottom: 10px; }
+                .receipt-items { margin-bottom: 10px; }
+                .receipt-item { margin-left: 10px; margin-bottom: 3px; }
+                .receipt-total { font-weight: bold; text-align: right; margin-top: 15px; }
+                .receipt-footer { text-align: center; margin-top: 20px; }
+                hr { border: 0; border-top: 1px dashed #ccc; margin: 10px 0; }
+            `);
+            printWindow.document.write('</style>');
+            printWindow.document.write('</head><body>');
+
+            printWindow.document.write('<div class="receipt-header">--- GARSON UYGULAMASI FİŞİ ---</div>');
+            printWindow.document.write('<div class="receipt-info">');
+            printWindow.document.write(`<p>Masa: ${order.tableName}</p>`);
+            printWindow.document.write(`<p>Tarih: ${new Date().toLocaleString()}</p>`);
+            printWindow.document.write('<hr>');
+            printWindow.document.write('</div>');
+
+            printWindow.document.write('<div class="receipt-items">');
+            order.items.forEach(item => {
+                printWindow.document.write(`<p class="receipt-item">${item.productName} (${item.quantity} adet) - ${item.totalPrice.toFixed(2)} TL</p>`);
+            });
+            printWindow.document.write('</div>');
+
+            printWindow.document.write('<hr>');
+            printWindow.document.write('<div class="receipt-total">Toplam: ${order.totalAmount.toFixed(2)} TL</div>');
+            printWindow.document.write('<div class="receipt-footer">Afiyet Olsun! Teşekkürler!</div>');
+
+            printWindow.document.write('</body></html>');
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+            // printWindow.close(); 
+        }
+
+        // playNotificationSound fonksiyonu
+        function playNotificationSound(type = 'newOrder') { 
+            const audio = document.getElementById('notificationSound');
+            if (audio) {
+                audio.play().catch(e => console.error("Ses çalma hatası:", e));
+            }
+        }
+
         // Sunucudan 'newOrder' olayı geldiğinde
         socket.on('newOrder', (order) => {
             console.log('Yeni sipariş alındı:', order);
-            const orderCard = document.createElement('div');
-            orderCard.className = 'order-card';
-            orderCard.innerHTML = `
-                <h2>Masa: ${order.tableName}</h2>
-                <h3>Sipariş Detayları:</h3>
-                <ul>
-                    ${order.items.map(item => `
-                        <li>${item.productName} (${item.quantity} adet) - ${item.totalPrice.toFixed(2)} TL</li>
-                    `).join('')}
-                </ul>
-                <div class="total">Toplam: ${order.totalAmount.toFixed(2)} TL</div>
-            `;
-            ordersContainer.prepend(orderCard); // En yeni siparişi en üste ekle
+            addOrderToDisplay(order); // Fonksiyonu çağır
 
             // Bildirim sesi çal
-            notificationSound.play().catch(e => console.error("Ses çalma hatası:", e)); // Promise hatasını yakala
+            notificationSound.play().catch(e => console.error("Ses çalma hatası:", e)); 
             // Zil animasyonunu tetikle
             notificationBell.classList.add('ringing');
             setTimeout(() => {
                 notificationBell.classList.remove('ringing');
-            }, 1500); // Animasyon süresinden biraz daha uzun tut
+            }, 1500); 
         });
 
         // Sunucudan 'notificationSound' olayı geldiğinde (isteğe bağlı, ayrı bir olay)
