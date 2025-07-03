@@ -318,4 +318,54 @@
             printWindow.document.write('</body></html>');
             printWindow.document.close();
             printWindow.focus(); // Yeni pencereye odaklan
-            print
+            printWindow.print(); // Yazdırma iletişim kutusunu aç
+            // printWindow.close(); // Yazdırma işlemi bittikten sonra kapatmak isteyebilirsiniz
+        }
+
+        // playNotificationSound fonksiyonu: Bildirim sesi çalar
+        function playNotificationSound(type = 'newOrder') { 
+            const audio = document.getElementById('notificationSound');
+            if (audio) {
+                audio.play().catch(e => console.error("Ses çalma hatası:", e));
+            }
+        }
+
+        /* Socket.IO Olay Dinleyicileri */
+
+        // Sunucudan 'newOrder' olayı geldiğinde
+        socket.on('newOrder', (order) => {
+            console.log('Yeni sipariş alındı:', order);
+            addOrderToDisplay(order); // Yeni siparişi ekrana ekle
+
+            // Bildirim sesi çal ve zil animasyonunu tetikle
+            playNotificationSound(); // Varsayılan olarak 'newOrder' sesi çalar
+            notificationBell.classList.add('ringing');
+            setTimeout(() => {
+                notificationBell.classList.remove('ringing');
+            }, 1500); 
+        });
+
+        // Sunucudan 'notificationSound' olayı geldiğinde (isteğe bağlı, ayrı bir olay)
+        socket.on('notificationSound', () => {
+            playNotificationSound();
+            notificationBell.classList.add('ringing');
+            setTimeout(() => {
+                notificationBell.classList.remove('ringing');
+            }, 1500);
+        });
+
+        // Bağlantı durumu logları
+        socket.on('connect', () => {
+            console.log('Sunucuya bağlandı!');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Sunucu bağlantısı kesildi!');
+        });
+
+        socket.on('connect_error', (err) => {
+            console.error('Bağlantı hatası:', err.message);
+        });
+    </script>
+</body>
+</html>
