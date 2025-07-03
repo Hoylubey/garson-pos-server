@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mutfak / Kasa Ekranı</title>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <style>
+        /* CSS stilleri buraya */
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
+        h1 { color: #333; }
+        #orders-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .order-card {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 15px;
+            border-left: 5px solid #4CAF50; /* Yeşil kenarlık */
+        }
+        .order-card h2 {
+            margin-top: 0;
+            color: #2196F3; /* Mavi başlık */
+        }
+        .order-card ul {
+            list-style: none;
+            padding: 0;
+        }
+        .order-card ul li {
+            margin-bottom: 5px;
+        }
+        .order-card .total {
+            font-weight: bold;
+            margin-top: 10px;
+            border-top: 1px dashed #ccc;
+            padding-top: 10px;
+        }
+        .notification-bell {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            background-color: #FFC107; /* Sarı zil rengi */
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            animation: none; /* Varsayılan olarak animasyon yok */
+        }
+        @keyframes ring {
+            0% { transform: rotate(0deg); }
+            10% { transform: rotate(15deg); }
+            20% { transform: rotate(-15deg); }
+            30% { transform: rotate(15deg); }
+            40% { transform: rotate(-15deg); }
+            50% { transform: rotate(0deg); }
+            100% { transform: rotate(0deg); }
+        }
+        .ringing {
+            animation: ring 0.5s ease-in-out 3; /* 3 kez çal */
+        }
+    </style>
+</head>
+<body>
+    <h1>Mutfak / Kasa Ekranı</h1>
+    <div id="orders-container">
+        </div>
+
+    <div id="notificationBell" class="notification-bell">🔔</div>
+    <audio id="notificationSound" src="notification.mp3" preload="auto"></audio> 
+
+    <script>
+        // Socket.IO istemcisini başlat
+        // BURAYI KENDİ SUNUCU ADRESİNİZLE DEĞİŞTİRMELİSİNİZ!
+        // Eğer sunucunuz http://localhost:3000 adresinde çalışıyorsa:
+        const socket = io('https://garson-pos-server.vercel.app/'); 
+
+        const ordersContainer = document.getElementById('orders-container');
+        const notificationSound = document.getElementById('notificationSound');
+        const notificationBell = document.getElementById('notificationBell');
+
+        // Sunucudan 'newOrder' olayı geldiğinde
+        socket.on('newOrder', (order) => {
+            console.log('Yeni sipariş alındı:', order);
+            const orderCard = document.createElement('div');
+            orderCard.className = 'order-card';
+            orderCard.innerHTML = `
+                <h2>Masa: ${order.tableName}</h2>
+                <h3>Sipariş Detayları:</h3>
+                <ul>
+                    ${order.items.map(item => `
+                        <li>${item.productName} (${item.quantity} adet) - ${item.totalPrice.toFixed(2)} TL</li>
+                    `).join('')}
+                </ul>
+                <div class="total">Toplam: ${order.totalAmount.toFixed(2)} TL</div>
+            `;
+            ordersContainer.prepend(orderCard); // En yeni siparişi en üste ekle
+
+            // Bildirim sesi çal
+            notificationSound.play().catch(e => console.error("Ses çalma hatası:", e)); // Promise hatasını yakala
+            // Zil animasyonunu tetikle
+            notificationBell.classList.add('ringing');
+            setTimeout(() => {
+                notificationBell.classList.remove('ringing');
+            }, 1500); // Animasyon süresinden biraz daha uzun tut
+        });
+
+        // Sunucudan 'notificationSound' olayı geldiğinde (isteğe bağlı, ayrı bir olay)
+        socket.on('notificationSound', () => {
+            notificationSound.play().catch(e => console.error("Ses çalma hatası:", e));
+            notificationBell.classList.add('ringing');
+            setTimeout(() => {
+                notificationBell.classList.remove('ringing');
+            }, 1500);
+        });
+
+        socket.on('connect', () => {
+            console.log('Sunucuya bağlandı!');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Sunucu bağlantısı kesildi!');
+        });
+
+        socket.on('connect_error', (err) => {
+            console.error('Bağlantı hatası:', err.message);
+        });
+    </script>
+</body>
+</html>
