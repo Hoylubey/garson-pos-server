@@ -67,6 +67,57 @@
         .ringing {
             animation: ring 0.5s ease-in-out 3; /* 3 kez çal */
         }
+        .order-actions {
+        display: flex; /* Butonları yan yana hizala */
+        gap: 10px; /* Butonlar arasına boşluk bırak */
+        margin-top: 15px; /* Üstteki içerikten boşluk bırak */
+    }
+
+    .pay-button, .print-button { /* Hem ödendi hem de yazdır butonu için ortak stil */
+        flex: 1; /* Mevcut alanı eşit paylaşsınlar */
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 1em;
+        box-sizing: border-box;
+    }
+
+    .pay-button {
+        background-color: #28a745; /* Yeşil tonu */
+    }
+
+    .pay-button:hover {
+        background-color: #218838;
+    }
+
+    .print-button {
+        background-color: #007bff; /* Mavi tonu */
+    }
+
+    .print-button:hover {
+        background-color: #0056b3;
+    }
+
+    /* Yazdırma işlemi için gerekli stil - Sadece çıktıda görünür */
+    @media print {
+        body * {
+            visibility: hidden; /* Her şeyi gizle */
+        }
+        .printable-content, .printable-content * {
+            visibility: visible; /* Sadece yazdırılabilir içeriği göster */
+        }
+        .printable-content {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%; /* Tam genişlikte yazdır */
+        }
+        .order-actions {
+            display: none; /* Yazdırma çıktısında butonları gizle */
+        }
+    }
     </style>
 </head>
 <body>
