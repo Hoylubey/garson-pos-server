@@ -18,10 +18,15 @@ const io = new Server(server, {
 });
 
 const PORT = process.env.PORT || 3000; // Sunucunun çalışacağı portu belirle (varsayılan 3000)
-app.use(express.static('public'));
+app.use(express.static('public')); // 'public' klasöründeki statik dosyaları servis et (index.html için)
+
 // Middleware'ler (istekleri işlemeden önce çalışan fonksiyonlar)
 app.use(cors()); // CORS'u etkinleştir: Bu, farklı kaynaklardan (Android uygulamanız gibi) gelen isteklerin kabul edilmesini sağlar.
 app.use(express.json()); // JSON body parsing'i etkinleştir: Bu, Android'den gelen JSON verisini req.body'ye dönüştürür.
+
+// Motorcu konumlarını saklamak için obje
+// Anahtar: riderId, Değer: { latitude, longitude, timestamp, speed, bearing, accuracy }
+const riderLocations = {};
 
 // =========================================================
 // API Endpoint'leri
@@ -47,26 +52,58 @@ app.post('/api/order', (req, res) => {
 
 // GET / endpoint'i: Sunucunun çalışıp çalışmadığını kontrol etmek için basit bir yanıt
 app.get('/', (req, res) => {
-    res.send('Garson POS Sunucusu Çalışıyor! API endpointi: /api/order');
+    // index.html dosyasını direkt olarak public klasöründen servis etmek için
+    res.sendFile(__dirname + '/public/index.html');
 });
 
 // =========================================================
 // Socket.IO Olay Dinleyicileri
 // =========================================================
 
-// Bir web istemcisi bağlandığında
+// Bir istemci (web veya Android) bağlandığında
 io.on('connection', (socket) => {
-    console.log(`[${new Date().toLocaleTimeString()}] Yeni bir web istemcisi bağlandı: ${socket.id}`);
+    console.log(`[${new Date().toLocaleTimeString()}] Yeni bir istemci bağlandı: ${socket.id}`);
 
-    // Web istemcisi bağlantısı kesildiğinde
+    // Web istemcisi bağlandığında, mevcut tüm motorcu konumlarını gönder
+    // Bu, tarayıcı yenilendiğinde veya ilk açıldığında motorcuları haritada gösterir
+    socket.on('requestCurrentRiderLocations', () => {
+        console.log(`[${new Date().toLocaleTimeString()}] Web istemcisi ${socket.id} mevcut motorcu konumlarını istedi.`);
+        socket.emit('currentRiderLocations', riderLocations);
+    });
+
+    // Android uygulamasından gelen motorcu konum güncellemelerini dinle
+    socket.on('riderLocationUpdate', (locationData) => {
+        const { riderId, latitude, longitude, timestamp, speed, bearing, accuracy } = locationData;
+        console.log(`[${new Date().toLocaleTimeString()}] Motorcu Konumu Güncellendi - ID: ${riderId}, Lat: ${latitude}, Lng: ${longitude}`);
+
+        // Konum verisini bellekte sakla (veya bir veritabanına kaydedin)
+        riderLocations[riderId] = {
+            latitude,
+            longitude,
+            timestamp,
+            speed,
+            bearing,
+            accuracy
+        };
+
+        // Tüm bağlı web istemcilerine yeni konumu yayınla
+        io.emit('newRiderLocation', locationData);
+    });
+
+    // İstemci bağlantısı kesildiğinde
     socket.on('disconnect', () => {
-        console.log(`[${new Date().toLocaleTimeString()}] Bir web istemcisi bağlantısı kesildi: ${socket.id}`);
+        console.log(`[${new Date().toLocaleTimeString()}] Bir istemci bağlantısı kesildi: ${socket.id}`);
+        // Eğer belirli bir riderId'ye sahip bir motorcu bağlantısı kesilirse,
+        // ilgili marker'ı haritadan kaldırmak için istemcilere bir olay gönderebiliriz.
+        // Ancak Android uygulamasının her zaman aktif olması bekleniyorsa bu şimdilik gerekli değil.
     });
 
     // İstemciden gelebilecek diğer olayları burada dinleyebilirsiniz (örneğin sipariş onaylama)
-    // socket.on('orderReceivedAck', (orderId) => {
-    //     console.log(`Web istemcisi siparişi onayladı: ${orderId}`);
-    // });
+    socket.on('orderPaid', (data) => {
+        console.log(`[${new Date().toLocaleTimeString()}] Web istemcisi siparişi ödendi olarak işaretledi: Masa ${data.tableName}, Toplam ${data.totalAmount} TL`);
+        // İlgili siparişi veritabanında "ödendi" olarak işaretleyebiliriz.
+        // Örneğin: updateOrderStatus(data.orderId, 'paid');
+    });
 });
 
 // Sunucuyu belirtilen portta dinlemeye başla
