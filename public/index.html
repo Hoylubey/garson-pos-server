@@ -5,8 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mutfak / Kasa Ekranı</title>
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4Nx5LZrLtx9zG+gK1Ntx9q2L9M2+D2D+p0Bq3C2A3A="
+        crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-p4Nx5LZrLtx9zG+gK1Ntx9q2L9M2+D2D+p0Bq3C2A3A="
+        crossorigin=""></script>
 
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 
@@ -173,4 +177,330 @@
             body {
                 width: 58mm; /* Body genişliğini fiş genişliğiyle sınırla */
                 margin: 0;
-                font-family: 'Consolas', 'Courier New', monospace; /* Fişler için mono-uzaylı
+                font-family: 'Consolas', 'Courier New', monospace; /* Fişler için mono-uzaylı font daha iyi olabilir */
+                font-size: 10px; /* Daha küçük font boyutu */
+                line-height: 1.2;
+                color: #000;
+            }
+            .receipt-container {
+                padding: 5mm; /* İç boşluk */
+                box-sizing: border-box;
+            }
+            .receipt-header, .receipt-footer {
+                text-align: center;
+                margin-bottom: 5px;
+            }
+            .receipt-info p, .receipt-item {
+                margin: 2px 0;
+                white-space: pre-wrap; /* Uzun isimler için satır atlama */
+            }
+            .receipt-total {
+                font-weight: bold;
+                text-align: right;
+                margin-top: 10px;
+                font-size: 11px;
+            }
+            hr {
+                border: 0;
+                border-top: 1px dashed #888; /* Daha ince, noktalı çizgi */
+                margin: 5px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="main-content">
+        <h1>Mutfak / Kasa Ekranı</h1>
+        <div id="orders-container">
+        </div>
+    </div>
+
+    <div id="map-container">
+        <h2>Motorcu Konumları</h2>
+        <div id="map"></div>
+    </div>
+
+    <div id="notificationBell" class="notification-bell">🔔</div>
+    <audio id="notificationSound" src="notification.mp3" preload="auto"></audio>
+
+    <script>
+        // Socket.IO istemcisini başlat
+        // BURAYI KENDİ SUNUCU ADRESİNİZLE DEĞİŞTİRMELİSİNİZ!
+        const socket = io('https://garson-pos-server.onrender.com');
+
+        // DOM elemanlarına referanslar
+        const ordersContainer = document.getElementById('orders-container');
+        const notificationSound = document.getElementById('notificationSound');
+        const notificationBell = document.getElementById('notificationBell');
+
+        // Leaflet Harita değişkenleri
+        let map;
+        const riderMarkers = {}; // Motorcu ID'sine göre markerları saklayacak obje
+
+        // Haritayı başlatma fonksiyonu
+        function initMap() {
+            // Harita merkezini ve zoom seviyesini ayarlayın
+            // Burası için işletmenizin veya genel bir merkezin koordinatlarını girebilirsiniz.
+            // Örneğin: İstanbul koordinatları
+            const initialLat = 41.0082;
+            const initialLng = 28.9784;
+
+            map = L.map('map').setView([initialLat, initialLng], 12);
+
+            // OpenStreetMap katmanı ekle
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            // İlk açılışta mevcut motorcu konumlarını isteyebiliriz
+            socket.emit('requestCurrentRiderLocations');
+        }
+
+        // Sayfa yüklendiğinde haritayı başlat
+        document.addEventListener('DOMContentLoaded', initMap);
+
+        // addOrderToDisplay fonksiyonu: Yeni gelen siparişi ekrana ekler
+        function addOrderToDisplay(order) {
+            const orderCard = document.createElement('div');
+            orderCard.className = 'order-card';
+            // Her sipariş kartına benzersiz bir ID atayın
+            orderCard.id = `order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+            // Sipariş ID'sini HTML veri özelliği olarak saklayın
+            orderCard.dataset.orderId = orderCard.id;
+
+            // Sipariş kartının genel HTML içeriği
+            orderCard.innerHTML = `
+                <div class="order-header">Masa: ${order.tableName}</div>
+                <div class="order-details">
+                    ${order.items.map(item => `
+                        <div class="order-item">
+                            ${item.productName} (${item.quantity} adet) - ${item.totalPrice.toFixed(2)} TL
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="order-total">Toplam: ${order.totalAmount.toFixed(2)} TL</div>
+                <div class="order-actions">
+                    <button class="pay-button">Ödendi</button>
+                    <button class="print-button">Yazdır</button>
+                </div>
+            `;
+
+            // "Ödendi" butonuna tıklama dinleyicisi ekle
+            const payButton = orderCard.querySelector('.pay-button');
+            payButton.addEventListener('click', () => {
+                console.log('Sipariş ödendi:', order);
+                // Sunucuya siparişin ödendiğini bildir
+                socket.emit('orderPaid', {
+                    orderId: orderCard.dataset.orderId,
+                    tableName: order.tableName,
+                    totalAmount: order.totalAmount
+                });
+                orderCard.remove(); // Sipariş kartını ekrandan kaldır
+                playNotificationSound('payment'); // İsteğe bağlı olarak ödeme sesi çal
+            });
+
+            // "Yazdır" butonuna tıklama dinleyicisi ekle
+            const printButton = orderCard.querySelector('.print-button');
+            printButton.addEventListener('click', () => {
+                console.log('Fiş yazdırma isteği:', order);
+                printOrderReceipt(order); // Yazdırma fonksiyonunu çağır
+            });
+
+            // En yeni siparişi en üste ekle
+            ordersContainer.prepend(orderCard);
+        }
+
+        // printOrderReceipt fonksiyonu: Sipariş fişini yazdırmak için yeni bir pencere açar
+        function printOrderReceipt(order) {
+            // Yazdırılacak HTML içeriğini oluştur (template literal kullanarak değişkenleri doğru yorumla)
+            let printContent = `
+                <div class="receipt-container">
+                    <div class="receipt-header">--- Olimpiyat Kokoreç ---</div>
+                    <p class="receipt-info">Masa: ${order.tableName}</p>
+                    <p class="receipt-info">Tarih: ${new Date().toLocaleString()}</p>
+                    <hr>
+                    <div class="receipt-items">
+            `;
+
+            order.items.forEach(item => {
+                printContent += `<p class="receipt-item">${item.productName} (${item.quantity} adet) - ${item.totalPrice.toFixed(2)} TL</p>`;
+            });
+
+            printContent += `
+                    </div>
+                    <hr>
+                    <div class="receipt-total">TOPLAM: ${order.totalAmount.toFixed(2)} TL</div>
+                    <div class="receipt-footer">Afiyet Olsun! Teşekkürler!</div>
+                </div>
+            `;
+
+            // Yeni bir pencerede yazdırma içeriğini göster
+            let printWindow = window.open('', '_blank');
+            printWindow.document.write('<!DOCTYPE html><html><head><title>Fiş - ' + order.tableName + '</title>');
+            printWindow.document.write('<style>');
+            // @media print stillerini buraya da kopyalayın ki yazdırma penceresinde de uygulansın
+            printWindow.document.write(`
+                /* POS Fişi Stilleri - YAZDIRMA PENCERESİ İÇİN */
+                @page {
+                    size: 58mm auto; /* 58mm genişlik, yükseklik içeriğe göre ayarlanır */
+                    margin: 0; /* Sayfa kenar boşluklarını kaldır */
+                }
+                body {
+                    width: 58mm; /* Body genişliğini fiş genişliğiyle sınırla */
+                    margin: 0;
+                    font-family: 'Consolas', 'Courier New', monospace; /* Fişler için mono-uzaylı font daha iyi olabilir */
+                    font-size: 10px; /* Daha küçük font boyutu */
+                    line-height: 1.2;
+                    color: #000;
+                }
+                .receipt-container {
+                    padding: 5mm; /* İç boşluk */
+                    box-sizing: border-box;
+                }
+                .receipt-header, .receipt-footer {
+                    text-align: center;
+                    margin-bottom: 5px;
+                }
+                .receipt-info p, .receipt-item {
+                    margin: 2px 0;
+                    white-space: pre-wrap; /* Uzun isimler için satır atlama */
+                }
+                .receipt-total {
+                    font-weight: bold;
+                    text-align: right;
+                    margin-top: 10px;
+                    font-size: 11px;
+                }
+                hr {
+                    border: 0;
+                    border-top: 1px dashed #888; /* Daha ince, noktalı çizgi */
+                    margin: 5px 0;
+                }
+            `);
+            printWindow.document.write('</style>');
+            printWindow.document.write('</head><body>');
+            printWindow.document.write(printContent); // Hazırlanan içeriği yazdır
+            printWindow.document.write('</body></html>');
+            printWindow.document.close();
+            printWindow.focus(); // Yeni pencereye odaklan
+            printWindow.print(); // Yazdırma iletişim kutusunu aç
+            // printWindow.close(); // Yazdırma işlemi bittikten sonra kapatmak isteyebilirsiniz
+        }
+
+        // playNotificationSound fonksiyonu: Bildirim sesi çalar
+        function playNotificationSound(type = 'newOrder') {
+            const audio = document.getElementById('notificationSound');
+            if (audio) {
+                audio.play().catch(e => console.error("Ses çalma hatası:", e));
+            }
+        }
+
+        /* Socket.IO Olay Dinleyicileri */
+
+        // Sunucudan 'newOrder' olayı geldiğinde
+        socket.on('newOrder', (order) => {
+            console.log('Yeni sipariş alındı:', order);
+            addOrderToDisplay(order); // Yeni siparişi ekrana ekle
+
+            // Bildirim sesi çal ve zil animasyonunu tetikle
+            playNotificationSound(); // Varsayılan olarak 'newOrder' sesi çalar
+            notificationBell.classList.add('ringing');
+            setTimeout(() => {
+                notificationBell.classList.remove('ringing');
+            }, 1500);
+        });
+
+        // Sunucudan 'notificationSound' olayı geldiğinde (isteğe bağlı, ayrı bir olay)
+        socket.on('notificationSound', () => {
+            playNotificationSound();
+            notificationBell.classList.add('ringing');
+            setTimeout(() => {
+                notificationBell.classList.remove('ringing');
+            }, 1500);
+        });
+
+        // Sunucudan 'newRiderLocation' olayı geldiğinde
+        socket.on('newRiderLocation', (locationData) => {
+            updateRiderLocation(locationData);
+        });
+
+        // Sunucudan mevcut motorcu konumları geldiğinde
+        socket.on('currentRiderLocations', (locations) => {
+            console.log('Mevcut motorcu konumları alındı:', locations);
+            for (const riderId in locations) {
+                updateRiderLocation(locations[riderId]);
+            }
+        });
+
+        // Bağlantı durumu logları
+        socket.on('connect', () => {
+            console.log('Sunucuya bağlandı!');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Sunucu bağlantısı kesildi!');
+            // Bağlantı kesildiğinde tüm motorcu markerlarını kaldırabilirsiniz
+            for (const riderId in riderMarkers) {
+                if (riderMarkers[riderId]) {
+                    riderMarkers[riderId].remove();
+                    delete riderMarkers[riderId];
+                }
+            }
+        });
+
+        socket.on('connect_error', (err) => {
+            console.error('Bağlantı hatası:', err.message);
+        });
+
+        // Motorcu konumunu haritada güncelleyen fonksiyon (Leaflet için)
+        function updateRiderLocation(locationData) {
+            const { riderId, latitude, longitude, speed, bearing, timestamp } = locationData;
+            const latLng = [latitude, longitude]; // Leaflet için [lat, lng] array formatı
+
+            if (!map) {
+                console.warn('Harita henüz başlatılmadı.');
+                return;
+            }
+
+            // Motorcu ikonu tanımı
+            // Kendi motorcu ikonunuzu 'public/images/motorcu_icon.png' olarak ayarlayın
+            // Eğer yoksa, Leaflet'ın varsayılan ikonunu kullanacaktır.
+            const customIcon = L.icon({
+                iconUrl: 'images/motorcu_icon.png', // Bu yolu kendi ikon dosyanızın konumuna göre ayarlayın
+                iconSize: [32, 32],     // ikonun boyutları
+                iconAnchor: [16, 16],   // ikonun konumlandırma noktası (ikonun merkezi)
+                popupAnchor: [0, -16]   // popup penceresinin konumlandırma noktası
+            });
+
+            if (riderMarkers[riderId]) {
+                // Marker zaten varsa konumunu güncelle
+                riderMarkers[riderId].setLatLng(latLng);
+
+                // InfoWindow içeriğini güncelle (eğer açıksa)
+                if (riderMarkers[riderId].getPopup()) {
+                    riderMarkers[riderId].getPopup().setContent(
+                        `<div><strong>Motorcu ID:</strong> ${riderId}</div>` +
+                        `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
+                        `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Güncellenme:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>`
+                    );
+                }
+            } else {
+                // Yeni marker oluştur
+                riderMarkers[riderId] = L.marker(latLng, { icon: customIcon }).addTo(map)
+                    .bindPopup(
+                        `<div><strong>Motorcu ID:</strong> ${riderId}</div>` +
+                        `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
+                        `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Güncellenme:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>`
+                    );
+            }
+            // Haritayı motorcunun konumuna odaklama (isteğe bağlı, çok fazla motorcu varsa rahatsız edebilir)
+            // map.panTo(latLng);
+        }
+    </script>
+</body>
+</html>
