@@ -4,19 +4,52 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mutfak / Kasa Ekranı</title>
-    
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script> 
-    
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4Nx5LZrLtx9zG+gK1Ntx9q2L9M2+D2D+p0Bq3C2A3A="
+        crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-p4Nx5LZrLtx9zG+gK1Ntx9q2L9M2+D2D+p0Bq3C2A3A="
+        crossorigin=""></script>
+
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+
     <style>
         /* Ana sayfa CSS stilleri */
-        body { 
-            font-family: Arial, sans-serif; 
-            margin: 20px; 
-            background-color: #f4f4f4; 
-            color: #333; 
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+            display: flex; /* Flexbox kullanarak düzeni ayarla */
+            flex-direction: row; /* Yan yana kutular */
+            gap: 20px; /* Kutular arası boşluk */
         }
-        h1 { 
-            color: #333; 
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            width: 100%; /* Başlık tüm genişliği kaplasın */
+        }
+        #main-content {
+            flex: 2; /* Ana içerik (siparişler) daha fazla yer kaplasın */
+            display: flex;
+            flex-direction: column;
+        }
+        #map-container {
+            flex: 1; /* Harita konteyneri kalan yeri kaplasın */
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 15px;
+            height: 80vh; /* Yüksekliği ayarla */
+            position: sticky; /* Sayfayı kaydırsan bile harita sabit kalsın */
+            top: 20px; /* Üstten 20px boşluk bırak */
+        }
+        #map {
+            width: 100%;
+            height: calc(100% - 30px); /* Kalan alanı kapla */
+            border-radius: 4px;
+            margin-top: 10px;
         }
         #orders-container {
             display: grid;
@@ -31,7 +64,7 @@
             padding: 15px;
             border-left: 5px solid #4CAF50; /* Yeşil kenarlık */
             display: flex; /* İçeriği sütun olarak sırala */
-            flex-direction: column; 
+            flex-direction: column;
         }
         .order-card .order-header {
             font-weight: bold;
@@ -176,29 +209,62 @@
     </style>
 </head>
 <body>
-    <h1>Mutfak / Kasa Ekranı</h1>
-    <div id="orders-container">
+    <div id="main-content">
+        <h1>Mutfak / Kasa Ekranı</h1>
+        <div id="orders-container">
         </div>
+    </div>
+
+    <div id="map-container">
+        <h2>Motorcu Konumları</h2>
+        <div id="map"></div>
+    </div>
 
     <div id="notificationBell" class="notification-bell">🔔</div>
-    <audio id="notificationSound" src="notification.mp3" preload="auto"></audio> 
+    <audio id="notificationSound" src="notification.mp3" preload="auto"></audio>
 
     <script>
         // Socket.IO istemcisini başlat
         // BURAYI KENDİ SUNUCU ADRESİNİZLE DEĞİŞTİRMELİSİNİZ!
-        const socket = io('https://garson-pos-server.onrender.com'); 
+        const socket = io('https://garson-pos-server.onrender.com');
 
         // DOM elemanlarına referanslar
         const ordersContainer = document.getElementById('orders-container');
         const notificationSound = document.getElementById('notificationSound');
         const notificationBell = document.getElementById('notificationBell');
 
+        // Leaflet Harita değişkenleri
+        let map;
+        const riderMarkers = {}; // Motorcu ID'sine göre markerları saklayacak obje
+
+        // Haritayı başlatma fonksiyonu
+        function initMap() {
+            // Harita merkezini ve zoom seviyesini ayarlayın
+            // Burası için işletmenizin veya genel bir merkezin koordinatlarını girebilirsiniz.
+            // Örneğin: İstanbul koordinatları
+            const initialLat = 41.0082;
+            const initialLng = 28.9784;
+
+            map = L.map('map').setView([initialLat, initialLng], 12);
+
+            // OpenStreetMap katmanı ekle
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            // İlk açılışta mevcut motorcu konumlarını isteyebiliriz
+            socket.emit('requestCurrentRiderLocations');
+        }
+
+        // Sayfa yüklendiğinde haritayı başlat
+        document.addEventListener('DOMContentLoaded', initMap);
+
         // addOrderToDisplay fonksiyonu: Yeni gelen siparişi ekrana ekler
         function addOrderToDisplay(order) {
             const orderCard = document.createElement('div');
             orderCard.className = 'order-card';
             // Her sipariş kartına benzersiz bir ID atayın
-            orderCard.id = `order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`; 
+            orderCard.id = `order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
             // Sipariş ID'sini HTML veri özelliği olarak saklayın
             orderCard.dataset.orderId = orderCard.id;
@@ -225,10 +291,10 @@
             payButton.addEventListener('click', () => {
                 console.log('Sipariş ödendi:', order);
                 // Sunucuya siparişin ödendiğini bildir
-                socket.emit('orderPaid', { 
-                    orderId: orderCard.dataset.orderId, 
-                    tableName: order.tableName, 
-                    totalAmount: order.totalAmount 
+                socket.emit('orderPaid', {
+                    orderId: orderCard.dataset.orderId,
+                    tableName: order.tableName,
+                    totalAmount: order.totalAmount
                 });
                 orderCard.remove(); // Sipariş kartını ekrandan kaldır
                 playNotificationSound('payment'); // İsteğe bağlı olarak ödeme sesi çal
@@ -323,7 +389,7 @@
         }
 
         // playNotificationSound fonksiyonu: Bildirim sesi çalar
-        function playNotificationSound(type = 'newOrder') { 
+        function playNotificationSound(type = 'newOrder') {
             const audio = document.getElementById('notificationSound');
             if (audio) {
                 audio.play().catch(e => console.error("Ses çalma hatası:", e));
@@ -342,7 +408,7 @@
             notificationBell.classList.add('ringing');
             setTimeout(() => {
                 notificationBell.classList.remove('ringing');
-            }, 1500); 
+            }, 1500);
         });
 
         // Sunucudan 'notificationSound' olayı geldiğinde (isteğe bağlı, ayrı bir olay)
@@ -354,6 +420,19 @@
             }, 1500);
         });
 
+        // Sunucudan 'newRiderLocation' olayı geldiğinde
+        socket.on('newRiderLocation', (locationData) => {
+            updateRiderLocation(locationData);
+        });
+
+        // Sunucudan mevcut motorcu konumları geldiğinde
+        socket.on('currentRiderLocations', (locations) => {
+            console.log('Mevcut motorcu konumları alındı:', locations);
+            for (const riderId in locations) {
+                updateRiderLocation(locations[riderId]);
+            }
+        });
+
         // Bağlantı durumu logları
         socket.on('connect', () => {
             console.log('Sunucuya bağlandı!');
@@ -361,11 +440,67 @@
 
         socket.on('disconnect', () => {
             console.log('Sunucu bağlantısı kesildi!');
+            // Bağlantı kesildiğinde tüm motorcu markerlarını kaldırabilirsiniz
+            for (const riderId in riderMarkers) {
+                if (riderMarkers[riderId]) {
+                    riderMarkers[riderId].remove();
+                    delete riderMarkers[riderId];
+                }
+            }
         });
 
         socket.on('connect_error', (err) => {
             console.error('Bağlantı hatası:', err.message);
         });
+
+        // Motorcu konumunu haritada güncelleyen fonksiyon (Leaflet için)
+        function updateRiderLocation(locationData) {
+            const { riderId, latitude, longitude, speed, bearing, timestamp } = locationData;
+            const latLng = [latitude, longitude]; // Leaflet için [lat, lng] array formatı
+
+            if (!map) {
+                console.warn('Harita henüz başlatılmadı.');
+                return;
+            }
+
+            // Motorcu ikonu tanımı
+            // Kendi motorcu ikonunuzu 'public/images/motorcu_icon.png' olarak ayarlayın
+            // Eğer yoksa, Leaflet'ın varsayılan ikonunu kullanacaktır.
+            const customIcon = L.icon({
+                iconUrl: 'images/motorcu_icon.png', // Bu yolu kendi ikon dosyanızın konumuna göre ayarlayın
+                iconSize: [32, 32],     // ikonun boyutları
+                iconAnchor: [16, 16],   // ikonun konumlandırma noktası (ikonun merkezi)
+                popupAnchor: [0, -16]   // popup penceresinin konumlandırma noktası
+            });
+
+            if (riderMarkers[riderId]) {
+                // Marker zaten varsa konumunu güncelle
+                riderMarkers[riderId].setLatLng(latLng);
+
+                // InfoWindow içeriğini güncelle (eğer açıksa)
+                if (riderMarkers[riderId].getPopup()) {
+                    riderMarkers[riderId].getPopup().setContent(
+                        `<div><strong>Motorcu ID:</strong> ${riderId}</div>` +
+                        `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
+                        `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Güncellenme:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>`
+                    );
+                }
+            } else {
+                // Yeni marker oluştur
+                riderMarkers[riderId] = L.marker(latLng, { icon: customIcon }).addTo(map)
+                    .bindPopup(
+                        `<div><strong>Motorcu ID:</strong> ${riderId}</div>` +
+                        `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
+                        `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Güncellenme:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>`
+                    );
+            }
+            // Haritayı motorcunun konumuna odaklama (isteğe bağlı, çok fazla motorcu varsa rahatsız edebilir)
+            // map.panTo(latLng);
+        }
     </script>
 </body>
 </html>
