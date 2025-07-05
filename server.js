@@ -1,133 +1,114 @@
-// server.js dosyasının içeriği (SQLite kaldırıldı, bellek tabanlı)
+// server.js
+const express = require('express'); // Express framework'ünü dahil et
+const http = require('http'); // Node.js'in dahili HTTP modülünü dahil et (Socket.IO için gerekli)
+const { Server } = require("socket.io"); // Socket.IO sunucusunu dahil et
+const cors = require('cors'); // CORS middleware'ini dahil et
 
-const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
-const cors = require('cors');
-// const sqlite3 = require('sqlite3').verbose(); // SQLite3 modülü kaldırıldı
-
+// Express uygulamasını oluştur
 const app = express();
+// HTTP sunucusunu oluştur (Express uygulamasını kullanarak)
 const server = http.createServer(app);
 
-app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST'],
-    allowedHeaders: ['Content-Type']
-}));
-
-app.use(express.json());
-app.use(express.static('public'));
-
-// =========================================================
-// Bellek Tabanlı Ürünler ve Kategoriler (SQLite yerine)
-// =========================================================
-
-// Kategoriler ve Ürünler için basit bir bellek yapısı
-// Ürün ID'lerini sayısal tutacağız, Android uygulamanızla uyumlu olması için.
-let categories = [
-    { id: 1, name: "İçecekler" },
-    { id: 2, name: "Kokoreç" },
-    { id: 3, name: "Yan Ürünler" },
-    { id: 4, name: "Tatlılar" }
-];
-
-// Android uygulamasındaki ürün listesini buraya ekleyelim, ve ID'leri otomatik verelim
-// Bu ürünler sadece sunucu belleğinde kalacak, kalıcı değil.
-let products = [];
-let productIdCounter = 1;
-
-function initializeProducts() {
-    const productsToAdd = [
-        { name: "Kola", price: 25.00, categoryName: "İçecekler" },
-        { name: "Fanta", price: 22.00, categoryName: "İçecekler" },
-        { name: "Ayran", price: 15.00, categoryName: "İçecekler" },
-        { name: "Su", price: 10.00, categoryName: "İçecekler" },
-        { name: "Yarım Ekmek Kokoreç", price: 120.00, categoryName: "Kokoreç" },
-        { name: "Tam Ekmek Kokoreç", price: 200.00, categoryName: "Kokoreç" },
-        { name: "Porsiyon Kokoreç", price: 150.00, categoryName: "Kokoreç" },
-        { name: "Patates Cips", price: 40.00, categoryName: "Yan Ürünler" },
-        { name: "Turşu", price: 10.00, categoryName: "Yan Ürünler" },
-        { name: "Sütlaç", price: 35.00, categoryName: "Tatlılar" },
-        { name: "Künefe", price: 60.00, categoryName: "Tatlılar" },
-        // Android uygulamasından gelen ürün listesi:
-        { name: "Yarım Ekmek İzmir Kokoreç ", price: 240.0, categoryName: "Kokoreç" },
-        { name: "Üç Çeyrek Ekmek Kokoreç ", price: 300.0, categoryName: "Kokoreç" },
-        { name: "Porsiyon Kokoreç ", price: 400.0, categoryName: "Kokoreç" },
-        { name: "Yarım Ekmek Tavuk Kokoreç ", price: 100.0, categoryName: "Kokoreç" },
-        { name: "Üç Çeyrek Tavuk Kokoreç", price: 150.0, categoryName: "Kokoreç" },
-        { name: "Sade Patso ", price: 110.0, categoryName: "Yan Ürünler" },
-        { name: "Sosisli Patso ", price: 130.0, categoryName: "Yan Ürünler" },
-        { name: "Ciğerli Patso ", price: 180.0, categoryName: "Yan Ürünler" },
-        { name: "Köfteli Patso", price: 180.0, categoryName: "Yan Ürünler" },
-        { name: "Kaşarlı Patso ", price: 130.0, categoryName: "Yan Ürünler" },
-        { name: "Tavuklu Patso ", price: 160.0, categoryName: "Yan Ürünler" },
-        { name: "Amerikanlı Patso ", price: 130.0, categoryName: "Yan Ürünler" },
-        { name: "Patates Kızartması", price: 110.0, categoryName: "Yan Ürünler" },
-        { name: "Yarım Ekmek Köfte ", price: 170.0, categoryName: "Kokoreç" }, // Kategorileri kontrol et
-        { name: "Üç Çeyrek Ekmek Köfte ", price: 250.0, categoryName: "Kokoreç" },
-        { name: "Porsiyon Köfte ", price: 270.0, categoryName: "Kokoreç" },
-        { name: "Hamburger", price: 130.0, categoryName: "Yan Ürünler" },
-        { name: "Yarım Ekmek Ciğer ", price: 170.0, categoryName: "Kokoreç" },
-        { name: "Üç Çeyrek Ekmek Ciğer", price: 250.0, categoryName: "Kokoreç" },
-        { name: "Porsiyon Ciğer ", price: 270.0, categoryName: "Kokoreç" },
-        { name: "Cheeseburger", price: 140.0, categoryName: "Yan Ürünler" },
-        { name: "Yarım Ekmek Sucuk ", price: 200.0, categoryName: "Kokoreç" },
-        { name: "Üç Çeyrek Ekmek Sucuk ", price: 300.0, categoryName: "Kokoreç" },
-        { name: "Islak Burger ", price: 70.0, categoryName: "Yan Ürünler" },
-        { name: "Sosisli Sandviç", price: 70.0, categoryName: "Yan Ürünler" },
-        { name: "Yarım Ekmek Tavuk Döner ", price: 70.0, categoryName: "Kokoreç" },
-        { name: "Tombik Ekmek Tavuk Döner ", price: 80.0, categoryName: "Kokoreç" },
-        { name: "Üç Çeyrek Ekmek Döner ", price: 100.0, categoryName: "Kokoreç" },
-        { name: "Dürüm Tavuk Döner", price: 100.0, categoryName: "Kokoreç" },
-        { name: "Pilav Üstü Tavuk Döner ", price: 170.0, categoryName: "Kokoreç" },
-        { name: "Yarım Ekmek Kaşarlı Tost ", price: 80.0, categoryName: "Yan Ürünler" },
-        { name: "Yarım Ekmek Karışık Tost ", price: 100.0, categoryName: "Yan Ürünler" },
-        { name: "Kutu İçecek ", price: 50.0, categoryName: "İçecekler" },
-        { name: "Şişe Kola ", price: 40.0, categoryName: "İçecekler" },
-        { name: "Ayran ", price: 50.0, categoryName: "İçecekler" },
-        { name: "Küçük Ayran ", price: 30.0, categoryName: "İçecekler" },
-        { name: "Limonata ", price: 50.0, categoryName: "İçecekler" },
-        { name: "Çamlıca Gazoz ", price: 40.0, categoryName: "İçecekler" },
-        { name: "Sade Soda", price: 30.0, categoryName: "İçecekler" },
-        { name: "Limonlu Soda ", price: 35.0, categoryName: "İçecekler" },
-        { name: "Şalgam Suyu ", price: 50.0, categoryName: "İçecekler" },
-        { name: "Su ", price: 15.0, categoryName: "İçecekler" },
-        { name: "Çay ", price: 15.0, categoryName: "İçecekler" },
-        { name: "Midye ", price: 10.0, categoryName: "Yan Ürünler" }
-    ];
-
-    productsToAdd.forEach(p => {
-        const category = categories.find(c => c.name === p.categoryName);
-        if (category) {
-            products.push({
-                id: productIdCounter++, // Otomatik artan sayısal ID
-                name: p.name,
-                price: p.price,
-                categoryId: category.id,
-                categoryName: category.name // Frontend için kolaylık
-            });
-        } else {
-            console.warn(`Kategori bulunamadı: ${p.categoryName} ürünü için ${p.name}.`);
-        }
-    });
-    console.log('Bellek tabanlı ürünler başlatıldı.');
-}
-initializeProducts(); // Sunucu başladığında ürünleri belleğe yükle
-
-// =========================================================
-// Socket.IO Sunucu Ayarları ve Olayları
-// =========================================================
-const io = socketIo(server, {
+// Socket.IO sunucusunu HTTP sunucusu üzerine kur
+const io = new Server(server, {
     cors: {
-        origin: '*',
-        methods: ['GET', 'POST']
+        origin: "*", // TÜM KÖKENLERDEN gelen isteklere izin ver (Geliştirme için iyi, Üretimde güvende olmak için belirli URL'lerle değiştirin!)
+        methods: ["GET", "POST"] // İzin verilen HTTP metotları
     }
 });
 
-// Siparişleri bellekte tutmak için (artık kalıcı değil)
-let activeOrders = {}; // { orderId: { ...orderData } }
+const PORT = process.env.PORT || 3000; // Sunucunun çalışacağı portu belirle (varsayılan 3000)
+app.use(express.static('public')); // 'public' klasöründeki statik dosyaları servis et (index.html için)
 
-// Bu fonksiyon artık veritabanından değil, bellekten yükleyecek
-function loadCurrentOrdersFromMemory() {
-    // Sunucu her başladığında activeOrders sıfırlanacağı için
-    // bu fonksiyon şu an için aslında boş. Sadece yapıyı korumak adına var
+// Middleware'ler (istekleri işlemeden önce çalışan fonksiyonlar)
+app.use(cors()); // CORS'u etkinleştir: Bu, farklı kaynaklardan (Android uygulamanız gibi) gelen isteklerin kabul edilmesini sağlar.
+app.use(express.json()); // JSON body parsing'i etkinleştir: Bu, Android'den gelen JSON verisini req.body'ye dönüştürür.
+
+// Motorcu konumlarını saklamak için obje
+// Anahtar: riderId, Değer: { latitude, longitude, timestamp, speed, bearing, accuracy }
+const riderLocations = {};
+
+// =========================================================
+// API Endpoint'leri
+// =========================================================
+
+// POST /api/order endpoint'i: Android uygulamasından sipariş verilerini almak için
+app.post('/api/order', (req, res) => {
+    const orderData = req.body; // Gelen JSON verisi
+    console.log(`[${new Date().toLocaleTimeString()}] Yeni sipariş alındı - Masa: ${orderData.tableName}, Toplam: ${orderData.totalAmount} TL`);
+
+    // Bu noktada sipariş verilerini bir veritabanına kaydedebilirsiniz.
+    // Örneğin: saveOrderToDatabase(orderData);
+
+    // Web arayüzüne (mutfak/kasa ekranı) gerçek zamanlı bildirim gönder
+    io.emit('newOrder', orderData); // 'newOrder' adında bir olay ve sipariş verilerini gönder
+
+    // Bildirim zili çalması için ayrı bir olay da gönderebiliriz (web arayüzünde dinlenecek)
+    io.emit('notificationSound', { play: true });
+
+    // Android uygulamasına başarılı yanıt gönder
+    res.status(200).json({ message: 'Sipariş başarıyla alındı ve web istemcilere iletildi.' });
+});
+
+// GET / endpoint'i: Sunucunun çalışıp çalışmadığını kontrol etmek için basit bir yanıt
+app.get('/', (req, res) => {
+    // index.html dosyasını direkt olarak public klasöründen servis etmek için
+    res.sendFile(__dirname + '/public/index.html');
+});
+
+// =========================================================
+// Socket.IO Olay Dinleyicileri
+// =========================================================
+
+// Bir istemci (web veya Android) bağlandığında
+io.on('connection', (socket) => {
+    console.log(`[${new Date().toLocaleTimeString()}] Yeni bir istemci bağlandı: ${socket.id}`);
+
+    // Web istemcisi bağlandığında, mevcut tüm motorcu konumlarını gönder
+    // Bu, tarayıcı yenilendiğinde veya ilk açıldığında motorcuları haritada gösterir
+    socket.on('requestCurrentRiderLocations', () => {
+        console.log(`[${new Date().toLocaleTimeString()}] Web istemcisi ${socket.id} mevcut motorcu konumlarını istedi.`);
+        socket.emit('currentRiderLocations', riderLocations);
+    });
+
+    // Android uygulamasından gelen motorcu konum güncellemelerini dinle
+    socket.on('riderLocationUpdate', (locationData) => {
+        const { riderId, latitude, longitude, timestamp, speed, bearing, accuracy } = locationData;
+        console.log(`[${new Date().toLocaleTimeString()}] Motorcu Konumu Güncellendi - ID: ${riderId}, Lat: ${latitude}, Lng: ${longitude}`);
+
+        // Konum verisini bellekte sakla (veya bir veritabanına kaydedin)
+        riderLocations[riderId] = {
+            latitude,
+            longitude,
+            timestamp,
+            speed,
+            bearing,
+            accuracy
+        };
+
+        // Tüm bağlı web istemcilerine yeni konumu yayınla
+        io.emit('newRiderLocation', locationData);
+    });
+
+    // İstemci bağlantısı kesildiğinde
+    socket.on('disconnect', () => {
+        console.log(`[${new Date().toLocaleTimeString()}] Bir istemci bağlantısı kesildi: ${socket.id}`);
+        // Eğer belirli bir riderId'ye sahip bir motorcu bağlantısı kesilirse,
+        // ilgili marker'ı haritadan kaldırmak için istemcilere bir olay gönderebiliriz.
+        // Ancak Android uygulamasının her zaman aktif olması bekleniyorsa bu şimdilik gerekli değil.
+    });
+
+    // İstemciden gelebilecek diğer olayları burada dinleyebilirsiniz (örneğin sipariş onaylama)
+    socket.on('orderPaid', (data) => {
+        console.log(`[${new Date().toLocaleTimeString()}] Web istemcisi siparişi ödendi olarak işaretledi: Masa ${data.tableName}, Toplam ${data.totalAmount} TL`);
+        // İlgili siparişi veritabanında "ödendi" olarak işaretleyebiliriz.
+        // Örneğin: updateOrderStatus(data.orderId, 'paid');
+    });
+});
+
+// Sunucuyu belirtilen portta dinlemeye başla
+server.listen(PORT, () => {
+    console.log(`Sunucu http://localhost:${PORT} adresinde çalışıyor`);
+    console.log(`API endpoint: http://localhost:${PORT}/api/order`);
+    console.log(`Web istemcileri ${PORT} portuna bağlanmalı.`);
+});
