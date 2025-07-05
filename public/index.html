@@ -3,99 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Yönetim Paneli - Mutfak / Kasa / POS</title>
+    <title>Mutfak / Kasa Ekranı</title>
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4Nx5LZrLtx9zG+gK1Ntx9q2L9M2+D2D+p0Bq3C2A3A="
+        crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-p4Nx5LZrLtx9zG+gK1Ntx9q2L9M2+D2D+p0Bq3C2A3A="
+        crossorigin=""></script>
 
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 
     <style>
-        /* Genel Stil Ayarları */
+        /* Ana sayfa CSS stilleri */
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #f0f2f5;
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
             color: #333;
-            display: flex;
-            flex-direction: column;
-            min-height: 100vh;
+            display: flex; /* Flexbox kullanarak düzeni ayarla */
+            flex-direction: row; /* Yan yana kutular */
+            gap: 20px; /* Kutular arası boşluk */
         }
-
-        header {
-            background-color: #2c3e50;
-            color: white;
-            padding: 15px 20px;
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            width: 100%; /* Başlık tüm genişliği kaplasın */
         }
-        header h1 {
-            margin: 0;
-            font-size: 1.8em;
-            flex-grow: 1;
-        }
-        .tab-buttons {
-            display: flex;
-            gap: 10px;
-        }
-        .tab-button {
-            background-color: #34495e;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1em;
-            transition: background-color 0.3s ease;
-        }
-        .tab-button:hover {
-            background-color: #4a627a;
-        }
-        .tab-button.active {
-            background-color: #1abc9c;
-            font-weight: bold;
-        }
-
-        main {
-            display: flex;
-            flex: 1; /* Ana içeriğin dikeyde kalan alanı kaplamasını sağlar */
-            padding: 20px;
-            gap: 20px;
-            overflow: auto; /* İçerik taşarsa kaydırma çubuğu çıkar */
-        }
-
-        .content-section {
-            display: none; /* Varsayılan olarak tüm bölümleri gizle */
-            flex-direction: column;
-            flex: 1;
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-            padding: 20px;
-        }
-        .content-section.active {
-            display: flex; /* Aktif bölümü göster */
-        }
-
-        /* Mutfak / Kasa Ekranı CSS stilleri */
         #main-content {
-            flex: 2; /* Daha fazla yer kaplasın */
+            flex: 2; /* Ana içerik (siparişler) daha fazla yer kaplasın */
+            display: flex;
+            flex-direction: column;
         }
         #map-container {
-            flex: 1; /* Kalan yeri kaplasın */
+            flex: 1; /* Harita konteyneri kalan yeri kaplasın */
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             padding: 15px;
             height: 80vh; /* Yüksekliği ayarla */
-            position: sticky;
-            top: 20px;
-            align-self: flex-start; /* Üstte hizala */
+            position: sticky; /* Sayfayı kaydırsan bile harita sabit kalsın */
+            top: 20px; /* Üstten 20px boşluk bırak */
         }
         #map {
             width: 100%;
-            height: calc(100% - 30px);
+            height: calc(100% - 30px); /* Kalan alanı kapla */
             border-radius: 4px;
             margin-top: 10px;
         }
@@ -110,35 +62,19 @@
             border-radius: 8px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             padding: 15px;
-            border-left: 5px solid #4CAF50;
-            display: flex;
+            border-left: 5px solid #4CAF50; /* Yeşil kenarlık */
+            display: flex; /* İçeriği sütun olarak sırala */
             flex-direction: column;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .order-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
         }
         .order-card .order-header {
             font-weight: bold;
             margin-bottom: 10px;
             font-size: 1.1em;
-            color: #2196F3;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .order-card .order-header span {
-            font-size: 0.8em;
-            color: #666;
-            background-color: #e0e0e0;
-            padding: 3px 8px;
-            border-radius: 5px;
+            color: #2196F3; /* Mavi başlık */
         }
         .order-card .order-item {
             margin-left: 10px;
             margin-bottom: 5px;
-            font-size: 0.95em;
         }
         .order-card .order-total {
             font-weight: bold;
@@ -146,29 +82,9 @@
             text-align: right;
             font-size: 1.2em;
             color: #333;
-            border-top: 1px dashed #ccc;
+            border-top: 1px dashed #ccc; /* Toplam fiyatın üstünde kesik çizgi */
             padding-top: 10px;
         }
-        .order-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-        .pay-button, .print-button {
-            flex: 1;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1em;
-            box-sizing: border-box;
-            transition: background-color 0.2s ease;
-        }
-        .pay-button { background-color: #28a745; }
-        .pay-button:hover { background-color: #218838; }
-        .print-button { background-color: #007bff; }
-        .print-button:hover { background-color: #0056b3; }
 
         /* Bildirim zili stilleri */
         .notification-bell {
@@ -177,7 +93,7 @@
             right: 20px;
             width: 50px;
             height: 50px;
-            background-color: #FFC107;
+            background-color: #FFC107; /* Sarı zil rengi */
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -185,8 +101,8 @@
             font-size: 30px;
             color: #fff;
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            animation: none;
-            z-index: 1000;
+            animation: none; /* Varsayılan olarak animasyon yok */
+            z-index: 1000; /* Diğer elementlerin üstünde olsun */
         }
         @keyframes ring {
             0% { transform: rotate(0deg); }
@@ -198,42 +114,76 @@
             100% { transform: rotate(0deg); }
         }
         .ringing {
-            animation: ring 0.5s ease-in-out 3;
+            animation: ring 0.5s ease-in-out 3; /* 3 kez çal */
+        }
+
+        /* Butonlar için stiller */
+        .order-actions {
+            display: flex; /* Butonları yan yana hizala */
+            gap: 10px; /* Butonlar arasına boşluk bırak */
+            margin-top: 15px; /* Üstteki içerikten boşluk bırak */
+        }
+
+        .pay-button, .print-button { /* Hem ödendi hem de yazdır butonu için ortak stil */
+            flex: 1; /* Mevcut alanı eşit paylaşsınlar */
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            box-sizing: border-box;
+        }
+
+        .pay-button {
+            background-color: #28a745; /* Yeşil tonu */
+        }
+
+        .pay-button:hover {
+            background-color: #218838;
+        }
+
+        .print-button {
+            background-color: #007bff; /* Mavi tonu */
+        }
+
+        .print-button:hover {
+            background-color: #0056b3;
         }
 
         /* Yazdırma işlemi için gerekli stil - Sadece çıktıda görünür */
         @media print {
             body * {
-                visibility: hidden;
+                visibility: hidden; /* Her şeyi gizle */
             }
             .printable-content, .printable-content * {
-                visibility: visible;
+                visibility: visible; /* Sadece yazdırılabilir içeriği göster */
             }
             .printable-content {
                 position: absolute;
                 left: 0;
                 top: 0;
-                width: 100%;
+                width: 100%; /* Tam genişlikte yazdır */
             }
-            .order-actions, .tab-buttons, header {
-                display: none;
+            .order-actions {
+                display: none; /* Yazdırma çıktısında butonları gizle */
             }
 
             /* POS Fişi Stilleri */
             @page {
-                size: 58mm auto;
-                margin: 0;
+                size: 58mm auto; /* 58mm genişlik, yükseklik içeriğe göre ayarlanır */
+                margin: 0; /* Sayfa kenar boşluklarını kaldır */
             }
             body {
-                width: 58mm;
+                width: 58mm; /* Body genişliğini fiş genişliğiyle sınırla */
                 margin: 0;
-                font-family: 'Consolas', 'Courier New', monospace;
-                font-size: 10px;
+                font-family: 'Consolas', 'Courier New', monospace; /* Fişler için mono-uzaylı font daha iyi olabilir */
+                font-size: 10px; /* Daha küçük font boyutu */
                 line-height: 1.2;
                 color: #000;
             }
             .receipt-container {
-                padding: 5mm;
+                padding: 5mm; /* İç boşluk */
                 box-sizing: border-box;
             }
             .receipt-header, .receipt-footer {
@@ -242,7 +192,7 @@
             }
             .receipt-info p, .receipt-item {
                 margin: 2px 0;
-                white-space: pre-wrap;
+                white-space: pre-wrap; /* Uzun isimler için satır atlama */
             }
             .receipt-total {
                 font-weight: bold;
@@ -252,280 +202,23 @@
             }
             hr {
                 border: 0;
-                border-top: 1px dashed #888;
+                border-top: 1px dashed #888; /* Daha ince, noktalı çizgi */
                 margin: 5px 0;
             }
-        }
-
-        /* POS Ekranı CSS stilleri */
-        #pos-screen {
-            display: flex; /* POS ekranının içindeki düzen */
-            flex-grow: 1; /* Kalan tüm alanı kaplasın */
-            gap: 20px;
-            min-height: 70vh; /* Minimum yükseklik */
-        }
-        .product-categories, .product-list, .cart-section {
-            background-color: #f8f8f8;
-            border-radius: 8px;
-            padding: 15px;
-            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
-            display: flex;
-            flex-direction: column;
-        }
-
-        .product-categories {
-            flex: 0 0 200px; /* Sabit genişlik */
-            max-height: 100%;
-            overflow-y: auto;
-            border-right: 1px solid #eee;
-        }
-        .category-button {
-            display: block;
-            width: 100%;
-            padding: 12px 15px;
-            margin-bottom: 8px;
-            background-color: #ecf0f1;
-            border: none;
-            border-radius: 5px;
-            text-align: left;
-            font-size: 1.05em;
-            cursor: pointer;
-            transition: background-color 0.2s ease, transform 0.1s ease;
-        }
-        .category-button:hover {
-            background-color: #dbe2e6;
-            transform: translateY(-1px);
-        }
-        .category-button.active {
-            background-color: #3498db;
-            color: white;
-            font-weight: bold;
-        }
-
-        .product-list {
-            flex: 2; /* Ürün listesi daha geniş olsun */
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-            gap: 15px;
-            overflow-y: auto;
-        }
-        .product-card {
-            background-color: #fff;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            padding: 10px;
-            text-align: center;
-            cursor: pointer;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-        .product-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-        .product-card img {
-            max-width: 80%;
-            height: auto;
-            margin-bottom: 10px;
-            border-radius: 5px;
-        }
-        .product-card h4 {
-            margin: 5px 0;
-            font-size: 1.1em;
-            color: #2c3e50;
-        }
-        .product-card p {
-            font-size: 1.2em;
-            font-weight: bold;
-            color: #27ae60;
-            margin-top: auto; /* En alta hizala */
-        }
-
-        .cart-section {
-            flex: 1; /* Sepet ve ödeme bölümü */
-            max-width: 350px; /* Sabit genişlik */
-            border-left: 1px solid #eee;
-            position: relative; /* Sabit durması için */
-        }
-        .cart-section h3 {
-            margin-top: 0;
-            color: #2c3e50;
-        }
-        #cart-items {
-            flex: 1; /* Sepet içeriğinin kaydırılabilir olmasını sağlar */
-            overflow-y: auto;
-            margin-bottom: 15px;
-            max-height: calc(100% - 200px); /* Kalan alanı kapla */
-        }
-        .cart-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px dashed #eee;
-        }
-        .cart-item:last-child {
-            border-bottom: none;
-        }
-        .cart-item-info {
-            flex-grow: 1;
-        }
-        .cart-item-info span {
-            font-weight: bold;
-            color: #34495e;
-        }
-        .cart-item-actions {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        .quantity-button {
-            background-color: #3498db;
-            color: white;
-            border: none;
-            width: 25px;
-            height: 25px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 1.1em;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background-color 0.2s ease;
-        }
-        .quantity-button:hover {
-            background-color: #2980b9;
-        }
-        .remove-item {
-            background-color: #e74c3c;
-            color: white;
-            border: none;
-            width: 25px;
-            height: 25px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 0.9em;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-left: 5px;
-            transition: background-color 0.2s ease;
-        }
-        .remove-item:hover {
-            background-color: #c0392b;
-        }
-        
-        #cart-summary {
-            margin-top: 15px;
-            padding-top: 10px;
-            border-top: 2px solid #eee;
-            font-size: 1.3em;
-            font-weight: bold;
-            text-align: right;
-            color: #2c3e50;
-        }
-        .payment-options {
-            margin-top: 15px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .payment-button {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 5px;
-            font-size: 1.1em;
-            color: white;
-            cursor: pointer;
-            transition: background-color 0.2s ease;
-        }
-        .payment-button.cash { background-color: #2ecc71; }
-        .payment-button.cash:hover { background-color: #27ad60; }
-        .payment-button.credit { background-color: #9b59b6; }
-        .payment-button.credit:hover { background-color: #8e44ad; }
-        .payment-button.send-order { background-color: #f39c12; } /* Sipariş gönder butonu için renk */
-        .payment-button.send-order:hover { background-color: #e67e22; }
-
-        .table-selection {
-            margin-bottom: 15px;
-        }
-        .table-selection select {
-            width: 100%;
-            padding: 8px;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-            font-size: 1em;
         }
     </style>
 </head>
 <body>
-    <header>
-        <h1>Yönetim Paneli</h1>
-        <div class="tab-buttons">
-            <button class="tab-button active" data-tab="kitchen-cashier">Mutfak/Kasa Ekranı</button>
-            <button class="tab-button" data-tab="pos-system">POS Sistemi</button>
+    <div id="main-content">
+        <h1>Mutfak / Kasa Ekranı</h1>
+        <div id="orders-container">
         </div>
-    </header>
+    </div>
 
-    <main>
-        <section id="kitchen-cashier" class="content-section active">
-            <div id="main-content">
-                <h2>Bekleyen Siparişler</h2>
-                <div id="orders-container">
-                </div>
-            </div>
-
-            <div id="map-container">
-                <h2>Motorcu Konumları</h2>
-                <div id="map"></div>
-            </div>
-        </section>
-
-        <section id="pos-system" class="content-section">
-            <div id="pos-screen">
-                <div class="product-categories">
-                    <h3>Kategoriler</h3>
-                    <div id="category-buttons">
-                    </div>
-                </div>
-
-                <div class="product-list">
-                    <h3>Ürünler</h3>
-                    <div id="product-cards">
-                    </div>
-                </div>
-
-                <div class="cart-section">
-                    <h3>Sepet</h3>
-                    <div class="table-selection">
-                        <label for="tableName">Masa Seç/Adı Gir:</label>
-                        <select id="tableName">
-                            <option value="Masa 1">Masa 1</option>
-                            <option value="Masa 2">Masa 2</option>
-                            <option value="Masa 3">Masa 3</option>
-                            <option value="Paket Servis">Paket Servis</option>
-                            <option value="Diğer">Diğer (Manuel Giriş)</option>
-                        </select>
-                        <input type="text" id="customTableName" placeholder="Masa Adı / Sipariş Notu" style="display: none; margin-top: 5px; padding: 8px; width: calc(100% - 16px); border-radius: 5px; border: 1px solid #ccc;">
-                    </div>
-                    <div id="cart-items">
-                        <p id="empty-cart-message">Sepet boş.</p>
-                    </div>
-                    <div id="cart-summary">
-                        Toplam: <span id="cart-total">0.00</span> TL
-                    </div>
-                    <div class="payment-options">
-                        <button class="payment-button send-order" id="send-order-button">Sipariş Gönder (Mutfak)</button>
-                        <button class="payment-button cash" id="pay-cash-button">Nakit Ödeme</button>
-                        <button class="payment-button credit" id="pay-credit-button">Kredi Kartı Ödeme</button>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </main>
+    <div id="map-container">
+        <h2>Motorcu Konumları</h2>
+        <div id="map"></div>
+    </div>
 
     <div id="notificationBell" class="notification-bell">🔔</div>
     <audio id="notificationSound" src="notification.mp3" preload="auto"></audio>
@@ -535,75 +228,50 @@
         // BURAYI KENDİ SUNUCU ADRESİNİZLE DEĞİŞTİRMELİSİNİZ!
         const socket = io('https://garson-pos-server.onrender.com');
 
-        // =========================================================
-        // Ortak DOM Elemanları ve Yardımcı Fonksiyonlar
-        // =========================================================
+        // DOM elemanlarına referanslar
+        const ordersContainer = document.getElementById('orders-container');
         const notificationSound = document.getElementById('notificationSound');
         const notificationBell = document.getElementById('notificationBell');
 
-        function playNotificationSound(type = 'newOrder') {
-            const audio = document.getElementById('notificationSound');
-            if (audio) {
-                audio.play().catch(e => console.error("Ses çalma hatası:", e));
-            }
-        }
-
-        // =========================================================
-        // Tab Navigasyon Mantığı
-        // =========================================================
-        document.querySelectorAll('.tab-button').forEach(button => {
-            button.addEventListener('click', () => {
-                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-                document.querySelectorAll('.content-section').forEach(section => section.classList.remove('active'));
-
-                button.classList.add('active');
-                document.getElementById(button.dataset.tab).classList.add('active');
-            });
-        });
-
-        // =========================================================
-        // Mutfak / Kasa Ekranı Mantığı
-        // =========================================================
-        const ordersContainer = document.getElementById('orders-container');
+        // Leaflet Harita değişkenleri
         let map;
-        const riderMarkers = {};
+        const riderMarkers = {}; // Motorcu ID'sine göre markerları saklayacak obje
 
+        // Haritayı başlatma fonksiyonu
         function initMap() {
-            const initialLat = 41.0082; // İstanbul
+            // Harita merkezini ve zoom seviyesini ayarlayın
+            // Burası için işletmenizin veya genel bir merkezin koordinatlarını girebilirsiniz.
+            // Örneğin: İstanbul koordinatları
+            const initialLat = 41.0082;
             const initialLng = 28.9784;
 
             map = L.map('map').setView([initialLat, initialLng], 12);
 
+            // OpenStreetMap katmanı ekle
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(map);
 
+            // İlk açılışta mevcut motorcu konumlarını isteyebiliriz
             socket.emit('requestCurrentRiderLocations');
         }
 
+        // Sayfa yüklendiğinde haritayı başlat
+        document.addEventListener('DOMContentLoaded', initMap);
+
+        // addOrderToDisplay fonksiyonu: Yeni gelen siparişi ekrana ekler
         function addOrderToDisplay(order) {
             const orderCard = document.createElement('div');
             orderCard.className = 'order-card';
-            // orderCard.id = `order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`; // Sunucudan gelen orderId kullanılacak
-            orderCard.id = `order-${order.orderId}`; // Sunucudan gelen orderId kullan
-            orderCard.dataset.orderId = order.orderId; // Sunucudan gelen orderId'yi data attribute'a ata
+            // Her sipariş kartına benzersiz bir ID atayın
+            orderCard.id = `order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-            // sipariş durumu ve renk için
-            let borderColor = '#4CAF50'; // Varsayılan yeşil (yeni sipariş)
-            if (order.status === 'Hazırlanıyor') {
-                borderColor = '#FFC107'; // Sarı
-            } else if (order.status === 'Yolda') {
-                borderColor = '#2196F3'; // Mavi
-            } else if (order.status === 'Tamamlandı') {
-                borderColor = '#9E9E9E'; // Gri
-            }
-            orderCard.style.borderLeftColor = borderColor;
+            // Sipariş ID'sini HTML veri özelliği olarak saklayın
+            orderCard.dataset.orderId = orderCard.id;
 
+            // Sipariş kartının genel HTML içeriği
             orderCard.innerHTML = `
-                <div class="order-header">
-                    Masa: ${order.tableName || order.orderId}
-                    <span>${order.platform || 'POS'}</span>
-                </div>
+                <div class="order-header">Masa: ${order.tableName}</div>
                 <div class="order-details">
                     ${order.items.map(item => `
                         <div class="order-item">
@@ -613,55 +281,52 @@
                 </div>
                 <div class="order-total">Toplam: ${order.totalAmount.toFixed(2)} TL</div>
                 <div class="order-actions">
-                    <button class="pay-button" data-order-id="${order.orderId}" ${order.status === 'Tamamlandı' ? 'disabled' : ''}>Ödendi</button>
-                    <button class="print-button" data-order-id="${order.orderId}">Yazdır</button>
+                    <button class="pay-button">Ödendi</button>
+                    <button class="print-button">Yazdır</button>
                 </div>
             `;
 
+            // "Ödendi" butonuna tıklama dinleyicisi ekle
             const payButton = orderCard.querySelector('.pay-button');
             payButton.addEventListener('click', () => {
-                if (confirm(`${order.tableName || order.orderId} siparişi ödendi olarak işaretlensin mi?`)) {
-                    socket.emit('orderPaid', {
-                        orderId: order.orderId, // Sunucudan gelen orderId'yi kullan
-                        tableName: order.tableName || order.orderId,
-                        totalAmount: order.totalAmount
-                    });
-                    // Ödendi olarak işaretlendikten sonra kartı kaldır
-                    orderCard.remove();
-                    playNotificationSound('payment'); // İsteğe bağlı olarak ödeme sesi çalabilir
-                }
+                console.log('Sipariş ödendi:', order);
+                // Sunucuya siparişin ödendiğini bildir
+                socket.emit('orderPaid', {
+                    orderId: orderCard.dataset.orderId,
+                    tableName: order.tableName,
+                    totalAmount: order.totalAmount
+                });
+                orderCard.remove(); // Sipariş kartını ekrandan kaldır
+                playNotificationSound('payment'); // İsteğe bağlı olarak ödeme sesi çal
             });
 
+            // "Yazdır" butonuna tıklama dinleyicisi ekle
             const printButton = orderCard.querySelector('.print-button');
             printButton.addEventListener('click', () => {
                 console.log('Fiş yazdırma isteği:', order);
-                printOrderReceipt(order);
+                printOrderReceipt(order); // Yazdırma fonksiyonunu çağır
             });
 
-            // Sipariş zaten varsa güncelle, yoksa ekle (önce var mı kontrol et)
-            const existingCard = document.getElementById(`order-${order.orderId}`);
-            if (existingCard) {
-                existingCard.replaceWith(orderCard); // Mevcut kartı yenisiyle değiştir
-            } else {
-                ordersContainer.prepend(orderCard);
-                playNotificationSound('newOrder'); // Yeni sipariş geldiğinde çal
-                notificationBell.classList.add('ringing'); // Zili salla
-                setTimeout(() => notificationBell.classList.remove('ringing'), 1500); // Sallanmayı durdur
-            }
+            // En yeni siparişi en üste ekle
+            ordersContainer.prepend(orderCard);
         }
 
+        // printOrderReceipt fonksiyonu: Sipariş fişini yazdırmak için yeni bir pencere açar
         function printOrderReceipt(order) {
+            // Yazdırılacak HTML içeriğini oluştur (template literal kullanarak değişkenleri doğru yorumla)
             let printContent = `
                 <div class="receipt-container">
                     <div class="receipt-header">--- Olimpiyat Kokoreç ---</div>
-                    <p class="receipt-info">Masa/Sipariş No: ${order.tableName || order.orderId}</p>
+                    <p class="receipt-info">Masa: ${order.tableName}</p>
                     <p class="receipt-info">Tarih: ${new Date().toLocaleString()}</p>
                     <hr>
                     <div class="receipt-items">
             `;
+
             order.items.forEach(item => {
                 printContent += `<p class="receipt-item">${item.productName} (${item.quantity} adet) - ${item.totalPrice.toFixed(2)} TL</p>`;
             });
+
             printContent += `
                     </div>
                     <hr>
@@ -669,45 +334,150 @@
                     <div class="receipt-footer">Afiyet Olsun! Teşekkürler!</div>
                 </div>
             `;
+
+            // Yeni bir pencerede yazdırma içeriğini göster
             let printWindow = window.open('', '_blank');
-            printWindow.document.write('<!DOCTYPE html><html><head><title>Fiş - ' + (order.tableName || order.orderId) + '</title>');
+            printWindow.document.write('<!DOCTYPE html><html><head><title>Fiş - ' + order.tableName + '</title>');
             printWindow.document.write('<style>');
+            // @media print stillerini buraya da kopyalayın ki yazdırma penceresinde de uygulansın
             printWindow.document.write(`
-                @page { size: 58mm auto; margin: 0; }
-                body { width: 58mm; margin: 0; font-family: 'Consolas', 'Courier New', monospace; font-size: 10px; line-height: 1.2; color: #000; }
-                .receipt-container { padding: 5mm; box-sizing: border-box; }
-                .receipt-header, .receipt-footer { text-align: center; margin-bottom: 5px; }
-                .receipt-info p, .receipt-item { margin: 2px 0; white-space: pre-wrap; }
-                .receipt-total { font-weight: bold; text-align: right; margin-top: 10px; font-size: 11px; }
-                hr { border: 0; border-top: 1px dashed #888; margin: 5px 0; }
+                /* POS Fişi Stilleri - YAZDIRMA PENCERESİ İÇİN */
+                @page {
+                    size: 58mm auto; /* 58mm genişlik, yükseklik içeriğe göre ayarlanır */
+                    margin: 0; /* Sayfa kenar boşluklarını kaldır */
+                }
+                body {
+                    width: 58mm; /* Body genişliğini fiş genişliğiyle sınırla */
+                    margin: 0;
+                    font-family: 'Consolas', 'Courier New', monospace; /* Fişler için mono-uzaylı font daha iyi olabilir */
+                    font-size: 10px; /* Daha küçük font boyutu */
+                    line-height: 1.2;
+                    color: #000;
+                }
+                .receipt-container {
+                    padding: 5mm; /* İç boşluk */
+                    box-sizing: border-box;
+                }
+                .receipt-header, .receipt-footer {
+                    text-align: center;
+                    margin-bottom: 5px;
+                }
+                .receipt-info p, .receipt-item {
+                    margin: 2px 0;
+                    white-space: pre-wrap; /* Uzun isimler için satır atlama */
+                }
+                .receipt-total {
+                    font-weight: bold;
+                    text-align: right;
+                    margin-top: 10px;
+                    font-size: 11px;
+                }
+                hr {
+                    border: 0;
+                    border-top: 1px dashed #888; /* Daha ince, noktalı çizgi */
+                    margin: 5px 0;
+                }
             `);
             printWindow.document.write('</style>');
             printWindow.document.write('</head><body>');
-            printWindow.document.write(printContent);
+            printWindow.document.write(printContent); // Hazırlanan içeriği yazdır
             printWindow.document.write('</body></html>');
             printWindow.document.close();
-            printWindow.focus();
-            printWindow.print();
+            printWindow.focus(); // Yeni pencereye odaklan
+            printWindow.print(); // Yazdırma iletişim kutusunu aç
+            // printWindow.close(); // Yazdırma işlemi bittikten sonra kapatmak isteyebilirsiniz
         }
 
+        // playNotificationSound fonksiyonu: Bildirim sesi çalar
+        function playNotificationSound(type = 'newOrder') {
+            const audio = document.getElementById('notificationSound');
+            if (audio) {
+                audio.play().catch(e => console.error("Ses çalma hatası:", e));
+            }
+        }
+
+        /* Socket.IO Olay Dinleyicileri */
+
+        // Sunucudan 'newOrder' olayı geldiğinde
+        socket.on('newOrder', (order) => {
+            console.log('Yeni sipariş alındı:', order);
+            addOrderToDisplay(order); // Yeni siparişi ekrana ekle
+
+            // Bildirim sesi çal ve zil animasyonunu tetikle
+            playNotificationSound(); // Varsayılan olarak 'newOrder' sesi çalar
+            notificationBell.classList.add('ringing');
+            setTimeout(() => {
+                notificationBell.classList.remove('ringing');
+            }, 1500);
+        });
+
+        // Sunucudan 'notificationSound' olayı geldiğinde (isteğe bağlı, ayrı bir olay)
+        socket.on('notificationSound', () => {
+            playNotificationSound();
+            notificationBell.classList.add('ringing');
+            setTimeout(() => {
+                notificationBell.classList.remove('ringing');
+            }, 1500);
+        });
+
+        // Sunucudan 'newRiderLocation' olayı geldiğinde
+        socket.on('newRiderLocation', (locationData) => {
+            updateRiderLocation(locationData);
+        });
+
+        // Sunucudan mevcut motorcu konumları geldiğinde
+        socket.on('currentRiderLocations', (locations) => {
+            console.log('Mevcut motorcu konumları alındı:', locations);
+            for (const riderId in locations) {
+                updateRiderLocation(locations[riderId]);
+            }
+        });
+
+        // Bağlantı durumu logları
+        socket.on('connect', () => {
+            console.log('Sunucuya bağlandı!');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Sunucu bağlantısı kesildi!');
+            // Bağlantı kesildiğinde tüm motorcu markerlarını kaldırabilirsiniz
+            for (const riderId in riderMarkers) {
+                if (riderMarkers[riderId]) {
+                    riderMarkers[riderId].remove();
+                    delete riderMarkers[riderId];
+                }
+            }
+        });
+
+        socket.on('connect_error', (err) => {
+            console.error('Bağlantı hatası:', err.message);
+        });
+
+        // Motorcu konumunu haritada güncelleyen fonksiyon (Leaflet için)
         function updateRiderLocation(locationData) {
             const { riderId, latitude, longitude, speed, bearing, timestamp } = locationData;
-            const latLng = [latitude, longitude];
+            const latLng = [latitude, longitude]; // Leaflet için [lat, lng] array formatı
 
             if (!map) {
                 console.warn('Harita henüz başlatılmadı.');
                 return;
             }
 
+            // Motorcu ikonu tanımı
+            // Kendi motorcu ikonunuzu 'public/images/motorcu_icon.png' olarak ayarlayın
+            // Eğer yoksa, Leaflet'ın varsayılan ikonunu kullanacaktır.
             const customIcon = L.icon({
-                iconUrl: 'images/motorcu_icon.png', // Eğer bu resim yoksa, varsayılan bir icon kullanır veya hata verir.
-                iconSize: [32, 32],
-                iconAnchor: [16, 16],
-                popupAnchor: [0, -16]
+                iconUrl: 'images/motorcu_icon.png', // Bu yolu kendi ikon dosyanızın konumuna göre ayarlayın
+                iconSize: [32, 32],     // ikonun boyutları
+                iconAnchor: [16, 16],   // ikonun konumlandırma noktası (ikonun merkezi)
+                popupAnchor: [0, -16]   // popup penceresinin konumlandırma noktası
             });
 
             if (riderMarkers[riderId]) {
+                // Marker zaten varsa konumunu güncelle
                 riderMarkers[riderId].setLatLng(latLng);
+
+                // InfoWindow içeriğini güncelle (eğer açıksa)
                 if (riderMarkers[riderId].getPopup()) {
                     riderMarkers[riderId].getPopup().setContent(
                         `<div><strong>Motorcu ID:</strong> ${riderId}</div>` +
@@ -718,6 +488,7 @@
                     );
                 }
             } else {
+                // Yeni marker oluştur
                 riderMarkers[riderId] = L.marker(latLng, { icon: customIcon }).addTo(map)
                     .bindPopup(
                         `<div><strong>Motorcu ID:</strong> ${riderId}</div>` +
@@ -727,373 +498,9 @@
                         `<div><strong>Güncellenme:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>`
                     );
             }
+            // Haritayı motorcunun konumuna odaklama (isteğe bağlı, çok fazla motorcu varsa rahatsız edebilir)
+            // map.panTo(latLng);
         }
-
-        // =========================================================
-        // POS Sistemi Mantığı
-        // =========================================================
-
-        // Products objesi artık boş olacak ve veriler sunucudan çekilecek.
-        // Şimdilik test için mock data kalsın, sunucu entegrasyonunda kaldırılacak.
-        let products = {}; // Bu, veritabanından çekilecek ürünleri tutacak
-
-        let cart = [];
-        let currentTableName = "Masa 1"; // Varsayılan masa adı
-
-        const categoryButtonsDiv = document.getElementById('category-buttons');
-        const productCardsDiv = document.getElementById('product-cards');
-        const cartItemsDiv = document.getElementById('cart-items');
-        const cartTotalSpan = document.getElementById('cart-total');
-        const emptyCartMessage = document.getElementById('empty-cart-message');
-        const tableNameSelect = document.getElementById('tableName');
-        const customTableNameInput = document.getElementById('customTableName');
-        const sendOrderButton = document.getElementById('send-order-button');
-        const payCashButton = document.getElementById('pay-cash-button');
-        const payCreditButton = document.getElementById('pay-credit-button');
-
-
-        // Sunucudan ürün ve kategori verilerini çekme
-        async function fetchProductsAndCategories() {
-            try {
-                const response = await fetch('https://garson-pos-server.onrender.com/products-with-categories'); // Örnek URL, server.js'de bu endpoint'i oluşturacağız.
-                const data = await response.json();
-                products = data; // Sunucudan gelen veriyi doğrudan products objesine ata
-                renderCategories(); // Kategorileri ve ürünleri render et
-            } catch (error) {
-                console.error('Ürün ve kategoriler çekilirken hata oluştu:', error);
-                // Hata durumunda varsayılan mock data kullanılabilir veya kullanıcıya bilgi verilebilir.
-                // Şimdilik mock data ile devam edelim ki arayüz çalışsın.
-                products = {
-                    "İçecekler": [
-                        { id: "coke", name: "Kola", price: 25.00 },
-                        { id: "fanta", name: "Fanta", price: 22.00 },
-                        { id: "ayran", name: "Ayran", price: 15.00 },
-                        { id: "su", name: "Su", price: 10.00 }
-                    ],
-                    "Kokoreç": [
-                        { id: "yarim_ekmek_kokorec", name: "Yarım Ekmek Kokoreç", price: 120.00 },
-                        { id: "tam_ekmek_kokorec", name: "Tam Ekmek Kokoreç", price: 200.00 },
-                        { id: "porsiyon_kokorec", name: "Porsiyon Kokoreç", price: 150.00 }
-                    ],
-                    "Yan Ürünler": [
-                        { id: "patates_cips", name: "Patates Cips", price: 40.00 },
-                        { id: "turşu", name: "Turşu", price: 10.00 }
-                    ],
-                    "Tatlılar": [
-                        { id: "sutlac", name: "Sütlaç", price: 35.00 },
-                        { id: "kunefe", name: "Künefe", price: 60.00 }
-                    ]
-                };
-                renderCategories();
-            }
-        }
-
-
-        // Kategori butonlarını oluştur
-        function renderCategories() {
-            categoryButtonsDiv.innerHTML = '';
-            // products objesinin boş olup olmadığını kontrol et
-            if (Object.keys(products).length === 0) {
-                categoryButtonsDiv.innerHTML = '<p>Ürün kategorisi bulunamadı.</p>';
-                productCardsDiv.innerHTML = '<p>Ürün bulunamadı.</p>';
-                return;
-            }
-
-            Object.keys(products).forEach(category => {
-                const button = document.createElement('button');
-                button.className = 'category-button';
-                button.textContent = category;
-                button.dataset.category = category;
-                button.addEventListener('click', () => {
-                    document.querySelectorAll('.category-button').forEach(btn => btn.classList.remove('active'));
-                    button.classList.add('active');
-                    renderProducts(category);
-                });
-                categoryButtonsDiv.appendChild(button);
-            });
-            // İlk kategoriyi varsayılan olarak seç
-            if (Object.keys(products).length > 0) {
-                const firstCategoryButton = categoryButtonsDiv.querySelector('.category-button');
-                if (firstCategoryButton) {
-                    firstCategoryButton.click();
-                }
-            }
-        }
-
-        // Ürün kartlarını oluştur
-        function renderProducts(category) {
-            productCardsDiv.innerHTML = '';
-            if (!products[category] || products[category].length === 0) {
-                productCardsDiv.innerHTML = '<p>Bu kategoride ürün bulunamadı.</p>';
-                return;
-            }
-            products[category].forEach(product => {
-                const productCard = document.createElement('div');
-                productCard.className = 'product-card';
-                // Resim yolu, veritabanından geliyorsa product.imageUrl olabilir.
-                // Şu an için resimsiz deneyeceğimiz için img tag'ini kaldırıyorum veya boş bırakıyorum.
-                // Eğer server'dan resim yolu gelecekse aşağıdaki satırı kullanabilirsiniz:
-                // <img src="${product.imageUrl || 'placeholder.png'}" alt="${product.name}">
-                productCard.innerHTML = `
-                    <h4>${product.name}</h4>
-                    <p>${product.price.toFixed(2)} TL</p>
-                `;
-                productCard.addEventListener('click', () => addProductToCart(product));
-                productCardsDiv.appendChild(productCard);
-            });
-        }
-
-        // Ürünü sepete ekle
-        function addProductToCart(product) {
-            const existingItem = cart.find(item => item.id === product.id);
-            if (existingItem) {
-                existingItem.quantity++;
-                existingItem.totalPrice = existingItem.quantity * existingItem.price;
-            } else {
-                cart.push({ ...product, quantity: 1, totalPrice: product.price });
-            }
-            updateCartDisplay();
-        }
-
-        // Sepeti güncelle ve ekranda göster
-        function updateCartDisplay() {
-            cartItemsDiv.innerHTML = '';
-            if (cart.length === 0) {
-                emptyCartMessage.style.display = 'block';
-            } else {
-                emptyCartMessage.style.display = 'none';
-                cart.forEach(item => {
-                    const cartItemDiv = document.createElement('div');
-                    cartItemDiv.className = 'cart-item';
-                    cartItemDiv.innerHTML = `
-                        <div class="cart-item-info">
-                            ${item.name} <span>(x${item.quantity})</span>
-                        </div>
-                        <div class="cart-item-actions">
-                            <button class="quantity-button" data-action="decrease" data-id="${item.id}">-</button>
-                            <span>${item.quantity}</span>
-                            <button class="quantity-button" data-action="increase" data-id="${item.id}">+</button>
-                            <button class="remove-item" data-id="${item.id}">X</button>
-                        </div>
-                    `;
-                    cartItemsDiv.appendChild(cartItemDiv);
-                });
-            }
-            updateCartTotal();
-            addCartItemEventListeners();
-        }
-
-        // Sepet toplamını hesapla ve güncelle
-        function updateCartTotal() {
-            const total = cart.reduce((sum, item) => sum + item.totalPrice, 0);
-            cartTotalSpan.textContent = total.toFixed(2);
-        }
-
-        // Sepet öğelerinin butonlarına event listener ekle
-        function addCartItemEventListeners() {
-            cartItemsDiv.querySelectorAll('.quantity-button').forEach(button => {
-                button.onclick = (event) => {
-                    const id = event.target.dataset.id;
-                    const action = event.target.dataset.action;
-                    const item = cart.find(i => i.id === id);
-
-                    if (item) {
-                        if (action === 'increase') {
-                            item.quantity++;
-                        } else if (action === 'decrease') {
-                            item.quantity--;
-                        }
-                        item.totalPrice = item.quantity * item.price;
-
-                        if (item.quantity <= 0) {
-                            cart = cart.filter(i => i.id !== id);
-                        }
-                        updateCartDisplay();
-                    }
-                };
-            });
-
-            cartItemsDiv.querySelectorAll('.remove-item').forEach(button => {
-                button.onclick = (event) => {
-                    const id = event.target.dataset.id;
-                    cart = cart.filter(item => item.id !== id);
-                    updateCartDisplay();
-                };
-            });
-        }
-
-        // Masa seçimi veya manuel giriş
-        tableNameSelect.addEventListener('change', (event) => {
-            if (event.target.value === 'Diğer') {
-                customTableNameInput.style.display = 'block';
-                customTableNameInput.value = ''; // Alanı temizle
-                customTableNameInput.focus();
-            } else {
-                customTableNameInput.style.display = 'none';
-                currentTableName = event.target.value;
-            }
-        });
-
-        customTableNameInput.addEventListener('input', (event) => {
-            currentTableName = event.target.value;
-        });
-
-        // Sipariş Gönder butonu
-        sendOrderButton.addEventListener('click', () => {
-            if (cart.length === 0) {
-                alert('Sepet boş! Lütfen ürün ekleyin.');
-                return;
-            }
-            if (tableNameSelect.value === 'Diğer' && customTableNameInput.value.trim() === '') {
-                 alert('Lütfen özel masa adı veya sipariş notu girin.');
-                 return;
-            }
-            if (currentTableName.trim() === '') { // Hem select'ten hem input'tan gelen değer boşsa
-                alert('Lütfen bir masa seçin veya masa adı/sipariş notu girin.');
-                return;
-            }
-
-            const order = {
-                tableName: currentTableName,
-                items: cart.map(item => ({
-                    productId: item.id,
-                    productName: item.name,
-                    quantity: item.quantity,
-                    unitPrice: item.price,
-                    totalPrice: item.totalPrice
-                })),
-                totalAmount: parseFloat(cartTotalSpan.textContent),
-                timestamp: new Date().toISOString(),
-                platform: 'POS', // Bu siparişin POS sisteminden geldiğini belirt
-                status: 'Beklemede' // Yeni siparişin başlangıç durumu
-            };
-
-            socket.emit('newOrder', order);
-            console.log('Sipariş Gönderildi:', order);
-
-            // Sepeti sıfırla
-            cart = [];
-            updateCartDisplay();
-            currentTableName = tableNameSelect.value; // Seçili masaya geri dön
-            customTableNameInput.style.display = 'none';
-            customTableNameInput.value = '';
-            alert('Sipariş başarıyla mutfağa gönderildi!');
-        });
-
-        // Ödeme butonları (Nakit / Kredi Kartı) - bunlar siparişi direkt tamamlayacak
-        payCashButton.addEventListener('click', () => handlePayment('Nakit'));
-        payCreditButton.addEventListener('click', () => handlePayment('Kredi Kartı'));
-
-        function handlePayment(paymentMethod) {
-            if (cart.length === 0) {
-                alert('Sepet boş! Lütfen ürün ekleyin.');
-                return;
-            }
-            if (tableNameSelect.value === 'Diğer' && customTableNameInput.value.trim() === '') {
-                 alert('Lütfen özel masa adı veya sipariş notu girin.');
-                 return;
-            }
-            if (currentTableName.trim() === '') {
-                alert('Lütfen bir masa seçin veya masa adı/sipariş notu girin.');
-                return;
-            }
-
-            const order = {
-                tableName: currentTableName,
-                items: cart.map(item => ({
-                    productId: item.id,
-                    productName: item.name,
-                    quantity: item.quantity,
-                    unitPrice: item.price,
-                    totalPrice: item.totalPrice
-                })),
-                totalAmount: parseFloat(cartTotalSpan.textContent),
-                timestamp: new Date().toISOString(),
-                platform: 'POS (Ödendi)', // Ödemenin POS üzerinden yapıldığını ve ödendiğini belirt
-                status: 'Tamamlandı', // Direkt tamamlanmış sipariş
-                paymentMethod: paymentMethod
-            };
-
-            // Ödenmiş siparişi sunucuya gönder
-            socket.emit('orderPaidFromPOS', order);
-            console.log(`${paymentMethod} ile Ödeme Yapıldı ve Sipariş Tamamlandı:`, order);
-
-            // Fişi Yazdır
-            printOrderReceipt(order);
-
-            // Sepeti sıfırla
-            cart = [];
-            updateCartDisplay();
-            currentTableName = tableNameSelect.value; // Seçili masaya geri dön
-            customTableNameInput.style.display = 'none';
-            customTableNameInput.value = '';
-            alert(`Sipariş ${paymentMethod} ile başarıyla tamamlandı ve fiş yazdırıldı!`);
-        }
-
-
-        // =========================================================
-        // Socket.IO Olay Dinleyicileri
-        // =========================================================
-
-        socket.on('connect', () => {
-            console.log('Sunucuya bağlandı!');
-            // Bağlandıktan sonra mevcut siparişleri ve motorcu konumlarını iste
-            socket.emit('requestCurrentOrders');
-            socket.emit('requestCurrentRiderLocations');
-        });
-
-        socket.on('disconnect', () => {
-            console.log('Sunucuyla bağlantı kesildi.');
-        });
-
-        socket.on('newOrder', (order) => {
-            console.log('Yeni sipariş alındı:', order);
-            addOrderToDisplay(order);
-        });
-
-        socket.on('orderUpdated', (order) => {
-            console.log('Sipariş güncellendi:', order);
-            addOrderToDisplay(order); // Mevcut kartı güncelleyecek veya yeni ekleyecek
-        });
-
-        socket.on('orderRemoved', (orderId) => {
-            console.log('Sipariş kaldırıldı:', orderId);
-            const orderCard = document.getElementById(`order-${orderId}`);
-            if (orderCard) {
-                orderCard.remove();
-            }
-        });
-
-        socket.on('riderLocationUpdate', (locationData) => {
-            // console.log('Motorcu konum güncellemesi:', locationData);
-            updateRiderLocation(locationData);
-        });
-
-        socket.on('currentOrders', (orders) => {
-            console.log('Mevcut siparişler yüklendi:', orders);
-            ordersContainer.innerHTML = ''; // Mevcutları temizle
-            orders.forEach(order => addOrderToDisplay(order));
-        });
-
-        socket.on('currentRiderLocations', (locations) => {
-            console.log('Mevcut motorcu konumları yüklendi:', locations);
-            // Haritadaki tüm eski işaretçileri kaldır
-            for (const riderId in riderMarkers) {
-                if (riderMarkers.hasOwnProperty(riderId)) {
-                    map.removeLayer(riderMarkers[riderId]);
-                    delete riderMarkers[riderId];
-                }
-            }
-            // Yeni konumları ekle
-            locations.forEach(location => updateRiderLocation(location));
-        });
-
-        // Sayfa yüklendiğinde haritayı başlat ve ürün/kategori verilerini çek
-        document.addEventListener('DOMContentLoaded', () => {
-            initMap();
-            fetchProductsAndCategories();
-        });
-
     </script>
 </body>
 </html>
