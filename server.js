@@ -1,58 +1,55 @@
 // server.js
-const express = require('express'); // Express framework'ünü dahil et
-const http = require('http'); // Node.js'in dahili HTTP modülünü dahil et (Socket.IO için gerekli)
-const { Server } = require("socket.io"); // Socket.IO sunucusunu dahil et
-const cors = require('cors'); // CORS middleware'ini dahil et
+const express = require('express');
+const http = require('http');
+const { Server } = require("socket.io");
+const cors = require('cors');
 
-// Express uygulamasını oluştur
 const app = express();
-// HTTP sunucusunu oluştur (Express uygulamasını kullanarak)
 const server = http.createServer(app);
 
-// Socket.IO sunucusunu HTTP sunucusu üzerine kur
 const io = new Server(server, {
     cors: {
-        origin: "*", // TÜM KÖKENLERDEN gelen isteklere izin ver (Geliştirme için iyi, Üretimde güvende olmak için belirli URL'lerle değiştirin!)
-        methods: ["GET", "POST"] // İzin verilen HTTP metotları
+        origin: "*",
+        methods: ["GET", "POST"]
     }
 });
 
-const PORT = process.env.PORT || 3000; // Sunucunun çalışacağı portu belirle (varsayılan 3000)
-app.use(express.static('public')); // 'public' klasöründeki statik dosyaları servis et (index.html için)
+const PORT = process.env.PORT || 3000;
+app.use(express.static('public'));
 
-// Middleware'ler (istekleri işlemeden önce çalışan fonksiyonlar)
-app.use(cors()); // CORS'u etkinleştir: Bu, farklı kaynaklardan (Android uygulamanız gibi) gelen isteklerin kabul edilmesini sağlar.
-app.use(express.json()); // JSON body parsing'i etkinleştir: Bu, Android'den gelen JSON verisini req.body'ye dönüştürür.
+app.use(cors());
+app.use(express.json());
 
-// Motorcu konumlarını saklamak için obje
-// Anahtar: riderId, Değer: { latitude, longitude, timestamp, speed, bearing, accuracy }
 const riderLocations = {};
 
 // =========================================================
 // API Endpoint'leri
 // =========================================================
 
-// POST /api/order endpoint'i: Android uygulamasından sipariş verilerini almak için
+// POST /api/order endpoint'i: Android uygulamasından ve şimdi POS sisteminden de sipariş verilerini almak için
 app.post('/api/order', (req, res) => {
-    const orderData = req.body; // Gelen JSON verisi
-    console.log(`[${new Date().toLocaleTimeString()}] Yeni sipariş alındı - Masa: ${orderData.tableName}, Toplam: ${orderData.totalAmount} TL`);
+    const orderData = req.body;
+    
+    // Gelen siparişin nereden geldiğini kontrol et (Android uygulaması veya POS)
+    const platform = orderData.platform || 'Android App'; // Varsayılan olarak Android App
 
-    // Bu noktada sipariş verilerini bir veritabanına kaydedebilirsiniz.
+    console.log(`[${new Date().toLocaleTimeString()}] Yeni sipariş alındı - Platform: ${platform}, Masa/Sipariş No: ${orderData.tableName || orderData.orderId}, Toplam: ${orderData.totalAmount} TL`);
+
+    // Sipariş verilerini bir veritabanına kaydedebilirsiniz.
     // Örneğin: saveOrderToDatabase(orderData);
 
     // Web arayüzüne (mutfak/kasa ekranı) gerçek zamanlı bildirim gönder
-    io.emit('newOrder', orderData); // 'newOrder' adında bir olay ve sipariş verilerini gönder
+    // orderData'ya 'platform' bilgisini ekleyerek, web arayüzünde hangi platformdan geldiğini gösterebiliriz.
+    io.emit('newOrder', { ...orderData, platform: platform });
 
-    // Bildirim zili çalması için ayrı bir olay da gönderebiliriz (web arayüzünde dinlenecek)
+    // Bildirim zili çalması için ayrı bir olay gönder
     io.emit('notificationSound', { play: true });
 
-    // Android uygulamasına başarılı yanıt gönder
     res.status(200).json({ message: 'Sipariş başarıyla alındı ve web istemcilere iletildi.' });
 });
 
-// GET / endpoint'i: Sunucunun çalışıp çalışmadığını kontrol etmek için basit bir yanıt
+// GET / endpoint'i: Sunucunun çalışıp çalışmadığını kontrol etmek ve index.html'i servis etmek için
 app.get('/', (req, res) => {
-    // index.html dosyasını direkt olarak public klasöründen servis etmek için
     res.sendFile(__dirname + '/public/index.html');
 });
 
@@ -60,23 +57,18 @@ app.get('/', (req, res) => {
 // Socket.IO Olay Dinleyicileri
 // =========================================================
 
-// Bir istemci (web veya Android) bağlandığında
 io.on('connection', (socket) => {
     console.log(`[${new Date().toLocaleTimeString()}] Yeni bir istemci bağlandı: ${socket.id}`);
 
-    // Web istemcisi bağlandığında, mevcut tüm motorcu konumlarını gönder
-    // Bu, tarayıcı yenilendiğinde veya ilk açıldığında motorcuları haritada gösterir
     socket.on('requestCurrentRiderLocations', () => {
         console.log(`[${new Date().toLocaleTimeString()}] Web istemcisi ${socket.id} mevcut motorcu konumlarını istedi.`);
         socket.emit('currentRiderLocations', riderLocations);
     });
 
-    // Android uygulamasından gelen motorcu konum güncellemelerini dinle
     socket.on('riderLocationUpdate', (locationData) => {
         const { riderId, latitude, longitude, timestamp, speed, bearing, accuracy } = locationData;
         console.log(`[${new Date().toLocaleTimeString()}] Motorcu Konumu Güncellendi - ID: ${riderId}, Lat: ${latitude}, Lng: ${longitude}`);
 
-        // Konum verisini bellekte sakla (veya bir veritabanına kaydedin)
         riderLocations[riderId] = {
             latitude,
             longitude,
@@ -86,27 +78,31 @@ io.on('connection', (socket) => {
             accuracy
         };
 
-        // Tüm bağlı web istemcilerine yeni konumu yayınla
         io.emit('newRiderLocation', locationData);
     });
 
-    // İstemci bağlantısı kesildiğinde
     socket.on('disconnect', () => {
         console.log(`[${new Date().toLocaleTimeString()}] Bir istemci bağlantısı kesildi: ${socket.id}`);
-        // Eğer belirli bir riderId'ye sahip bir motorcu bağlantısı kesilirse,
-        // ilgili marker'ı haritadan kaldırmak için istemcilere bir olay gönderebiliriz.
-        // Ancak Android uygulamasının her zaman aktif olması bekleniyorsa bu şimdilik gerekli değil.
     });
 
-    // İstemciden gelebilecek diğer olayları burada dinleyebilirsiniz (örneğin sipariş onaylama)
-    socket.on('orderPaid', (data) => {
-        console.log(`[${new Date().toLocaleTimeString()}] Web istemcisi siparişi ödendi olarak işaretledi: Masa ${data.tableName}, Toplam ${data.totalAmount} TL`);
-        // İlgili siparişi veritabanında "ödendi" olarak işaretleyebiliriz.
-        // Örneğin: updateOrderStatus(data.orderId, 'paid');
+    // İstemciden gelen "sipariş tamamlandı" olayını dinle (web arayüzündeki "Hazırlandı/Tamamlandı" butonu)
+    socket.on('orderCompleted', (data) => {
+        console.log(`[${new Date().toLocaleTimeString()}] Web istemcisi siparişi tamamladı: Platform: ${data.platform}, Sipariş No: ${data.orderId}, Toplam: ${data.totalAmount} TL`);
+        // Burada siparişin durumunu veritabanında "tamamlandı" olarak işaretleyebilirsiniz.
+        // Örneğin: updateOrderStatus(data.orderId, 'completed');
+        // İlgili sipariş kartını kaldıran kısım zaten client tarafında çalışıyor.
+    });
+
+    // POS tarafından gönderilen yeni siparişleri dinle (eğer Socket.IO ile gönderilecekse)
+    // Şu an için POS siparişleri '/api/order' üzerinden HTTP POST ile gönderilecek,
+    // ancak ilerde Socket.IO üzerinden de göndermek isterseniz bu event kullanılabilir.
+    socket.on('posOrder', (orderData) => {
+        console.log(`[${new Date().toLocaleTimeString()}] POS üzerinden yeni sipariş alındı (Socket.IO) - Masa: ${orderData.tableName}, Toplam: ${orderData.totalAmount} TL`);
+        io.emit('newOrder', { ...orderData, platform: 'POS' }); // Mutfak ekranına gönder
+        io.emit('notificationSound', { play: true }); // Mutfak ekranında ses çal
     });
 });
 
-// Sunucuyu belirtilen portta dinlemeye başla
 server.listen(PORT, () => {
     console.log(`Sunucu http://localhost:${PORT} adresinde çalışıyor`);
     console.log(`API endpoint: http://localhost:${PORT}/api/order`);
