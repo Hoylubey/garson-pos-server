@@ -5,12 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Yönetim Paneli - Mutfak / Kasa / POS</title>
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4Nx5LZrLtx9zG+gK1Ntx9q2L9M2+D2D+p0Bq3C2A3A="
-        crossorigin=""/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-p4Nx5LZrLtx9zG+gK1Ntx9q2L9M2+D2D+p0Bq3C2A3A="
-        crossorigin=""></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 
@@ -479,7 +475,7 @@
             <div id="main-content">
                 <h2>Bekleyen Siparişler</h2>
                 <div id="orders-container">
-                    </div>
+                </div>
             </div>
 
             <div id="map-container">
@@ -493,13 +489,13 @@
                 <div class="product-categories">
                     <h3>Kategoriler</h3>
                     <div id="category-buttons">
-                        </div>
+                    </div>
                 </div>
 
                 <div class="product-list">
                     <h3>Ürünler</h3>
                     <div id="product-cards">
-                        </div>
+                    </div>
                 </div>
 
                 <div class="cart-section">
@@ -588,13 +584,25 @@
         function addOrderToDisplay(order) {
             const orderCard = document.createElement('div');
             orderCard.className = 'order-card';
-            orderCard.id = `order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-            orderCard.dataset.orderId = orderCard.id;
+            // orderCard.id = `order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`; // Sunucudan gelen orderId kullanılacak
+            orderCard.id = `order-${order.orderId}`; // Sunucudan gelen orderId kullan
+            orderCard.dataset.orderId = order.orderId; // Sunucudan gelen orderId'yi data attribute'a ata
+
+            // sipariş durumu ve renk için
+            let borderColor = '#4CAF50'; // Varsayılan yeşil (yeni sipariş)
+            if (order.status === 'Hazırlanıyor') {
+                borderColor = '#FFC107'; // Sarı
+            } else if (order.status === 'Yolda') {
+                borderColor = '#2196F3'; // Mavi
+            } else if (order.status === 'Tamamlandı') {
+                borderColor = '#9E9E9E'; // Gri
+            }
+            orderCard.style.borderLeftColor = borderColor;
 
             orderCard.innerHTML = `
                 <div class="order-header">
                     Masa: ${order.tableName || order.orderId}
-                    <span>${order.platform || 'Bilinmiyor'}</span>
+                    <span>${order.platform || 'POS'}</span>
                 </div>
                 <div class="order-details">
                     ${order.items.map(item => `
@@ -605,21 +613,23 @@
                 </div>
                 <div class="order-total">Toplam: ${order.totalAmount.toFixed(2)} TL</div>
                 <div class="order-actions">
-                    <button class="pay-button">Ödendi</button>
-                    <button class="print-button">Yazdır</button>
+                    <button class="pay-button" data-order-id="${order.orderId}" ${order.status === 'Tamamlandı' ? 'disabled' : ''}>Ödendi</button>
+                    <button class="print-button" data-order-id="${order.orderId}">Yazdır</button>
                 </div>
             `;
 
             const payButton = orderCard.querySelector('.pay-button');
             payButton.addEventListener('click', () => {
-                console.log('Sipariş ödendi:', order);
-                socket.emit('orderPaid', {
-                    orderId: orderCard.dataset.orderId,
-                    tableName: order.tableName || order.orderId, // Ödeme bildirimi için orderId veya tableName kullan
-                    totalAmount: order.totalAmount
-                });
-                orderCard.remove();
-                playNotificationSound('payment'); // İsteğe bağlı olarak ödeme sesi çalabilir
+                if (confirm(`${order.tableName || order.orderId} siparişi ödendi olarak işaretlensin mi?`)) {
+                    socket.emit('orderPaid', {
+                        orderId: order.orderId, // Sunucudan gelen orderId'yi kullan
+                        tableName: order.tableName || order.orderId,
+                        totalAmount: order.totalAmount
+                    });
+                    // Ödendi olarak işaretlendikten sonra kartı kaldır
+                    orderCard.remove();
+                    playNotificationSound('payment'); // İsteğe bağlı olarak ödeme sesi çalabilir
+                }
             });
 
             const printButton = orderCard.querySelector('.print-button');
@@ -628,7 +638,16 @@
                 printOrderReceipt(order);
             });
 
-            ordersContainer.prepend(orderCard);
+            // Sipariş zaten varsa güncelle, yoksa ekle (önce var mı kontrol et)
+            const existingCard = document.getElementById(`order-${order.orderId}`);
+            if (existingCard) {
+                existingCard.replaceWith(orderCard); // Mevcut kartı yenisiyle değiştir
+            } else {
+                ordersContainer.prepend(orderCard);
+                playNotificationSound('newOrder'); // Yeni sipariş geldiğinde çal
+                notificationBell.classList.add('ringing'); // Zili salla
+                setTimeout(() => notificationBell.classList.remove('ringing'), 1500); // Sallanmayı durdur
+            }
         }
 
         function printOrderReceipt(order) {
@@ -681,7 +700,7 @@
             }
 
             const customIcon = L.icon({
-                iconUrl: 'images/motorcu_icon.png',
+                iconUrl: 'images/motorcu_icon.png', // Eğer bu resim yoksa, varsayılan bir icon kullanır veya hata verir.
                 iconSize: [32, 32],
                 iconAnchor: [16, 16],
                 popupAnchor: [0, -16]
@@ -714,27 +733,9 @@
         // POS Sistemi Mantığı
         // =========================================================
 
-        const products = {
-            "İçecekler": [
-                { id: "coke", name: "Kola", price: 25.00, image: "images/coke.png" },
-                { id: "fanta", name: "Fanta", price: 22.00, image: "images/fanta.png" },
-                { id: "ayran", name: "Ayran", price: 15.00, image: "images/ayran.png" },
-                { id: "su", name: "Su", price: 10.00, image: "images/water.png" }
-            ],
-            "Kokoreç": [
-                { id: "yarim_ekmek_kokorec", name: "Yarım Ekmek Kokoreç", price: 120.00, image: "images/kokorec_yarim.png" },
-                { id: "tam_ekmek_kokorec", name: "Tam Ekmek Kokoreç", price: 200.00, image: "images/kokorec_tam.png" },
-                { id: "porsiyon_kokorec", name: "Porsiyon Kokoreç", price: 150.00, image: "images/kokorec_porsiyon.png" }
-            ],
-            "Yan Ürünler": [
-                { id: "patates_cips", name: "Patates Cips", price: 40.00, image: "images/fries.png" },
-                { id: "turşu", name: "Turşu", price: 10.00, image: "images/pickle.png" }
-            ],
-            "Tatlılar": [
-                { id: "sutlac", name: "Sütlaç", price: 35.00, image: "images/sutlac.png" },
-                { id: "kunefe", name: "Künefe", price: 60.00, image: "images/kunefe.png" }
-            ]
-        };
+        // Products objesi artık boş olacak ve veriler sunucudan çekilecek.
+        // Şimdilik test için mock data kalsın, sunucu entegrasyonunda kaldırılacak.
+        let products = {}; // Bu, veritabanından çekilecek ürünleri tutacak
 
         let cart = [];
         let currentTableName = "Masa 1"; // Varsayılan masa adı
@@ -750,9 +751,54 @@
         const payCashButton = document.getElementById('pay-cash-button');
         const payCreditButton = document.getElementById('pay-credit-button');
 
+
+        // Sunucudan ürün ve kategori verilerini çekme
+        async function fetchProductsAndCategories() {
+            try {
+                const response = await fetch('https://garson-pos-server.onrender.com/products-with-categories'); // Örnek URL, server.js'de bu endpoint'i oluşturacağız.
+                const data = await response.json();
+                products = data; // Sunucudan gelen veriyi doğrudan products objesine ata
+                renderCategories(); // Kategorileri ve ürünleri render et
+            } catch (error) {
+                console.error('Ürün ve kategoriler çekilirken hata oluştu:', error);
+                // Hata durumunda varsayılan mock data kullanılabilir veya kullanıcıya bilgi verilebilir.
+                // Şimdilik mock data ile devam edelim ki arayüz çalışsın.
+                products = {
+                    "İçecekler": [
+                        { id: "coke", name: "Kola", price: 25.00 },
+                        { id: "fanta", name: "Fanta", price: 22.00 },
+                        { id: "ayran", name: "Ayran", price: 15.00 },
+                        { id: "su", name: "Su", price: 10.00 }
+                    ],
+                    "Kokoreç": [
+                        { id: "yarim_ekmek_kokorec", name: "Yarım Ekmek Kokoreç", price: 120.00 },
+                        { id: "tam_ekmek_kokorec", name: "Tam Ekmek Kokoreç", price: 200.00 },
+                        { id: "porsiyon_kokorec", name: "Porsiyon Kokoreç", price: 150.00 }
+                    ],
+                    "Yan Ürünler": [
+                        { id: "patates_cips", name: "Patates Cips", price: 40.00 },
+                        { id: "turşu", name: "Turşu", price: 10.00 }
+                    ],
+                    "Tatlılar": [
+                        { id: "sutlac", name: "Sütlaç", price: 35.00 },
+                        { id: "kunefe", name: "Künefe", price: 60.00 }
+                    ]
+                };
+                renderCategories();
+            }
+        }
+
+
         // Kategori butonlarını oluştur
         function renderCategories() {
             categoryButtonsDiv.innerHTML = '';
+            // products objesinin boş olup olmadığını kontrol et
+            if (Object.keys(products).length === 0) {
+                categoryButtonsDiv.innerHTML = '<p>Ürün kategorisi bulunamadı.</p>';
+                productCardsDiv.innerHTML = '<p>Ürün bulunamadı.</p>';
+                return;
+            }
+
             Object.keys(products).forEach(category => {
                 const button = document.createElement('button');
                 button.className = 'category-button';
@@ -767,18 +813,28 @@
             });
             // İlk kategoriyi varsayılan olarak seç
             if (Object.keys(products).length > 0) {
-                categoryButtonsDiv.querySelector('.category-button').click();
+                const firstCategoryButton = categoryButtonsDiv.querySelector('.category-button');
+                if (firstCategoryButton) {
+                    firstCategoryButton.click();
+                }
             }
         }
 
         // Ürün kartlarını oluştur
         function renderProducts(category) {
             productCardsDiv.innerHTML = '';
+            if (!products[category] || products[category].length === 0) {
+                productCardsDiv.innerHTML = '<p>Bu kategoride ürün bulunamadı.</p>';
+                return;
+            }
             products[category].forEach(product => {
                 const productCard = document.createElement('div');
                 productCard.className = 'product-card';
+                // Resim yolu, veritabanından geliyorsa product.imageUrl olabilir.
+                // Şu an için resimsiz deneyeceğimiz için img tag'ini kaldırıyorum veya boş bırakıyorum.
+                // Eğer server'dan resim yolu gelecekse aşağıdaki satırı kullanabilirsiniz:
+                // <img src="${product.imageUrl || 'placeholder.png'}" alt="${product.name}">
                 productCard.innerHTML = `
-                    <img src="${product.image}" alt="${product.name}">
                     <h4>${product.name}</h4>
                     <p>${product.price.toFixed(2)} TL</p>
                 `;
@@ -835,41 +891,43 @@
 
         // Sepet öğelerinin butonlarına event listener ekle
         function addCartItemEventListeners() {
-            document.querySelectorAll('.quantity-button').forEach(button => {
-                button.onclick = (e) => {
-                    const id = e.target.dataset.id;
-                    const action = e.target.dataset.action;
+            cartItemsDiv.querySelectorAll('.quantity-button').forEach(button => {
+                button.onclick = (event) => {
+                    const id = event.target.dataset.id;
+                    const action = event.target.dataset.action;
                     const item = cart.find(i => i.id === id);
+
                     if (item) {
                         if (action === 'increase') {
                             item.quantity++;
                         } else if (action === 'decrease') {
                             item.quantity--;
                         }
+                        item.totalPrice = item.quantity * item.price;
+
                         if (item.quantity <= 0) {
                             cart = cart.filter(i => i.id !== id);
-                        } else {
-                            item.totalPrice = item.quantity * item.price;
                         }
                         updateCartDisplay();
                     }
                 };
             });
-            document.querySelectorAll('.remove-item').forEach(button => {
-                button.onclick = (e) => {
-                    const id = e.target.dataset.id;
+
+            cartItemsDiv.querySelectorAll('.remove-item').forEach(button => {
+                button.onclick = (event) => {
+                    const id = event.target.dataset.id;
                     cart = cart.filter(item => item.id !== id);
                     updateCartDisplay();
                 };
             });
         }
 
-        // Masa seçimi veya manuel giriş değiştiğinde
+        // Masa seçimi veya manuel giriş
         tableNameSelect.addEventListener('change', (event) => {
             if (event.target.value === 'Diğer') {
                 customTableNameInput.style.display = 'block';
+                customTableNameInput.value = ''; // Alanı temizle
                 customTableNameInput.focus();
-                currentTableName = ''; // Custom input'a bırak
             } else {
                 customTableNameInput.style.display = 'none';
                 currentTableName = event.target.value;
@@ -881,176 +939,161 @@
         });
 
         // Sipariş Gönder butonu
-        sendOrderButton.addEventListener('click', async () => {
+        sendOrderButton.addEventListener('click', () => {
             if (cart.length === 0) {
                 alert('Sepet boş! Lütfen ürün ekleyin.');
                 return;
             }
-            if (!currentTableName && tableNameSelect.value === 'Diğer') {
-                alert('Lütfen masa adı veya sipariş notu girin.');
+            if (tableNameSelect.value === 'Diğer' && customTableNameInput.value.trim() === '') {
+                 alert('Lütfen özel masa adı veya sipariş notu girin.');
+                 return;
+            }
+            if (currentTableName.trim() === '') { // Hem select'ten hem input'tan gelen değer boşsa
+                alert('Lütfen bir masa seçin veya masa adı/sipariş notu girin.');
                 return;
             }
 
-            const orderData = {
-                tableName: (tableNameSelect.value === 'Diğer' ? currentTableName : tableNameSelect.value),
-                items: cart,
+            const order = {
+                tableName: currentTableName,
+                items: cart.map(item => ({
+                    productId: item.id,
+                    productName: item.name,
+                    quantity: item.quantity,
+                    unitPrice: item.price,
+                    totalPrice: item.totalPrice
+                })),
                 totalAmount: parseFloat(cartTotalSpan.textContent),
-                platform: 'POS' // Siparişin POS'tan geldiğini belirt
+                timestamp: new Date().toISOString(),
+                platform: 'POS', // Bu siparişin POS sisteminden geldiğini belirt
+                status: 'Beklemede' // Yeni siparişin başlangıç durumu
             };
 
-            console.log('POS Siparişi Gönderiliyor:', orderData);
+            socket.emit('newOrder', order);
+            console.log('Sipariş Gönderildi:', order);
 
-            try {
-                // HTTP POST isteği ile siparişi sunucuya gönder
-                const response = await fetch('/api/order', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(orderData)
-                });
+            // Sepeti sıfırla
+            cart = [];
+            updateCartDisplay();
+            currentTableName = tableNameSelect.value; // Seçili masaya geri dön
+            customTableNameInput.style.display = 'none';
+            customTableNameInput.value = '';
+            alert('Sipariş başarıyla mutfağa gönderildi!');
+        });
 
-                if (response.ok) {
-                    const result = await response.json();
-                    alert('Sipariş başarıyla gönderildi!');
-                    console.log(result.message);
-                    cart = []; // Sepeti temizle
-                    updateCartDisplay();
-                    // Masa seçimini varsayılana döndür
-                    tableNameSelect.value = 'Masa 1';
-                    customTableNameInput.style.display = 'none';
-                    currentTableName = 'Masa 1';
-                } else {
-                    alert('Sipariş gönderilirken bir hata oluştu.');
-                    console.error('Sipariş gönderme hatası:', response.statusText);
+        // Ödeme butonları (Nakit / Kredi Kartı) - bunlar siparişi direkt tamamlayacak
+        payCashButton.addEventListener('click', () => handlePayment('Nakit'));
+        payCreditButton.addEventListener('click', () => handlePayment('Kredi Kartı'));
+
+        function handlePayment(paymentMethod) {
+            if (cart.length === 0) {
+                alert('Sepet boş! Lütfen ürün ekleyin.');
+                return;
+            }
+            if (tableNameSelect.value === 'Diğer' && customTableNameInput.value.trim() === '') {
+                 alert('Lütfen özel masa adı veya sipariş notu girin.');
+                 return;
+            }
+            if (currentTableName.trim() === '') {
+                alert('Lütfen bir masa seçin veya masa adı/sipariş notu girin.');
+                return;
+            }
+
+            const order = {
+                tableName: currentTableName,
+                items: cart.map(item => ({
+                    productId: item.id,
+                    productName: item.name,
+                    quantity: item.quantity,
+                    unitPrice: item.price,
+                    totalPrice: item.totalPrice
+                })),
+                totalAmount: parseFloat(cartTotalSpan.textContent),
+                timestamp: new Date().toISOString(),
+                platform: 'POS (Ödendi)', // Ödemenin POS üzerinden yapıldığını ve ödendiğini belirt
+                status: 'Tamamlandı', // Direkt tamamlanmış sipariş
+                paymentMethod: paymentMethod
+            };
+
+            // Ödenmiş siparişi sunucuya gönder
+            socket.emit('orderPaidFromPOS', order);
+            console.log(`${paymentMethod} ile Ödeme Yapıldı ve Sipariş Tamamlandı:`, order);
+
+            // Fişi Yazdır
+            printOrderReceipt(order);
+
+            // Sepeti sıfırla
+            cart = [];
+            updateCartDisplay();
+            currentTableName = tableNameSelect.value; // Seçili masaya geri dön
+            customTableNameInput.style.display = 'none';
+            customTableNameInput.value = '';
+            alert(`Sipariş ${paymentMethod} ile başarıyla tamamlandı ve fiş yazdırıldı!`);
+        }
+
+
+        // =========================================================
+        // Socket.IO Olay Dinleyicileri
+        // =========================================================
+
+        socket.on('connect', () => {
+            console.log('Sunucuya bağlandı!');
+            // Bağlandıktan sonra mevcut siparişleri ve motorcu konumlarını iste
+            socket.emit('requestCurrentOrders');
+            socket.emit('requestCurrentRiderLocations');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Sunucuyla bağlantı kesildi.');
+        });
+
+        socket.on('newOrder', (order) => {
+            console.log('Yeni sipariş alındı:', order);
+            addOrderToDisplay(order);
+        });
+
+        socket.on('orderUpdated', (order) => {
+            console.log('Sipariş güncellendi:', order);
+            addOrderToDisplay(order); // Mevcut kartı güncelleyecek veya yeni ekleyecek
+        });
+
+        socket.on('orderRemoved', (orderId) => {
+            console.log('Sipariş kaldırıldı:', orderId);
+            const orderCard = document.getElementById(`order-${orderId}`);
+            if (orderCard) {
+                orderCard.remove();
+            }
+        });
+
+        socket.on('riderLocationUpdate', (locationData) => {
+            // console.log('Motorcu konum güncellemesi:', locationData);
+            updateRiderLocation(locationData);
+        });
+
+        socket.on('currentOrders', (orders) => {
+            console.log('Mevcut siparişler yüklendi:', orders);
+            ordersContainer.innerHTML = ''; // Mevcutları temizle
+            orders.forEach(order => addOrderToDisplay(order));
+        });
+
+        socket.on('currentRiderLocations', (locations) => {
+            console.log('Mevcut motorcu konumları yüklendi:', locations);
+            // Haritadaki tüm eski işaretçileri kaldır
+            for (const riderId in riderMarkers) {
+                if (riderMarkers.hasOwnProperty(riderId)) {
+                    map.removeLayer(riderMarkers[riderId]);
+                    delete riderMarkers[riderId];
                 }
-            } catch (error) {
-                alert('Sunucuya bağlanırken bir hata oluştu.');
-                console.error('Fetch hatası:', error);
             }
+            // Yeni konumları ekle
+            locations.forEach(location => updateRiderLocation(location));
         });
 
-        // Ödeme Butonları (Örneklik İçin - Gerçek entegrasyon burada başlar)
-        payCashButton.addEventListener('click', () => {
-            if (cart.length === 0) {
-                alert('Sepet boş! Ödeme yapılamaz.');
-                return;
-            }
-            if (!currentTableName && tableNameSelect.value === 'Diğer') {
-                alert('Lütfen masa adı veya sipariş notu girin.');
-                return;
-            }
-
-            const orderData = {
-                tableName: (tableNameSelect.value === 'Diğer' ? currentTableName : tableNameSelect.value),
-                items: cart,
-                totalAmount: parseFloat(cartTotalSpan.textContent),
-                paymentMethod: 'Nakit',
-                platform: 'POS'
-            };
-
-            console.log('Nakit Ödeme Yapıldı:', orderData);
-            alert(`Nakit ödeme alındı: ${orderData.totalAmount.toFixed(2)} TL`);
-
-            // Fişi yazdır
-            printOrderReceipt(orderData);
-
-            // Sepeti temizle ve sıfırla
-            cart = [];
-            updateCartDisplay();
-            tableNameSelect.value = 'Masa 1';
-            customTableNameInput.style.display = 'none';
-            currentTableName = 'Masa 1';
-        });
-
-        payCreditButton.addEventListener('click', () => {
-            if (cart.length === 0) {
-                alert('Sepet boş! Ödeme yapılamaz.');
-                return;
-            }
-            if (!currentTableName && tableNameSelect.value === 'Diğer') {
-                alert('Lütfen masa adı veya sipariş notu girin.');
-                return;
-            }
-
-            const orderData = {
-                tableName: (tableNameSelect.value === 'Diğer' ? currentTableName : tableNameSelect.value),
-                items: cart,
-                totalAmount: parseFloat(cartTotalSpan.textContent),
-                paymentMethod: 'Kredi Kartı',
-                platform: 'POS'
-            };
-
-            console.log('Kredi Kartı Ödeme Yapıldı:', orderData);
-            alert(`Kredi kartı ile ödeme alındı: ${orderData.totalAmount.toFixed(2)} TL`);
-
-            // Fişi yazdır
-            printOrderReceipt(orderData);
-
-            // Sepeti temizle ve sıfırla
-            cart = [];
-            updateCartDisplay();
-            tableNameSelect.value = 'Masa 1';
-            customTableNameInput.style.display = 'none';
-            currentTableName = 'Masa 1';
-        });
-
-        // =========================================================
-        // Sayfa Yüklendiğinde
-        // =========================================================
+        // Sayfa yüklendiğinde haritayı başlat ve ürün/kategori verilerini çek
         document.addEventListener('DOMContentLoaded', () => {
-            initMap(); // Haritayı başlat
-            renderCategories(); // POS kategorilerini yükle
-            updateCartDisplay(); // Sepeti ilk kez göster
-
-            // Socket.IO olay dinleyicileri
-            socket.on('newOrder', (order) => {
-                console.log('Yeni sipariş alındı:', order);
-                addOrderToDisplay(order);
-                playNotificationSound();
-                notificationBell.classList.add('ringing');
-                setTimeout(() => {
-                    notificationBell.classList.remove('ringing');
-                }, 1500);
-            });
-
-            socket.on('notificationSound', () => {
-                playNotificationSound();
-                notificationBell.classList.add('ringing');
-                setTimeout(() => {
-                    notificationBell.classList.remove('ringing');
-                }, 1500);
-            });
-
-            socket.on('newRiderLocation', (locationData) => {
-                updateRiderLocation(locationData);
-            });
-
-            socket.on('currentRiderLocations', (locations) => {
-                console.log('Mevcut motorcu konumları alındı:', locations);
-                for (const riderId in locations) {
-                    updateRiderLocation(locations[riderId]);
-                }
-            });
-
-            socket.on('connect', () => {
-                console.log('Sunucuya bağlandı!');
-            });
-
-            socket.on('disconnect', () => {
-                console.log('Sunucu bağlantısı kesildi!');
-                for (const riderId in riderMarkers) {
-                    if (riderMarkers[riderId]) {
-                        riderMarkers[riderId].remove();
-                        delete riderMarkers[riderId];
-                    }
-                }
-            });
-
-            socket.on('connect_error', (err) => {
-                console.error('Bağlantı hatası:', err.message);
-            });
+            initMap();
+            fetchProductsAndCategories();
         });
+
     </script>
 </body>
 </html>
