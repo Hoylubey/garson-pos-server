@@ -4,35 +4,29 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
-const sqlite3 = require('sqlite3').verbose(); // SQLite3 modülünü dahil et
+const sqlite3 = require('sqlite3').verbose();
 
 const app = express();
 const server = http.createServer(app);
 
-// CORS ayarları: Frontend'in farklı bir adreste olabileceğini varsayıyoruz.
-// Eğer frontend aynı sunucu üzerinden sunulacaksa bu kısım daha basit olabilir.
-// Şimdilik herhangi bir kaynaktan gelen isteklere izin veriyoruz.
 app.use(cors({
-    origin: '*', // Tüm kaynaklardan gelen isteklere izin ver (Geliştirme için ideal, üretimde kısıtlanmalı)
+    origin: '*',
     methods: ['GET', 'POST'],
     allowedHeaders: ['Content-Type']
 }));
 
-app.use(express.json()); // JSON body parsing için middleware
-
-// Statik dosyaları sunmak için (index.html, CSS, JS)
+app.use(express.json());
 app.use(express.static('public'));
 
 // =========================================================
-// SQLite Veritabanı Bağlantısı ve Modeller
+// SQLite Veritabanı Bağlantısı ve Modeller (Güncellendi)
 // =========================================================
-const DB_PATH = './garson_pos.db'; // Veritabanı dosyasının yolu
+const DB_PATH = './garson_pos.db';
 const db = new sqlite3.Database(DB_PATH, (err) => {
     if (err) {
         console.error('Veritabanına bağlanırken hata oluştu:', err.message);
     } else {
         console.log('SQLite veritabanına başarıyla bağlandı.');
-        // Tabloları oluşturma veya doğrulamak için çağrı
         createTables();
     }
 });
@@ -47,9 +41,9 @@ function createTables() {
             console.error('Kategoriler tablosu oluşturulurken hata:', err.message);
         } else {
             console.log('Kategoriler tablosu hazır.');
-            // Ürünler tablosu (kategoriye bağlı)
+            // Ürünler tablosu (kategoriye bağlı) - ID INTEGER PRIMARY KEY oldu
             db.run(`CREATE TABLE IF NOT EXISTS products (
-                id TEXT PRIMARY KEY,
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
                 price REAL NOT NULL,
                 category_id INTEGER,
@@ -59,8 +53,7 @@ function createTables() {
                     console.error('Ürünler tablosu oluşturulurken hata:', err.message);
                 } else {
                     console.log('Ürünler tablosu hazır.');
-                    // Örnek verileri ekle
-                    seedData();
+                    seedData(); // Örnek verileri ekle
                 }
             });
         }
@@ -73,8 +66,8 @@ function createTables() {
         totalAmount REAL NOT NULL,
         timestamp TEXT NOT NULL,
         platform TEXT NOT NULL,
-        status TEXT NOT NULL, -- Beklemede, Hazırlanıyor, Yolda, Tamamlandı
-        paymentMethod TEXT -- Nakit, Kredi Kartı (null olabilir)
+        status TEXT NOT NULL,
+        paymentMethod TEXT
     )`, (err) => {
         if (err) {
             console.error('Siparişler tablosu oluşturulurken hata:', err.message);
@@ -83,11 +76,11 @@ function createTables() {
         }
     });
 
-    // Sipariş kalemleri tablosu (ilişkisel)
+    // Sipariş kalemleri tablosu (ilişkisel) - product_id INTEGER oldu
     db.run(`CREATE TABLE IF NOT EXISTS order_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         order_id TEXT NOT NULL,
-        product_id TEXT NOT NULL,
+        product_id INTEGER NOT NULL, -- product_id INTEGER olarak değişti
         product_name TEXT NOT NULL,
         quantity INTEGER NOT NULL,
         unit_price REAL NOT NULL,
@@ -115,12 +108,57 @@ function seedData() {
         { name: "Patates Cips", price: 40.00, categoryName: "Yan Ürünler" },
         { name: "Turşu", price: 10.00, categoryName: "Yan Ürünler" },
         { name: "Sütlaç", price: 35.00, categoryName: "Tatlılar" },
-        { name: "Künefe", price: 60.00, categoryName: "Tatlılar" }
+        { name: "Künefe", price: 60.00, categoryName: "Tatlılar" },
+         // Android uygulamasındaki ürün listesini buraya ekleyelim, böylece ID'ler uyumlu olur
+        { name: "Yarım Ekmek İzmir Kokoreç ", fiyat: 240.0, categoryName: "Kokoreç" },
+        { name: "Üç Çeyrek Ekmek Kokoreç ", fiyat: 300.0, categoryName: "Kokoreç" },
+        { name: "Porsiyon Kokoreç ", fiyat: 400.0, categoryName: "Kokoreç" },
+        { name: "Yarım Ekmek Tavuk Kokoreç ", fiyat: 100.0, categoryName: "Kokoreç" },
+        { name: "Üç Çeyrek Tavuk Kokoreç", fiyat: 150.0, categoryName: "Kokoreç" },
+        { name: "Sade Patso ", fiyat: 110.0, categoryName: "Yan Ürünler" },
+        { name: "Sosisli Patso ", fiyat: 130.0, categoryName: "Yan Ürünler" },
+        { name: "Ciğerli Patso ", fiyat: 180.0, categoryName: "Yan Ürünler" },
+        { name: "Köfteli Patso", fiyat: 180.0, categoryName: "Yan Ürünler" },
+        { name: "Kaşarlı Patso ", fiyat: 130.0, categoryName: "Yan Ürünler" },
+        { name: "Tavuklu Patso ", fiyat: 160.0, categoryName: "Yan Ürünler" },
+        { name: "Amerikanlı Patso ", fiyat: 130.0, categoryName: "Yan Ürünler" },
+        { name: "Patates Kızartması", fiyat: 110.0, categoryName: "Yan Ürünler" },
+        { name: "Yarım Ekmek Köfte ", fiyat: 170.0, categoryName: "Kokoreç" }, // Kategori buraya uygun mu kontrol edin
+        { name: "Üç Çeyrek Ekmek Köfte ", fiyat: 250.0, categoryName: "Kokoreç" }, // Kategori buraya uygun mu kontrol edin
+        { name: "Porsiyon Köfte ", fiyat: 270.0, categoryName: "Kokoreç" }, // Kategori buraya uygun mu kontrol edin
+        { name: "Hamburger", fiyat: 130.0, categoryName: "Yan Ürünler" }, // Kategori buraya uygun mu kontrol edin
+        { name: "Yarım Ekmek Ciğer ", fiyat: 170.0, categoryName: "Kokoreç" }, // Kategori buraya uygun mu kontrol edin
+        { name: "Üç Çeyrek Ekmek Ciğer", fiyat: 250.0, categoryName: "Kokoreç" }, // Kategori buraya uygun mu kontrol edin
+        { name: "Porsiyon Ciğer ", fiyat: 270.0, categoryName: "Kokoreç" }, // Kategori buraya uygun mu kontrol edin
+        { name: "Cheeseburger", fiyat: 140.0, categoryName: "Yan Ürünler" }, // Kategori buraya uygun mu kontrol edin
+        { name: "Yarım Ekmek Sucuk ", fiyat: 200.0, categoryName: "Kokoreç" }, // Kategori buraya uygun mu kontrol edin
+        { name: "Üç Çeyrek Ekmek Sucuk ", fiyat: 300.0, categoryName: "Kokoreç" }, // Kategori buraya uygun mu kontrol edin
+        { name: "Islak Burger ", fiyat: 70.0, categoryName: "Yan Ürünler" }, // Kategori buraya uygun mu kontrol edin
+        { name: "Sosisli Sandviç", fiyat: 70.0, categoryName: "Yan Ürünler" }, // Kategori buraya uygun mu kontrol edin
+        { name: "Yarım Ekmek Tavuk Döner ", fiyat: 70.0, categoryName: "Kokoreç" }, // Kategori buraya uygun mu kontrol edin
+        { name: "Tombik Ekmek Tavuk Döner ", fiyat: 80.0, categoryName: "Kokoreç" }, // Kategori buraya uygun mu kontrol edin
+        { name: "Üç Çeyrek Ekmek Döner ", fiyat: 100.0, categoryName: "Kokoreç" }, // Kategori buraya uygun mu kontrol edin
+        { name: "Dürüm Tavuk Döner", fiyat: 100.0, categoryName: "Kokoreç" }, // Kategori buraya uygun mu kontrol edin
+        { name: "Pilav Üstü Tavuk Döner ", fiyat: 170.0, categoryName: "Kokoreç" }, // Kategori buraya uygun mu kontrol edin
+        { name: "Yarım Ekmek Kaşarlı Tost ", fiyat: 80.0, categoryName: "Yan Ürünler" }, // Kategori buraya uygun mu kontrol edin
+        { name: "Yarım Ekmek Karışık Tost ", fiyat: 100.0, categoryName: "Yan Ürünler" }, // Kategori buraya uygun mu kontrol edin
+        { name: "Kutu İçecek ", fiyat: 50.0, categoryName: "İçecekler" },
+        { name: "Şişe Kola ", fiyat: 40.0, categoryName: "İçecekler" },
+        { name: "Ayran ", fiyat: 50.0, categoryName: "İçecekler" },
+        { name: "Küçük Ayran ", fiyat: 30.0, categoryName: "İçecekler" },
+        { name: "Limonata ", fiyat: 50.0, categoryName: "İçecekler" },
+        { name: "Çamlıca Gazoz ", fiyat: 40.0, categoryName: "İçecekler" },
+        { name: "Sade Soda", fiyat: 30.0, categoryName: "İçecekler" },
+        { name: "Limonlu Soda ", fiyat: 35.0, categoryName: "İçecekler" },
+        { name: "Şalgam Suyu ", fiyat: 50.0, categoryName: "İçecekler" },
+        { name: "Su ", fiyat: 15.0, categoryName: "İçecekler" },
+        { name: "Çay ", fiyat: 15.0, categoryName: "İçecekler" },
+        { name: "Midye ", fiyat: 10.0, categoryName: "Yan Ürünler" } // Kategori buraya uygun mu kontrol edin
     ];
+
 
     db.serialize(() => {
         categories.forEach(categoryName => {
-            // Kategori yoksa ekle
             db.run(`INSERT OR IGNORE INTO categories (name) VALUES (?)`, [categoryName], function(err) {
                 if (err) {
                     console.error(`Kategori eklenirken hata (${categoryName}):`, err.message);
@@ -130,7 +168,6 @@ function seedData() {
             });
         });
 
-        // Ürünleri ekle (kategoriye göre)
         productsToAdd.forEach(product => {
             db.get(`SELECT id FROM categories WHERE name = ?`, [product.categoryName], (err, row) => {
                 if (err) {
@@ -139,13 +176,13 @@ function seedData() {
                 }
                 if (row) {
                     const categoryId = row.id;
-                    const productId = product.name.toLowerCase().replace(/\s/g, '_').replace(/ç/g, 'c').replace(/ş/g, 's').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/ğ/g, 'g'); // Basit ID oluşturma
-                    db.run(`INSERT OR IGNORE INTO products (id, name, price, category_id) VALUES (?, ?, ?, ?)`,
-                        [productId, product.name, product.price, categoryId], function(err) {
+                    // id alanı artık otomatik artacak, biz eklemeyeceğiz
+                    db.run(`INSERT OR IGNORE INTO products (name, price, category_id) VALUES (?, ?, ?)`,
+                        [product.name, product.price, categoryId], function(err) {
                             if (err) {
                                 console.error(`Ürün eklenirken hata (${product.name}):`, err.message);
                             } else if (this.changes > 0) {
-                                console.log(`Ürün eklendi: ${product.name}`);
+                                console.log(`Ürün eklendi: ${product.name} (ID: ${this.lastID})`);
                             }
                         }
                     );
@@ -163,18 +200,13 @@ function seedData() {
 // =========================================================
 const io = socketIo(server, {
     cors: {
-        origin: '*', // Tüm kaynaklardan gelen bağlantılara izin ver (Geliştirme için)
+        origin: '*',
         methods: ['GET', 'POST']
     }
 });
 
-// Siparişleri bellekte tutmak yerine veritabanından çekeceğiz.
-// Ancak aktif siparişleri takip etmek için yine de geçici bir bellek yapısı kullanabiliriz.
-// Şimdilik sadece yeni gelen siparişleri tutacak bir dizi kullanalım,
-// gerçekte veritabanından çekilen tüm siparişler listelenecek.
-let activeOrders = {}; // orderId'ye göre siparişleri tutacak
+let activeOrders = {};
 
-// Mevcut aktif siparişleri veritabanından yükleme fonksiyonu
 function loadCurrentOrdersFromDb() {
     db.all(`SELECT * FROM orders WHERE status NOT IN ('Tamamlandı', 'İptal Edildi') ORDER BY timestamp DESC`, (err, rows) => {
         if (err) {
@@ -182,7 +214,6 @@ function loadCurrentOrdersFromDb() {
             return;
         }
         rows.forEach(orderRow => {
-            // Her sipariş için kalemlerini çek
             db.all(`SELECT product_id as id, product_name as name, quantity, unit_price as unitPrice, total_price as totalPrice FROM order_items WHERE order_id = ?`, [orderRow.orderId], (err, items) => {
                 if (err) {
                     console.error(`Sipariş kalemleri çekilirken hata (Order ID: ${orderRow.orderId}):`, err.message);
@@ -198,9 +229,8 @@ function loadCurrentOrdersFromDb() {
                     status: orderRow.status,
                     paymentMethod: orderRow.paymentMethod
                 };
-                activeOrders[order.orderId] = order; // Belleğe ekle
-                // Bağlı olan tüm client'lara gönder (sayfa yenilendiğinde vs.)
-                io.emit('newOrder', order); // 'newOrder' olarak gönderiyoruz çünkü client tarafında addOrderToDisplay zaten var.
+                activeOrders[order.orderId] = order;
+                io.emit('newOrder', order);
             });
         });
         console.log('Mevcut aktif siparişler yüklendi ve client\'lara gönderildi.');
@@ -208,33 +238,29 @@ function loadCurrentOrdersFromDb() {
 }
 
 
-// Client bağlandığında
 io.on('connection', (socket) => {
     console.log('Yeni bir istemci bağlandı:', socket.id);
 
-    // Bağlanan client'a mevcut aktif siparişleri gönder
     socket.on('requestCurrentOrders', () => {
         const currentOrdersArray = Object.values(activeOrders);
-        // Bu kısım, client bağlandığında sadece o client'a gönderilir.
         socket.emit('currentOrders', currentOrdersArray);
         console.log(`Client ${socket.id} için mevcut siparişler gönderildi.`);
     });
 
-    // Bağlanan client'a mevcut motorcu konumlarını gönder (şimdilik bu kısım değişmiyor)
+    // Motorcu konum güncellemeleri kısmı değişmiyor
+    let riderLocations = {};
     socket.on('requestCurrentRiderLocations', () => {
-        // Bu kısım henüz veritabanına entegre değil, mevcut mantıkla devam ediyor.
-        // TODO: Motorcu konumlarını da veritabanına kaydetmek istenirse burası değişmeli.
         socket.emit('currentRiderLocations', Object.values(riderLocations));
     });
 
-    // POS'tan yeni sipariş geldiğinde
+
+    // Yeni sipariş geldiğinde (Android uygulamadan da gelebilir)
     socket.on('newOrder', (order) => {
-        const orderId = `POS-${Date.now()}`; // Eşsiz bir sipariş ID'si oluştur
+        const orderId = `ORDER-${Date.now()}`; // Eşsiz bir sipariş ID'si oluştur (hem POS hem Android için)
         order.orderId = orderId;
-        order.timestamp = new Date().toISOString(); // Sunucu tarafında zaman damgası ekle
+        order.timestamp = new Date().toISOString();
         order.status = 'Beklemede'; // Başlangıç durumu
 
-        // Siparişi veritabanına kaydet
         db.run(`INSERT INTO orders (orderId, tableName, totalAmount, timestamp, platform, status, paymentMethod) VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [order.orderId, order.tableName, order.totalAmount, order.timestamp, order.platform, order.status, order.paymentMethod || null], function(err) {
                 if (err) {
@@ -243,9 +269,9 @@ io.on('connection', (socket) => {
                 }
                 console.log(`Sipariş ID ${order.orderId} veritabanına kaydedildi.`);
 
-                // Sipariş kalemlerini kaydet
                 const stmt = db.prepare(`INSERT INTO order_items (order_id, product_id, product_name, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?, ?)`);
                 order.items.forEach(item => {
+                    // product_id artık sayısal olabilir, string dönüşümüne gerek yok
                     stmt.run(order.orderId, item.productId, item.productName, item.quantity, item.unitPrice, item.totalPrice);
                 });
                 stmt.finalize((err) => {
@@ -253,15 +279,14 @@ io.on('connection', (socket) => {
                         console.error('Sipariş kalemleri kaydedilirken hata:', err.message);
                     } else {
                         console.log(`Sipariş kalemleri Order ID ${order.orderId} için kaydedildi.`);
-                        activeOrders[order.orderId] = order; // Belleğe ekle
-                        io.emit('newOrder', order); // Tüm bağlı client'lara yeni siparişi yayınla
+                        activeOrders[order.orderId] = order;
+                        io.emit('newOrder', order);
                     }
                 });
             }
         );
     });
 
-    // Mutfak/Kasa ekranından sipariş ödendi olarak işaretlendiğinde
     socket.on('orderPaid', ({ orderId, tableName, totalAmount }) => {
         db.run(`UPDATE orders SET status = 'Tamamlandı' WHERE orderId = ?`, [orderId], function(err) {
             if (err) {
@@ -270,23 +295,20 @@ io.on('connection', (socket) => {
             }
             if (this.changes > 0) {
                 console.log(`Sipariş ${orderId} ödendi olarak güncellendi.`);
-                delete activeOrders[orderId]; // Bellekten kaldır
-                io.emit('orderRemoved', orderId); // Tüm client'lara kaldırıldığını bildir
+                delete activeOrders[orderId];
+                io.emit('orderRemoved', orderId);
             } else {
                 console.warn(`Sipariş ${orderId} bulunamadı veya zaten tamamlandı.`);
             }
         });
     });
 
-    // POS ekranından ödeme yapılıp sipariş tamamlandığında (ve fiş basıldığında)
     socket.on('orderPaidFromPOS', (order) => {
-        const orderId = `POS_PAID-${Date.now()}`; // Ödenmiş sipariş için farklı ID veya mevcut ID'yi kullan
-        order.orderId = orderId; // Bu, server'da yeni oluşturulan bir sipariş olduğu için yeni ID veriyoruz.
+        const orderId = `PAID-${Date.now()}`; // Ödenmiş sipariş için yeni ID
+        order.orderId = orderId;
         order.timestamp = new Date().toISOString();
-        order.status = 'Tamamlandı'; // Zaten tamamlanmış olarak geliyor
-        // paymentMethod zaten client'tan geliyor
+        order.status = 'Tamamlandı';
 
-        // Siparişi veritabanına kaydet
         db.run(`INSERT INTO orders (orderId, tableName, totalAmount, timestamp, platform, status, paymentMethod) VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [order.orderId, order.tableName, order.totalAmount, order.timestamp, order.platform, order.status, order.paymentMethod], function(err) {
                 if (err) {
@@ -295,9 +317,9 @@ io.on('connection', (socket) => {
                 }
                 console.log(`POS'tan ödenen sipariş ID ${order.orderId} veritabanına kaydedildi.`);
 
-                // Sipariş kalemlerini kaydet
                 const stmt = db.prepare(`INSERT INTO order_items (order_id, product_id, product_name, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?, ?)`);
                 order.items.forEach(item => {
+                    // product_id artık sayısal olabilir
                     stmt.run(order.orderId, item.productId, item.productName, item.quantity, item.unitPrice, item.totalPrice);
                 });
                 stmt.finalize((err) => {
@@ -305,19 +327,12 @@ io.on('connection', (socket) => {
                         console.error('POS\'tan ödenen sipariş kalemleri kaydedilirken hata:', err.message);
                     } else {
                         console.log(`POS'tan ödenen sipariş kalemleri Order ID ${order.orderId} için kaydedildi.`);
-                        // Bu sipariş zaten tamamlandığı için 'activeOrders' listesine eklemeye gerek yok,
-                        // doğrudan 'orderRemoved' olayı gönderilebilir veya hiç gönderilmeyebilir.
-                        // Şimdilik mutfak ekranında görünmemesi için doğrudan kaldırıyoruz.
-                        io.emit('orderRemoved', order.orderId); // Mutfak ekranından bu siparişi kaldır
+                        io.emit('orderRemoved', order.orderId);
                     }
                 });
             }
         );
     });
-
-
-    // Motorcu konum güncellemeleri (şimdilik basit bir bellek objesinde tutuluyor)
-    let riderLocations = {}; // { riderId: { latitude, longitude, speed, bearing, timestamp } }
 
     socket.on('riderLocationUpdate', (locationData) => {
         riderLocations[locationData.riderId] = {
@@ -327,21 +342,16 @@ io.on('connection', (socket) => {
             bearing: locationData.bearing,
             timestamp: new Date().toISOString()
         };
-        // console.log(`Motorcu ${locationData.riderId} konum güncelledi:`, riderLocations[locationData.riderId]);
-        // Konum güncellemelerini diğer tüm client'lara yayınla (mutfak ekranı vb.)
         io.emit('riderLocationUpdate', riderLocations[locationData.riderId]);
     });
 
     socket.on('disconnect', () => {
         console.log('İstemci bağlantısı kesildi:', socket.id);
-        // İstemci disconnect olduğunda motorcu konumunu temizleyebiliriz,
-        // ancak gerçek bir uygulamada motorcu oturumu bitene kadar tutulabilir.
-        // Örneğin: delete riderLocations[socket.id];
     });
 });
 
 // =========================================================
-// HTTP API Uç Noktaları
+// HTTP API Uç Noktaları (Güncellendi)
 // =========================================================
 
 // Ürünleri kategorileriyle birlikte getir
@@ -362,7 +372,7 @@ app.get('/products-with-categories', (req, res) => {
                 organizedProducts[row.categoryName] = [];
             }
             organizedProducts[row.categoryName].push({
-                id: row.id,
+                id: row.id, // ID artık sayısal geliyor
                 name: row.name,
                 price: row.price
             });
@@ -372,9 +382,8 @@ app.get('/products-with-categories', (req, res) => {
 });
 
 
-// Sunucuyu başlat
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`Garson POS Sunucusu ${PORT} portunda çalışıyor.`);
-    loadCurrentOrdersFromDb(); // Sunucu başladığında mevcut siparişleri yükle
+    loadCurrentOrdersFromDb();
 });
