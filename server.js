@@ -1,4 +1,4 @@
-const express = require('express');
+rconst express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
 const cors = require('cors');
@@ -24,7 +24,7 @@ app.use(express.static('public'));
 // 🔥 Firebase Admin SDK Başlat
 // Kendi 'garson-uygulamasi-fcm-key.json' dosyanızın yolunu buraya girin.
 // Bu dosyanın sunucu dosyanızla aynı dizinde olması önerilir.
-const serviceAccount = require('./garson-uygulamasi-fcm-key.json');
+const serviceAccount = require('./serviceAccountKey.json');
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
 });
