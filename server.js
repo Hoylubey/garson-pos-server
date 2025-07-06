@@ -20,7 +20,7 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // 🔥 Firebase Başlat
-const serviceAccount = require('.serviceAccountKey.json');
+const serviceAccount = require('./serviceAccountKey.json');
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
 });
