@@ -223,6 +223,10 @@
 
     <div id="notificationBell" class="notification-bell">🔔</div>
     <audio id="notificationSound" src="notification.mp3" preload="auto"></audio>
+    <div id="order-status-box" style="position: fixed; top: 20px; left: 20px; background: #fff; padding: 10px 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 999;">
+  <strong>Sipariş Alımı:</strong> <span id="order-status-text">Yükleniyor...</span><br>
+  <button id="order-status-toggle" style="margin-top: 5px;">Durumu Değiştir</button>
+</div>
 
     <script>
         // Socket.IO istemcisini başlat
@@ -456,49 +460,91 @@
 
         // Motorcu konumunu haritada güncelleyen fonksiyon (Leaflet için)
         function updateRiderLocation(locationData) {
-            const { riderId, latitude, longitude, speed, bearing, timestamp } = locationData;
-            const latLng = [latitude, longitude]; // Leaflet için [lat, lng] array formatı
-
-            if (!map) {
-                console.warn('Harita henüz başlatılmadı.');
-                return;
+        const { riderId, latitude, longitude, speed, bearing, timestamp } = locationData;
+        const latLng = [latitude, longitude];
+    
+        if (!map) {
+            console.warn('Harita henüz başlatılmadı.');
+            return;
+        }
+    
+        const customIcon = L.icon({
+            iconUrl: 'images/motorcu_icon.png',
+            iconSize: [32, 32],
+            iconAnchor: [16, 16],
+            popupAnchor: [0, -16]
+        });
+    
+        if (riderMarkers[riderId]) {
+            riderMarkers[riderId].setLatLng(latLng);
+            if (riderMarkers[riderId].getPopup()) {
+                riderMarkers[riderId].getPopup().setContent(
+                    `<div><strong>Motorcu ID:</strong> ${riderId}</div>` +
+                    `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
+                    `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
+                    `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
+                    `<div><strong>Güncellenme:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>`
+                );
             }
-
-            // Motorcu ikonu tanımı
-            // Kendi motorcu ikonunuzu 'public/images/motorcu_icon.png' olarak ayarlayın
-            // Eğer yoksa, Leaflet'ın varsayılan ikonunu kullanacaktır.
-            const customIcon = L.icon({
-                iconUrl: 'images/motorcu_icon.png', // Bu yolu kendi ikon dosyanızın konumuna göre ayarlayın
-                iconSize: [32, 32],     // ikonun boyutları
-                iconAnchor: [16, 16],   // ikonun konumlandırma noktası (ikonun merkezi)
-                popupAnchor: [0, -16]   // popup penceresinin konumlandırma noktası
-            });
-
-            if (riderMarkers[riderId]) {
-                // Marker zaten varsa konumunu güncelle
-                riderMarkers[riderId].setLatLng(latLng);
-
-                // InfoWindow içeriğini güncelle (eğer açıksa)
-                if (riderMarkers[riderId].getPopup()) {
-                    riderMarkers[riderId].getPopup().setContent(
-                        `<div><strong>Motorcu ID:</strong> ${riderId}</div>` +
-                        `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
-                        `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
-                        `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
-                        `<div><strong>Güncellenme:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>`
-                    );
-                }
-            } else {
-                // Yeni marker oluştur
-                riderMarkers[riderId] = L.marker(latLng, { icon: customIcon }).addTo(map)
-                    .bindPopup(
-                        `<div><strong>Motorcu ID:</strong> ${riderId}</div>` +
-                        `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
-                        `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
-                        `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
-                        `<div><strong>Güncellenme:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>`
-                    );
+        } else {
+            riderMarkers[riderId] = L.marker(latLng, { icon: customIcon }).addTo(map)
+                .bindPopup(
+                    `<div><strong>Motorcu ID:</strong> ${riderId}</div>` +
+                    `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
+                    `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
+                    `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
+                    `<div><strong>Güncellenme:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>`
+                );
             }
+        }
+
+
+        function fetchOrderStatus() {
+            fetch('/api/order-status')
+            .then(res => res.json())
+            .then(data => {
+            const statusEl = document.getElementById('order-status-text');
+            const toggleBtn = document.getElementById('order-status-toggle');
+            if (data.enabled) {
+                statusEl.textContent = 'AÇIK';
+                statusEl.style.color = 'green';
+                toggleBtn.textContent = 'Kapat';
+          } else {
+                statusEl.textContent = 'KAPALI';
+                statusEl.style.color = 'red';
+                toggleBtn.textContent = 'Aç';
+          }
+    })
+    .catch(err => {
+      console.error('Sipariş durumu alınamadı:', err);
+      document.getElementById('order-status-text').textContent = 'HATA!';
+    });
+}
+
+    function toggleOrderStatus() {
+        const isCurrentlyOpen = document.getElementById('order-status-text').textContent === 'AÇIK';
+        const newStatus = !isCurrentlyOpen;
+
+        fetch('/api/set-order-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: newStatus })
+      })
+        .then(res => res.json())
+        .then(data => {
+        alert(data.message || 'Durum güncellendi');
+        fetchOrderStatus();
+        })
+        .catch(err => {
+          alert('Durum güncellenemedi: ' + err.message);
+        });
+    }
+
+// Sayfa yüklendiğinde başlat
+document.addEventListener('DOMContentLoaded', () => {
+  fetchOrderStatus();
+  document.getElementById('order-status-toggle').addEventListener('click', toggleOrderStatus);
+});
             // Haritayı motorcunun konumuna odaklama (isteğe bağlı, çok fazla motorcu varsa rahatsız edebilir)
             // map.panTo(latLng);
         }
