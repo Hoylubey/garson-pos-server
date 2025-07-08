@@ -36,50 +36,48 @@ const dbPath = path.join(__dirname, 'garson_pos.db'); // Veritabanı dosya yolu
 const db = new Database(dbPath); // Veritabanı bağlantısı oluştur
 
 // Ayarlar tablosunu oluştur (eğer yoksa)
-db.exec(`
-    CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT
-    )
-`);
+try {
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    `);
+    console.log('Settings tablosu hazır.');
+} catch (err) {
+    console.error('Settings tablosu oluşturma hatası:', err.message);
+}
 
 // Orders tablosunu oluştur (eğer yoksa)
-db.exec(`
-    CREATE TABLE IF NOT EXISTS orders (
-        orderId TEXT PRIMARY KEY, 
-        masaId TEXT NOT NULL,
-        masaAdi TEXT NOT NULL,
-        sepetItems TEXT NOT NULL, -- JSON string olarak saklayacağız
-        toplamFiyat REAL NOT NULL,
-        timestamp TEXT NOT NULL, -- ISO string olarak saklayacağız
-        status TEXT NOT NULL DEFAULT 'pending' -- 'pending', 'paid', 'cancelled'
-    )
-`); 
+try {
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS orders (
+            orderId TEXT PRIMARY KEY, 
+            masaId TEXT NOT NULL,
+            masaAdi TEXT NOT NULL,
+            sepetItems TEXT NOT NULL, -- JSON string olarak saklayacağız
+            toplamFiyat REAL NOT NULL,
+            timestamp TEXT NOT NULL, -- ISO string olarak saklayacağız
+            status TEXT NOT NULL DEFAULT 'pending' -- 'pending', 'paid', 'cancelled'
+        )
+    `); 
+    console.log('Orders tablosu hazır.');
+} catch (err) {
+    console.error('Orders tablosu oluşturma hatası:', err.message);
+}
 
 // USERS tablosunu oluştur (eğer yoksa)
-db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL,
-        full_name TEXT, -- Motorcular için isim veya çalışan adı 
-        role TEXT NOT NULL DEFAULT 'employee' -- 'employee', 'admin'
-    )
-`); 
-
-// PRODUCTS tablosunu oluştur (eğer yoksa)
-db.exec(`
-    CREATE TABLE IF NOT EXISTS products (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE NOT NULL,
-        price REAL NOT NULL,
-        category TEXT,
-        description TEXT
-    )
-`); 
-
-// Callback'leri kaldırdıktan sonra hata yakalama mekanizmasını ekleyelim
 try {
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            full_name TEXT, -- Motorcular için isim veya çalışan adı
+            role TEXT NOT NULL DEFAULT 'employee' -- 'employee', 'admin'
+        )
+    `); 
+    console.log('Users tablosu hazır.');
     // Yönetici hesabının varlığını kontrol et ve yoksa ekle
     const adminUser = db.prepare("SELECT * FROM users WHERE username = 'hoylubey' AND role = 'admin'").get();
     if (!adminUser) {
@@ -91,10 +89,21 @@ try {
         });
     }
 } catch (err) {
-    console.error('Users tablosu veya yönetici ekleme hatası:', err.message);
+    console.error('Users tablosu oluşturma veya yönetici ekleme hatası:', err.message);
 }
 
+// PRODUCTS tablosunu oluştur (eğer yoksa)
 try {
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            price REAL NOT NULL,
+            category TEXT,
+            description TEXT
+        )
+    `); 
+    console.log('Products tablosu hazır.');
     // Örnek ürünler ekle (sadece tablo boşsa)
     const existingProducts = db.prepare("SELECT COUNT(*) FROM products").get();
     if (existingProducts['COUNT(*)'] === 0) {
@@ -107,8 +116,9 @@ try {
         console.log('Örnek ürünler veritabanına eklendi.');
     }
 } catch (err) {
-    console.error('Products tablosu veya örnek ürün ekleme hatası:', err.message);
+    console.error('Products tablosu oluşturma veya örnek ürün ekleme hatası:', err.message);
 }
+
 
 // Başlangıçta sipariş alım durumunu veritabanından oku veya varsayılan değerle başlat
 const initialStatus = db.prepare("SELECT value FROM settings WHERE key = 'isOrderTakingEnabled'").get();
@@ -127,6 +137,9 @@ const socketToUsername = {}; // { "socket.id": "motorcuIsmi" }
 
 // Middleware: Yönetici yetkisini kontrol et
 function isAdmin(req, res, next) {
+    // Örnek bir kontrol: Mobil uygulamadan 'x-role: admin' başlığı gelmeli
+    // veya daha güvenlisi: Kullanıcı giriş yaptığında dönen bir token'ı doğrularız
+    // Şimdilik sadece konsept için basit bir başlık kontrolü:
     if (req.headers['x-role'] === 'admin') {
         next();
     } else {
@@ -274,7 +287,8 @@ app.get('/api/products', (req, res) => {
     try {
         const products = db.prepare("SELECT * FROM products ORDER BY name ASC").all();
         res.status(200).json(products);
-    } catch (error) {
+    }
+    catch (error) {
         console.error('Ürünleri çekerken hata:', error);
         res.status(500).json({ message: 'Ürünler alınırken bir hata oluştu.' });
     }
@@ -474,7 +488,7 @@ app.post('/api/order', async (req, res) => {
                 toplamTutar: toplamFiyat.toString()
             },
             notification: { // notification alanı eklendi
-                title: `Yeni Sipariş: ${masaAdi}`,
+                title: `Yeni Sipariş: ${masaAdi}`, 
                 body: `Toplam: ${toplamFiyat} TL`
             }
         };
