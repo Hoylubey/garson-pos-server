@@ -6,11 +6,11 @@
     <title>Mutfak / Kasa Ekranı</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        integrity="sha256-p4Nx5LZrLtx9zG+gK1Ntx9q2L9M2+D2D+p0Bq3C2A3A="
         crossorigin=""/>
     
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        integrity="sha256-p4Nx5LZrLtx9zG+gK1Ntx9q2L9M2+D2D+p0Bq3C2A3A="
         crossorigin=""></script>
 
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
@@ -23,14 +23,26 @@
             background-color: #f4f4f4;
             color: #333;
             display: flex; /* Flexbox kullanarak düzeni ayarla */
-            flex-direction: row; /* Yan yana kutular */
+            flex-direction: column; /* Öğeleri dikeyde sırala */
             gap: 20px; /* Kutular arası boşluk */
+            align-items: center; /* Sayfa içeriğini yatayda ortala */
         }
         h1 {
             color: #333;
             margin-bottom: 20px;
+            text-align: center; /* Başlığı ortala */
             width: 100%; /* Başlık tüm genişliği kaplasın */
         }
+        /* Ana içerik ve harita konteynerini içeren kapsayıcı */
+        #main-layout-container {
+            display: flex; /* Ana içerik ve haritayı yan yana almak için */
+            flex-direction: row;
+            gap: 20px;
+            width: 100%; /* Tam genişliği kaplasın */
+            max-width: 1400px; /* Opsiyonel: maksimum genişlik belirle */
+            justify-content: center; /* İçeriği ortala */
+        }
+
         #main-content {
             flex: 2; /* Ana içerik (siparişler) daha fazla yer kaplasın */
             display: flex;
@@ -89,13 +101,9 @@
 
         /* Bildirim zili stilleri */
         .notification-bell {
-            position: fixed;
+            position: fixed; /* Sabit konumda kalsın */
             top: 20px;
-            right: 20px; /* Bu değer 'order-status-box'un konumuna göre ayarlanmalıydı */
-            /* Zaten sağda bir kutu olduğu için, zil ikonunu biraz daha sola kaydırabiliriz
-               veya 'order-status-box'un z-index'ini zilin üzerine çıkarabiliriz.
-               Ben zilin de görünmesini istediğimiz için sağdan mesafesini artırıyorum. */
-            right: 180px; /* Örnek: Kutudan daha solda dursun */
+            right: 20px; /* Sağ üst köşede kalsın */
             width: 50px;
             height: 50px;
             background-color: #FFC107; /* Sarı zil rengi */
@@ -144,11 +152,11 @@
         .print-button { background-color: #007bff; }
         .print-button:hover { background-color: #0056b3; }
 
-        /* SİPARİŞ ALIM DURUM KUTUSU STILLERI (Geliştirilmiş ve Sağ Üst Köşede) */
+        /* SİPARİŞ ALIM DURUM KUTUSU STILLERI (Geliştirilmiş ve Şimdi Sol Üst Köşede) */
         #order-status-box {
-            position: fixed;
+            position: absolute; /* Göreceli konumlandırma için mutlak konumlandırma */
             top: 20px;
-            right: 20px; /* Sağ üst köşeye konumlandır */
+            left: 20px; /* Sol üst köşeye konumlandır */
             background-color: #ffffff;
             border: 1px solid #e0e0e0;
             border-radius: 12px;
@@ -158,7 +166,7 @@
             align-items: center;
             gap: 15px;
             font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            z-index: 999; /* Zilin altında kalmalı, veya zil sağdan daha içeride olmalı */
+            z-index: 1001; /* Diğer elementlerin üzerinde olduğundan emin ol */
             transition: all 0.3s ease;
             box-sizing: border-box;
         }
@@ -248,23 +256,24 @@
     </style>
 </head>
 <body>
-    <div id="main-content">
-        <h1>Mutfak / Kasa Ekranı</h1>
-        <div id="orders-container">
-            </div>
-    </div>
-
-    <div id="map-container">
-        <h2>Motorcu Konumları</h2>
-        <div id="map"></div>
+    <div id="order-status-box">
+        <span id="order-status-text">Yükleniyor...</span>
+        <button id="order-status-toggle"></button>
     </div>
 
     <div id="notificationBell" class="notification-bell">🔔</div>
     <audio id="notificationSound" src="notification.mp3" preload="auto"></audio>
 
-    <div id="order-status-box">
-        <span id="order-status-text">Yükleniyor...</span>
-        <button id="order-status-toggle"></button>
+    <h1>Mutfak / Kasa Ekranı</h1> <div id="main-layout-container">
+        <div id="main-content">
+            <div id="orders-container">
+                </div>
+        </div>
+
+        <div id="map-container">
+            <h2>Motorcu Konumları</h2>
+            <div id="map"></div>
+        </div>
     </div>
 
     <script>
