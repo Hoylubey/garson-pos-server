@@ -18,11 +18,11 @@ const io = new Server(server, {
 
 const PORT = process.env.PORT || 3000;
 app.use(cors());
-app.use(express.json());
+app.use(express.json()); // Gelen JSON isteklerini ayrıştırmak için
 app.use(express.static('public'));
 
 // 🔥 Firebase Admin SDK Başlat
-// Kendi 'garson-uygulamasi-fcm-key.json' dosyanızın yolunu buraya girin.
+// Kendi 'serviceAccountKey.json' dosyanızın yolunu buraya girin.
 // Bu dosyanın sunucu dosyanızla aynı dizinde olması önerilir.
 const serviceAccount = require('./serviceAccountKey.json');
 admin.initializeApp({
@@ -115,23 +115,41 @@ app.post('/api/order', async (req, res) => {
 
         const orderData = req.body;
 
-        console.log(`[${new Date().toLocaleTimeString()}] Yeni sipariş - Masa: ${orderData.tableName}, Toplam: ${orderData.totalAmount} TL`);
+        // Uygulamadan gelen JSON anahtarları ile eşleşecek şekilde düzeltildi
+        const masaId = orderData.masaId;
+        const masaAdi = orderData.masaAdi;
+        const toplamFiyat = orderData.toplamFiyat;
+        const sepetItems = orderData.sepetItems; // Uygulamadan 'sepetItems' olarak geliyor
+
+        // Gelen veriyi konsola yazdırma (hata ayıklama için çok önemli)
+        console.log(`[${new Date().toLocaleTimeString()}] Gelen Sipariş Detayları:`);
+        console.log(`Masa ID: ${masaId}`);
+        console.log(`Masa Adı: ${masaAdi}`);
+        console.log(`Toplam Fiyat: ${toplamFiyat} TL`);
+        console.log('Sepet Ürünleri:', JSON.stringify(sepetItems, null, 2)); // Daha okunur format
 
         // Web'e gönder
-        io.emit('newOrder', orderData);
+        // io.emit('newOrder', orderData); // Veya doğrudan ayrıştırılmış değişkenleri kullan
+        io.emit('newOrder', {
+            masaId,
+            masaAdi,
+            toplamFiyat,
+            sepetItems
+        });
         io.emit('notificationSound', { play: true });
 
         // 🔔 Firebase Bildirim
         const message = {
             data: {
-                masaAdi: orderData.tableName,
-                siparisDetay: JSON.stringify(orderData.items),
-                siparisId: Date.now().toString(),
-                toplamTutar: orderData.totalAmount.toString()
+                masaAdi: masaAdi, // Düzeltildi
+                siparisDetay: JSON.stringify(sepetItems), // 'sepetItems' olarak düzeltildi
+                siparisId: Date.now().toString(), // Benzersiz sipariş ID'si
+                toplamTutar: toplamFiyat.toString() // Düzeltildi
             },
+            // Bildirim başlık ve gövdesini açmak isterseniz
             // notification: {
-            //      title: `Yeni Sipariş: ${orderData.tableName}`,
-            //      body: `Toplam: ${orderData.totalAmount} TL`
+            //     title: `Yeni Sipariş: ${masaAdi}`,
+            //     body: `Toplam: ${toplamFiyat} TL`
             // }
         };
 
@@ -149,6 +167,7 @@ app.post('/api/order', async (req, res) => {
 
         res.status(200).json({ message: 'Sipariş işlendi.' });
     } catch (error) {
+        // Hatanın detaylarını konsola yazdırma
         console.error('Sipariş veya bildirim gönderilirken hata:', error);
         res.status(500).json({ error: 'Sipariş işlenirken bir hata oluştu.' });
     }
@@ -175,7 +194,9 @@ io.on('connection', (socket) => {
     });
 
     socket.on('orderPaid', (data) => {
-        console.log(`[${new Date().toLocaleTimeString()}] Ödeme alındı - Masa ${data.tableName}, ${data.totalAmount} TL`);
+        // orderPaid event'i için de data objesindeki anahtarları kontrol etmelisiniz
+        // örneğin, data.tableName ve data.totalAmount yerine uygulamanızın gönderdiği anahtarları kullanın
+        console.log(`[${new Date().toLocaleTimeString()}] Ödeme alındı - Masa ${data.tableName || 'Bilinmeyen Masa'}, ${data.totalAmount || '0'} TL`);
     });
 
     socket.on('disconnect', () => {
