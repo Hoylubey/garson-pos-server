@@ -272,7 +272,7 @@
         </div>
 
         <div id="map-container">
-            <h2>Motorcu Konumları</h2>
+            <h2>Motorcu Konumları <span id="activeRiderCount" style="font-size: 0.8em; color: #666;">(0 Aktif)</span></h2>
             <div id="map"></div>
         </div>
     </div>
@@ -286,6 +286,8 @@
         const ordersContainer = document.getElementById('orders-container');
         const notificationSound = document.getElementById('notificationSound');
         const notificationBell = document.getElementById('notificationBell');
+        // Yeni eklenen eleman için referans
+        const activeRiderCountEl = document.getElementById('activeRiderCount');
 
         // Leaflet Harita değişkenleri
         let map;
@@ -310,6 +312,14 @@
                 socket.emit('requestCurrentRiderLocations');
             } else {
                 console.error("Harita için 'map' ID'sine sahip element bulunamadı!");
+            }
+        }
+
+        // Motorcu sayısını güncelleyen fonksiyon
+        function updateRiderCount() {
+            const count = Object.keys(riderMarkers).length;
+            if (activeRiderCountEl) {
+                activeRiderCountEl.textContent = `(${count} Aktif)`;
             }
         }
 
@@ -466,6 +476,7 @@
         // Sunucudan 'newRiderLocation' olayı geldiğinde
         socket.on('newRiderLocation', (locationData) => {
             updateRiderLocation(locationData);
+            updateRiderCount(); // Yeni motorcu eklendiğinde sayıyı güncelle
         });
 
         // Sunucudan mevcut motorcu konumları geldiğinde
@@ -474,6 +485,7 @@
             for (const riderId in locations) {
                 updateRiderLocation(locations[riderId]);
             }
+            updateRiderCount(); // Tüm mevcut motorcular eklendikten sonra sayıyı güncelle
         });
 
         // Bağlantı durumu logları
@@ -489,6 +501,7 @@
                     delete riderMarkers[riderId];
                 }
             }
+            updateRiderCount(); // Bağlantı kesildiğinde ve markerlar temizlendiğinde sayıyı güncelle
         });
 
         socket.on('connect_error', (err) => {
@@ -611,6 +624,7 @@
             initMap(); // Harita başlatma fonksiyonu
             fetchOrderStatus(); // Sipariş alım durumunu başlat
             document.getElementById('order-status-toggle').addEventListener('click', toggleOrderStatus); // Butona dinleyici ekle
+            updateRiderCount(); // Sayfa yüklendiğinde ilk sayımı göster
         });
     </script>
 </body>
