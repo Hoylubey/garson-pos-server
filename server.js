@@ -46,7 +46,7 @@ db.exec(`
 // Orders tablosunu oluştur (eğer yoksa)
 db.exec(`
     CREATE TABLE IF NOT EXISTS orders (
-        orderId TEXT PRIMARY KEY, -- 'CUKEY' hatası buradan düzeltildi
+        orderId TEXT PRIMARY KEY, 
         masaId TEXT NOT NULL,
         masaAdi TEXT NOT NULL,
         sepetItems TEXT NOT NULL, -- JSON string olarak saklayacağız
@@ -54,7 +54,7 @@ db.exec(`
         timestamp TEXT NOT NULL, -- ISO string olarak saklayacağız
         status TEXT NOT NULL DEFAULT 'pending' -- 'pending', 'paid', 'cancelled'
     )
-`); // Callback kaldırıldı, better-sqlite3 senkron olduğu için exec doğrudan hata fırlatır
+`); 
 
 // USERS tablosunu oluştur (eğer yoksa)
 db.exec(`
@@ -62,10 +62,10 @@ db.exec(`
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
-        full_name TEXT, // Motorcular için isim veya çalışan adı
-        role TEXT NOT NULL DEFAULT 'employee' // 'employee', 'admin'
+        full_name TEXT, -- Motorcular için isim veya çalışan adı (DÜZELTİLDİ: // yerine -- kullanıldı)
+        role TEXT NOT NULL DEFAULT 'employee' -- 'employee', 'admin'
     )
-`); // Callback kaldırıldı
+`); 
 
 // PRODUCTS tablosunu oluştur (eğer yoksa)
 db.exec(`
@@ -76,7 +76,7 @@ db.exec(`
         category TEXT,
         description TEXT
     )
-`); // Callback kaldırıldı
+`); 
 
 // Callback'leri kaldırdıktan sonra hata yakalama mekanizmasını ekleyelim
 try {
