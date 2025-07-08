@@ -8,14 +8,11 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4Nx5LZrLtx9zG+gK1Ntx9q2L9M2+D2D+p0Bq3C2A3A="
         crossorigin=""/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-p4Nx5LZrLtx9zG+gK1Ntx9q2L9M2+D2D+p0Bq3C2A3A="
-        crossorigin=""></script>
 
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 
     <style>
-        /* Ana sayfa CSS stilleri */
+        /* GENEL CSS STILLERI */
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
@@ -117,15 +114,14 @@
             animation: ring 0.5s ease-in-out 3; /* 3 kez çal */
         }
 
-        /* Butonlar için stiller */
+        /* Sipariş Eylem Butonları (Ödendi, Yazdır) */
         .order-actions {
-            display: flex; /* Butonları yan yana hizala */
-            gap: 10px; /* Butonlar arasına boşluk bırak */
-            margin-top: 15px; /* Üstteki içerikten boşluk bırak */
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
         }
-
-        .pay-button, .print-button { /* Hem ödendi hem de yazdır butonu için ortak stil */
-            flex: 1; /* Mevcut alanı eşit paylaşsınlar */
+        .pay-button, .print-button {
+            flex: 1;
             color: white;
             border: none;
             padding: 10px 15px;
@@ -133,25 +129,58 @@
             cursor: pointer;
             font-size: 1em;
             box-sizing: border-box;
+            transition: background-color 0.2s ease;
+        }
+        .pay-button { background-color: #28a745; }
+        .pay-button:hover { background-color: #218838; }
+        .print-button { background-color: #007bff; }
+        .print-button:hover { background-color: #0056b3; }
+
+        /* SİPARİŞ ALIM DURUM KUTUSU STILLERI (Geliştirilmiş ve Sağ Üst Köşede) */
+        #order-status-box {
+            position: fixed;
+            top: 20px;
+            right: 20px; /* Sağ üst köşeye konumlandır */
+            background-color: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            z-index: 999;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
+        }
+        #order-status-text {
+            font-weight: 700;
+            font-size: 1.1em;
+            color: #333; /* JavaScript ile dinamik olarak değişecek */
+        }
+        #order-status-toggle {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            color: white;
+            font-weight: 600;
+            font-size: 1em;
+            min-width: 80px;
+            text-align: center;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+        }
+        #order-status-toggle:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        #order-status-toggle:active {
+            transform: translateY(0);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
         }
 
-        .pay-button {
-            background-color: #28a745; /* Yeşil tonu */
-        }
-
-        .pay-button:hover {
-            background-color: #218838;
-        }
-
-        .print-button {
-            background-color: #007bff; /* Mavi tonu */
-        }
-
-        .print-button:hover {
-            background-color: #0056b3;
-        }
-
-        /* Yazdırma işlemi için gerekli stil - Sadece çıktıda görünür */
+        /* YAZDIRMA STILLERI (@media print) */
         @media print {
             body * {
                 visibility: hidden; /* Her şeyi gizle */
@@ -165,8 +194,8 @@
                 top: 0;
                 width: 100%; /* Tam genişlikte yazdır */
             }
-            .order-actions {
-                display: none; /* Yazdırma çıktısında butonları gizle */
+            .order-actions, #map-container, #order-status-box, #notificationBell, h1 {
+                display: none; /* Yazdırma çıktısında bu elementleri gizle */
             }
 
             /* POS Fişi Stilleri */
@@ -177,33 +206,33 @@
             body {
                 width: 58mm; /* Body genişliğini fiş genişliğiyle sınırla */
                 margin: 0;
-                font-family: 'Arial', sans-serif;
-                font-size: 13px;
-                line-height: 1.4;
+                font-family: 'Consolas', 'Courier New', monospace; /* Fişler için mono-uzaylı font daha iyi olabilir */
+                font-size: 10px;
+                line-height: 1.2;
                 color: #000;
             }
             .receipt-container {
-                padding: 5mm; /* İç boşluk */
+                padding: 5mm;
                 box-sizing: border-box;
             }
             .receipt-header, .receipt-footer {
                 text-align: center;
                 margin-bottom: 5px;
-                font-size: 17px;
+                font-size: 12px;
             }
             .receipt-info p, .receipt-item {
                 margin: 2px 0;
-                white-space: pre-wrap; /* Uzun isimler için satır atlama */
+                white-space: pre-wrap;
             }
             .receipt-total {
                 font-weight: bold;
                 text-align: right;
                 margin-top: 10px;
-                font-size: 14px;
+                font-size: 11px;
             }
             hr {
                 border: 0;
-                border-top: 1px dashed #888; /* Daha ince, noktalı çizgi */
+                border-top: 1px dashed #888;
                 margin: 5px 0;
             }
         }
@@ -213,7 +242,7 @@
     <div id="main-content">
         <h1>Mutfak / Kasa Ekranı</h1>
         <div id="orders-container">
-        </div>
+            </div>
     </div>
 
     <div id="map-container">
@@ -224,10 +253,14 @@
     <div id="notificationBell" class="notification-bell">🔔</div>
     <audio id="notificationSound" src="notification.mp3" preload="auto"></audio>
 
-    <div id="order-status-box" style="position: fixed; top: 20px; left: 20px; background: #fff; padding: 10px 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 999; display: flex; align-items: center; gap: 10px;">
-        <span id="order-status-text" style="font-weight: bold;">Yükleniyor...</span>
-        <button id="order-status-toggle" style="padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-weight: bold;"></button>
+    <div id="order-status-box">
+        <span id="order-status-text">Yükleniyor...</span>
+        <button id="order-status-toggle"></button>
     </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-p4Nx5LZrLtx9zG+gK1Ntx9q2L9M2+D2D+p0Bq3C2A3A="
+        crossorigin=""></script>
 
     <script>
         // Socket.IO istemcisini başlat
@@ -262,9 +295,6 @@
             socket.emit('requestCurrentRiderLocations');
         }
 
-        // Sayfa yüklendiğinde haritayı başlat
-        document.addEventListener('DOMContentLoaded', initMap);
-
         // addOrderToDisplay fonksiyonu: Yeni gelen siparişi ekrana ekler
         function addOrderToDisplay(order) {
             const orderCard = document.createElement('div');
@@ -275,7 +305,7 @@
             // Sipariş ID'sini HTML veri özelliği olarak saklayın
             orderCard.dataset.orderId = orderCard.id;
 
-            // Sipariş kartının genel HTML içeriği - ANAHTAR İSİMLERİ DÜZELTİLDİ
+            // Sipariş kartının genel HTML içeriği
             orderCard.innerHTML = `
                 <div class="order-header">Masa: ${order.masaAdi}</div>
                 <div class="order-details">
@@ -296,11 +326,11 @@
             const payButton = orderCard.querySelector('.pay-button');
             payButton.addEventListener('click', () => {
                 console.log('Sipariş ödendi:', order);
-                // Sunucuya siparişin ödendiğini bildir - ANAHTAR İSİMLERİ DÜZELTİLDİ
+                // Sunucuya siparişin ödendiğini bildir
                 socket.emit('orderPaid', {
                     orderId: orderCard.dataset.orderId,
-                    tableName: order.masaAdi, // Backend'e doğru anahtar ile gönder
-                    totalAmount: order.toplamFiyat // Backend'e doğru anahtar ile gönder
+                    tableName: order.masaAdi,
+                    totalAmount: order.toplamFiyat
                 });
                 orderCard.remove(); // Sipariş kartını ekrandan kaldır
                 playNotificationSound('payment'); // İsteğe bağlı olarak ödeme sesi çal
@@ -319,7 +349,6 @@
 
         // printOrderReceipt fonksiyonu: Sipariş fişini yazdırmak için yeni bir pencere açar
         function printOrderReceipt(order) {
-            // Yazdırılacak HTML içeriğini oluştur (template literal kullanarak değişkenleri doğru yorumla) - ANAHTAR İSİMLERİ DÜZELTİLDİ
             let printContent = `
                 <div class="receipt-container">
                     <div class="receipt-header">--- Olimpiyat Kokoreç ---</div>
@@ -329,7 +358,7 @@
                     <div class="receipt-items">
             `;
 
-            order.sepetItems.forEach(item => { // 'sepetItems' ve içindeki anahtarlar düzeltildi
+            order.sepetItems.forEach(item => {
                 printContent += `<p class="receipt-item">${item.urunAdi} (${item.adet} adet) - ${(item.fiyat * item.adet).toFixed(2)} TL</p>`;
             });
 
@@ -341,7 +370,6 @@
                 </div>
             `;
 
-            // Yeni bir pencerede yazdırma içeriğini göster
             let printWindow = window.open('', '_blank');
             printWindow.document.write('<!DOCTYPE html><html><head><title>Fiş - ' + order.masaAdi + '</title>');
             printWindow.document.write('<style>');
@@ -349,28 +377,29 @@
             printWindow.document.write(`
                 /* POS Fişi Stilleri - YAZDIRMA PENCERESİ İÇİN */
                 @page {
-                    size: 58mm auto; /* 58mm genişlik, yükseklik içeriğe göre ayarlanır */
-                    margin: 0; /* Sayfa kenar boşluklarını kaldır */
+                    size: 58mm auto;
+                    margin: 0;
                 }
                 body {
-                    width: 58mm; /* Body genişliğini fiş genişliğiyle sınırla */
+                    width: 58mm;
                     margin: 0;
-                    font-family: 'Consolas', 'Courier New', monospace; /* Fişler için mono-uzaylı font daha iyi olabilir */
-                    font-size: 10px; /* Daha küçük font boyutu */
+                    font-family: 'Consolas', 'Courier New', monospace;
+                    font-size: 10px;
                     line-height: 1.2;
                     color: #000;
                 }
                 .receipt-container {
-                    padding: 5mm; /* İç boşluk */
+                    padding: 5mm;
                     box-sizing: border-box;
                 }
                 .receipt-header, .receipt-footer {
                     text-align: center;
                     margin-bottom: 5px;
+                    font-size: 12px;
                 }
                 .receipt-info p, .receipt-item {
                     margin: 2px 0;
-                    white-space: pre-wrap; /* Uzun isimler için satır atlama */
+                    white-space: pre-wrap;
                 }
                 .receipt-total {
                     font-weight: bold;
@@ -380,18 +409,17 @@
                 }
                 hr {
                     border: 0;
-                    border-top: 1px dashed #888; /* Daha ince, noktalı çizgi */
+                    border-top: 1px dashed #888;
                     margin: 5px 0;
                 }
             `);
             printWindow.document.write('</style>');
             printWindow.document.write('</head><body>');
-            printWindow.document.write(printContent); // Hazırlanan içeriği yazdır
+            printWindow.document.write(printContent);
             printWindow.document.write('</body></html>');
             printWindow.document.close();
-            printWindow.focus(); // Yeni pencereye odaklan
-            printWindow.print(); // Yazdırma iletişim kutusunu aç
-            // printWindow.close(); // Yazdırma işlemi bittikten sonra kapatmak isteyebilirsiniz
+            printWindow.focus();
+            printWindow.print();
         }
 
         // playNotificationSound fonksiyonu: Bildirim sesi çalar
@@ -407,17 +435,17 @@
         // Sunucudan 'newOrder' olayı geldiğinde
         socket.on('newOrder', (order) => {
             console.log('Yeni sipariş alındı:', order);
-            addOrderToDisplay(order); // Yeni siparişi ekrana ekle
+            addOrderToDisplay(order);
 
             // Bildirim sesi çal ve zil animasyonunu tetikle
-            playNotificationSound(); // Varsayılan olarak 'newOrder' sesi çalar
+            playNotificationSound();
             notificationBell.classList.add('ringing');
             setTimeout(() => {
                 notificationBell.classList.remove('ringing');
             }, 1500);
         });
 
-        // Sunucudan 'notificationSound' olayı geldiğinde (isteğe bağlı, ayrı bir olay)
+        // Sunucudan 'notificationSound' olayı geldiğinde
         socket.on('notificationSound', () => {
             playNotificationSound();
             notificationBell.classList.add('ringing');
@@ -446,7 +474,6 @@
 
         socket.on('disconnect', () => {
             console.log('Sunucu bağlantısı kesildi!');
-            // Bağlantı kesildiğinde tüm motorcu markerlarını kaldırabilirsiniz
             for (const riderId in riderMarkers) {
                 if (riderMarkers[riderId]) {
                     riderMarkers[riderId].remove();
@@ -497,14 +524,17 @@
                         `<div><strong>Güncellenme:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>`
                     );
             }
-            // Haritayı motorcunun konumuna odaklama (isteğe bağlı, çok fazla motorcu varsa rahatsız edebilir)
-            // map.panTo(latLng);
         }
 
-        // SİPARİŞ ALIMI DURUM YÖNETİMİ - GÜNCELLENMİŞ HALİ
+        // SİPARİŞ ALIMI DURUM YÖNETİMİ
         function fetchOrderStatus() {
             fetch('/api/order-status')
-            .then(res => res.json())
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                return res.json();
+            })
             .then(data => {
                 const statusEl = document.getElementById('order-status-text');
                 const toggleBtn = document.getElementById('order-status-toggle');
@@ -513,23 +543,32 @@
                     statusEl.textContent = 'Sipariş Alımı: AÇIK';
                     statusEl.style.color = 'green';
                     toggleBtn.textContent = 'Kapat';
-                    toggleBtn.style.backgroundColor = '#dc3545'; // Kapat butonu için kırmızı
+                    toggleBtn.style.backgroundColor = '#dc3545'; // Kırmızı
                 } else {
                     statusEl.textContent = 'Sipariş Alımı: KAPALI';
                     statusEl.style.color = 'red';
                     toggleBtn.textContent = 'Aç';
-                    toggleBtn.style.backgroundColor = '#28a745'; // Aç butonu için yeşil
+                    toggleBtn.style.backgroundColor = '#28a745'; // Yeşil
                 }
+                toggleBtn.style.display = ''; // Hata durumunda gizlendiyse tekrar göster
             })
             .catch(err => {
                 console.error('Sipariş durumu alınamadı:', err);
-                document.getElementById('order-status-text').textContent = 'Sipariş Alımı: HATA!';
-                document.getElementById('order-status-text').style.color = 'gray'; // Hata durumunda gri
-                document.getElementById('order-status-toggle').style.display = 'none'; // Butonu gizle
+                const statusEl = document.getElementById('order-status-text');
+                const toggleBtn = document.getElementById('order-status-toggle');
+                statusEl.textContent = 'Sipariş Alımı: HATA!';
+                statusEl.style.color = 'gray';
+                toggleBtn.style.display = 'none'; // Butonu gizle
+                alert('Sipariş durumu alınamadı. Lütfen sunucu bağlantısını kontrol edin.'); // Kullanıcıya bilgi ver
             });
         }
 
         function toggleOrderStatus() {
+            // Butonun kendisini devre dışı bırak, ardışık tıklamaları önlemek için
+            const toggleBtn = document.getElementById('order-status-toggle');
+            toggleBtn.disabled = true;
+            toggleBtn.textContent = 'Değiştiriliyor...'; // Geçici metin
+
             const isCurrentlyOpen = document.getElementById('order-status-text').textContent.includes('AÇIK');
             const newStatus = !isCurrentlyOpen;
 
@@ -538,13 +577,23 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ enabled: newStatus })
             })
-            .then(res => res.json())
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                return res.json();
+            })
             .then(data => {
-                // alert(data.message || 'Durum güncellendi'); // İsteğe bağlı: alert mesajını kaldırabiliriz
+                console.log('Sipariş durumu güncellendi:', data.message);
                 fetchOrderStatus(); // Durumu tekrar çekerek arayüzü güncelle
             })
             .catch(err => {
-                alert('Durum güncellenemedi: ' + err.message);
+                console.error('Durum güncellenemedi:', err);
+                alert('Durum güncellenemedi: ' + err.message + '. Lütfen sunucu bağlantısını kontrol edin.');
+            })
+            .finally(() => {
+                toggleBtn.disabled = false; // İşlem bitince butonu tekrar etkinleştir
+                // fetchOrderStatus() zaten butonu güncelleyecektir
             });
         }
 
