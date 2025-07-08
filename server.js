@@ -52,7 +52,7 @@ try {
 try {
     db.exec(`
         CREATE TABLE IF NOT EXISTS orders (
-            orderId TEXT PRIMARY KEY, 
+            orderId TEXT PRIMARY KEY,
             masaId TEXT NOT NULL,
             masaAdi TEXT NOT NULL,
             sepetItems TEXT NOT NULL, -- JSON string olarak saklayacağız
@@ -60,7 +60,7 @@ try {
             timestamp TEXT NOT NULL, -- ISO string olarak saklayacağız
             status TEXT NOT NULL DEFAULT 'pending' -- 'pending', 'paid', 'cancelled'
         )
-    `); 
+    `);
     console.log('Orders tablosu hazır.');
 } catch (err) {
     console.error('Orders tablosu oluşturma hatası:', err.message);
@@ -74,9 +74,9 @@ try {
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
             full_name TEXT, -- Motorcular için isim veya çalışan adı
-            role TEXT NOT NULL DEFAULT 'employee' -- 'employee', 'admin'
+            role TEXT NOT NULL DEFAULT 'employee' -- 'employee', 'admin', 'rider', 'garson'
         )
-    `); 
+    `);
     console.log('Users tablosu hazır.');
     // Yönetici hesabının varlığını kontrol et ve yoksa ekle
     const adminUser = db.prepare("SELECT * FROM users WHERE username = 'hoylubey' AND role = 'admin'").get();
@@ -92,6 +92,7 @@ try {
     console.error('Users tablosu oluşturma veya yönetici ekleme hatası:', err.message);
 }
 
+
 // PRODUCTS tablosunu oluştur (eğer yoksa)
 try {
     db.exec(`
@@ -102,7 +103,7 @@ try {
             category TEXT,
             description TEXT
         )
-    `); 
+    `);
     console.log('Products tablosu hazır.');
     // Örnek ürünler ekle (sadece tablo boşsa)
     const existingProducts = db.prepare("SELECT COUNT(*) FROM products").get();
@@ -131,8 +132,10 @@ if (!initialStatus) {
 const fcmTokens = new Set();
 
 // 🌍 Rider Lokasyonları
-const riderLocations = {}; // { "motorcuIsmi": { latitude, longitude, ... }, ... }
-const socketToUsername = {}; // { "socket.id": "motorcuIsmi" }
+// username'e göre saklayacağız, full_name'i de içerecek
+// { "username": { id, username, full_name, role, latitude, longitude, timestamp, speed, bearing, accuracy }, ... }
+const riderLocations = {};
+const socketToUsername = {}; // { "socket.id": "username" }
 
 
 // Middleware: Yönetici yetkisini kontrol et
@@ -170,12 +173,12 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
         }
 
-        const token = user.id + "-" + user.role + "-" + Date.now(); 
+        const token = user.id + "-" + user.role + "-" + Date.now();
 
         res.status(200).json({
             message: 'Giriş başarılı!',
             token: token,
-            role: user.role, 
+            role: user.role,
             user: { id: user.id, username: user.username, full_name: user.full_name, role: user.role }
         });
 
@@ -188,27 +191,33 @@ app.post('/api/login', async (req, res) => {
 
 // Çalışan (Motorcu) Kayıt Endpoint'i
 app.post('/api/register-employee', async (req, res) => {
-    const { username, password, full_name } = req.body;
+    const { username, password, full_name, role } = req.body; // 'role' de eklendi
 
-    if (!username || !password || !full_name) {
-        return res.status(400).json({ message: 'Kullanıcı adı, parola ve tam ad gerekli.' });
+    if (!username || !password || !full_name || !role) {
+        return res.status(400).json({ message: 'Kullanıcı adı, parola, tam ad ve rol gerekli.' });
+    }
+
+    // Geçerli rollerin bir listesini tanımla
+    const validRoles = ['employee', 'admin', 'rider', 'garson'];
+    if (!validRoles.includes(role)) {
+        return res.status(400).json({ message: 'Geçersiz rol belirtildi.' });
     }
 
     try {
-        const hashedPassword = await bcrypt.hash(password, 10); 
-        const stmt = db.prepare("INSERT INTO users (username, password, full_name, role) VALUES (?, ?, ?, 'employee')");
-        const info = stmt.run(username, hashedPassword, full_name);
-        const newUser = { id: info.lastInsertRowid, username, full_name, role: 'employee' };
-        const token = newUser.id + "-" + newUser.role + "-" + Date.now(); 
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const stmt = db.prepare("INSERT INTO users (username, password, full_name, role) VALUES (?, ?, ?, ?)");
+        const info = stmt.run(username, hashedPassword, full_name, role); // Rolü de kaydet
+        const newUser = { id: info.lastInsertRowid, username, full_name, role: role };
+        const token = newUser.id + "-" + newUser.role + "-" + Date.now();
 
         res.status(201).json({
             message: 'Çalışan başarıyla oluşturuldu.',
-            token: token, 
-            role: newUser.role, 
+            token: token,
+            role: newUser.role,
             user: newUser
         });
     } catch (error) {
-        if (error.message.includes('UNIQUE constraint failed')) { 
+        if (error.message.includes('UNIQUE constraint failed')) {
             return res.status(409).json({ message: 'Bu kullanıcı adı zaten mevcut.' });
         }
         console.error('Çalışan kayıt hatası:', error);
@@ -235,11 +244,11 @@ app.post('/api/login-employee', async (req, res) => {
             return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
         }
 
-        const token = user.id + "-" + user.role + "-" + Date.now(); 
+        const token = user.id + "-" + user.role + "-" + Date.now();
         res.status(200).json({
             message: 'Giriş başarılı!',
-            token: token, 
-            role: user.role, 
+            token: token,
+            role: user.role,
             user: { id: user.id, username: user.username, full_name: user.full_name, role: user.role }
         });
     } catch (error) {
@@ -267,11 +276,11 @@ app.post('/api/login-admin', async (req, res) => {
             return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
         }
 
-        const token = user.id + "-" + user.role + "-" + Date.now(); 
+        const token = user.id + "-" + user.role + "-" + Date.now();
         res.status(200).json({
             message: 'Yönetici girişi başarılı!',
-            token: token, 
-            role: user.role, 
+            token: token,
+            role: user.role,
             user: { id: user.id, username: user.username, full_name: user.full_name, role: user.role }
         });
     } catch (error) {
@@ -488,7 +497,7 @@ app.post('/api/order', async (req, res) => {
                 toplamTutar: toplamFiyat.toString()
             },
             notification: { // notification alanı eklendi
-                title: `Yeni Sipariş: ${masaAdi}`, 
+                title: `Yeni Sipariş: ${masaAdi}`,
                 body: `Toplam: ${toplamFiyat} TL`
             }
         };
@@ -543,22 +552,62 @@ io.on('connection', (socket) => {
     }
 
     socket.on('requestCurrentRiderLocations', () => {
-        io.emit('currentRiderLocations', riderLocations); // Bağlanan istemciye tüm mevcut konumları gönder
+        // Tüm mevcut motorcu konumlarını isimleriyle birlikte gönder
+        const currentRidersWithNames = Object.values(riderLocations).map(rider => ({
+            id: rider.id,
+            name: rider.full_name, // 'full_name' kullan
+            latitude: rider.latitude,
+            longitude: rider.longitude,
+            timestamp: rider.timestamp,
+            speed: rider.speed,
+            bearing: rider.bearing,
+            accuracy: rider.accuracy
+        }));
+        socket.emit('currentRiderLocations', currentRidersWithNames);
     });
 
     // riderLocationUpdate artık 'username' bekliyor, 'riderId' değil
     socket.on('riderLocationUpdate', (locationData) => {
         const { username, latitude, longitude, timestamp, speed, bearing, accuracy } = locationData;
-        
+
         if (!username) {
             console.warn('Rider konum güncellemesi için kullanıcı adı (username) bulunamadı.');
             return;
         }
 
-        riderLocations[username] = { latitude, longitude, timestamp, speed, bearing, accuracy };
+        // Kullanıcının tam adını veritabanından al
+        const user = db.prepare("SELECT id, full_name, role FROM users WHERE username = ?").get(username);
+
+        if (!user || user.role !== 'rider') { // Sadece 'rider' rolündeki kullanıcıların konumunu takip et
+            console.warn(`Kullanıcı ${username} bulunamadı veya rolü 'rider' değil. Konum güncellenmiyor.`);
+            return;
+        }
+
+        riderLocations[username] = {
+            id: user.id, // Kullanıcı ID'si
+            username: username,
+            full_name: user.full_name, // Tam adını kaydet
+            role: user.role,
+            latitude,
+            longitude,
+            timestamp,
+            speed,
+            bearing,
+            accuracy
+        };
         socketToUsername[socket.id] = username; // Socket ID'si ile Kullanıcı Adını eşle
-        // Tüm istemcilere güncellenmiş konumu gönder
-        io.emit('newRiderLocation', { username, latitude, longitude, timestamp, speed, bearing, accuracy });
+
+        // Tüm istemcilere güncellenmiş konumu gönder (isim dahil)
+        io.emit('newRiderLocation', {
+            id: user.id,
+            name: user.full_name, // İsim bilgisini gönder
+            latitude,
+            longitude,
+            timestamp,
+            speed,
+            bearing,
+            accuracy
+        });
     });
 
     socket.on('orderPaid', (data) => {
@@ -592,6 +641,27 @@ io.on('connection', (socket) => {
         }
     });
 });
+
+// Yeni endpoint: Tüm motorcu konumlarını isimleriyle birlikte döndür
+app.get('/api/riders-locations', (req, res) => {
+    try {
+        const activeRiders = Object.values(riderLocations).map(rider => ({
+            id: rider.id,
+            name: rider.full_name, // 'full_name' kullan
+            latitude: rider.latitude,
+            longitude: rider.longitude,
+            timestamp: rider.timestamp,
+            speed: rider.speed,
+            bearing: rider.bearing,
+            accuracy: rider.accuracy
+        }));
+        res.json(activeRiders);
+    } catch (error) {
+        console.error('Motorcu konumları çekilirken hata:', error);
+        res.status(500).json({ message: 'Motorcu konumları alınırken bir hata oluştu.' });
+    }
+});
+
 
 // 🚀 SERVER AÇ
 server.listen(PORT, () => {
