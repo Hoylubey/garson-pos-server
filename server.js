@@ -46,13 +46,13 @@ db.exec(`
 // Orders tablosunu oluştur (eğer yoksa)
 db.exec(`
     CREATE TABLE IF NOT EXISTS orders (
-        orderId TEXT PRIMARY KEY, -- 'CUKEY' hatası buradan düzeltildi
+        orderId TEXT PRIMARY KEY, 
         masaId TEXT NOT NULL,
         masaAdi TEXT NOT NULL,
-        sepetItems TEXT NOT NULL, -- JSON string olarak saklayacağız
+        sepetItems TEXT NOT NULL, // JSON string olarak saklayacağız
         toplamFiyat REAL NOT NULL,
-        timestamp TEXT NOT NULL, -- ISO string olarak saklayacağız
-        status TEXT NOT NULL DEFAULT 'pending' -- 'pending', 'paid', 'cancelled'
+        timestamp TEXT NOT NULL, // ISO string olarak saklayacağız
+        status TEXT NOT NULL DEFAULT 'pending' // 'pending', 'paid', 'cancelled'
     )
 `, (err) => {
     if (err) {
@@ -68,8 +68,8 @@ db.exec(`
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
-        full_name TEXT, -- Motorcular için isim veya çalışan adı
-        role TEXT NOT NULL DEFAULT 'employee' -- 'employee', 'admin'
+        full_name TEXT, // Motorcular için isim veya çalışan adı
+        role TEXT NOT NULL DEFAULT 'employee' // 'employee', 'admin'
     )
 `, (err) => {
     if (err) {
