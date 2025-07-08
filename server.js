@@ -46,7 +46,7 @@ db.exec(`
 // Orders tablosunu oluştur (eğer yoksa)
 db.exec(`
     CREATE TABLE IF NOT EXISTS orders (
-        orderId TEXT PRIMARY KEY,
+        orderId TEXT PRIMARY KEY, -- 'CUKEY' hatası buradan düzeltildi
         masaId TEXT NOT NULL,
         masaAdi TEXT NOT NULL,
         sepetItems TEXT NOT NULL, -- JSON string olarak saklayacağız
@@ -62,7 +62,7 @@ db.exec(`
     }
 });
 
-// YENİ: USERS tablosunu oluştur (eğer yoksa)
+// USERS tablosunu oluştur (eğer yoksa)
 db.exec(`
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,7 +89,7 @@ db.exec(`
     }
 });
 
-// YENİ: PRODUCTS tablosunu oluştur (eğer yoksa)
+// PRODUCTS tablosunu oluştur (eğer yoksa)
 db.exec(`
     CREATE TABLE IF NOT EXISTS products (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -149,7 +149,46 @@ function isAdmin(req, res, next) {
 }
 
 
-// --- YENİ: KULLANICI VE YÖNETİCİ GİRİŞ / KAYIT ENDPOINT'LERİ ---
+// --- KULLANICI VE YÖNETİCİ GİRİŞ / KAYIT ENDPOINT'LERİ ---
+
+// Genel Giriş Endpoint'i (Mobil uygulama tarafından kullanılacak)
+app.post('/api/login', async (req, res) => {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+        return res.status(400).json({ message: 'Kullanıcı adı ve parola gerekli.' });
+    }
+
+    try {
+        // Kullanıcıyı veritabanında ara
+        const user = db.prepare("SELECT * FROM users WHERE username = ?").get(username);
+
+        if (!user) {
+            return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
+        }
+
+        // Parolayı doğrula
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
+        }
+
+        // Başarılı giriş: Kullanıcı bilgilerini ve bir TOKEN oluşturup gönder
+        const token = user.id + "-" + user.role + "-" + Date.now(); // Basit bir placeholder token
+
+        res.status(200).json({
+            message: 'Giriş başarılı!',
+            token: token,
+            role: user.role, // Kullanıcının rolünü gönder
+            user: { id: user.id, username: user.username, full_name: user.full_name, role: user.role }
+        });
+
+    } catch (error) {
+        console.error('Genel giriş hatası:', error);
+        res.status(500).json({ message: 'Giriş sırasında bir hata oluştu.' });
+    }
+});
+
 
 // Çalışan (Motorcu) Kayıt Endpoint'i
 app.post('/api/register-employee', async (req, res) => {
@@ -162,8 +201,16 @@ app.post('/api/register-employee', async (req, res) => {
     try {
         const hashedPassword = await bcrypt.hash(password, 10); // Şifreyi hashle
         const stmt = db.prepare("INSERT INTO users (username, password, full_name, role) VALUES (?, ?, ?, 'employee')");
-        stmt.run(username, hashedPassword, full_name);
-        res.status(201).json({ message: 'Çalışan başarıyla oluşturuldu.', username: username });
+        const info = stmt.run(username, hashedPassword, full_name);
+        const newUser = { id: info.lastInsertRowid, username, full_name, role: 'employee' };
+        const token = newUser.id + "-" + newUser.role + "-" + Date.now(); // Basit bir placeholder token
+
+        res.status(201).json({
+            message: 'Çalışan başarıyla oluşturuldu.',
+            token: token, // TOKEN EKLENDİ
+            role: newUser.role, // ROL EKLENDİ
+            user: newUser
+        });
     } catch (error) {
         if (error.message.includes('UNIQUE constraint failed')) { // Better-sqlite3 için hata kontrolü
             return res.status(409).json({ message: 'Bu kullanıcı adı zaten mevcut.' });
@@ -173,7 +220,7 @@ app.post('/api/register-employee', async (req, res) => {
     }
 });
 
-// Çalışan (Motorcu) Giriş Endpoint'i
+// Çalışan (Motorcu) Giriş Endpoint'i (Şu an kullanılmıyor, genel /api/login kullanılıyor)
 app.post('/api/login-employee', async (req, res) => {
     const { username, password } = req.body;
 
@@ -192,9 +239,11 @@ app.post('/api/login-employee', async (req, res) => {
             return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
         }
 
-        // Başarılı giriş: İstemciye kullanıcı bilgilerini gönder (örneğin tam ad)
+        const token = user.id + "-" + user.role + "-" + Date.now(); // Basit bir placeholder token
         res.status(200).json({
             message: 'Giriş başarılı!',
+            token: token, // TOKEN EKLENDİ
+            role: user.role, // ROL EKLENDİ
             user: { id: user.id, username: user.username, full_name: user.full_name, role: user.role }
         });
     } catch (error) {
@@ -203,7 +252,7 @@ app.post('/api/login-employee', async (req, res) => {
     }
 });
 
-// Yönetici Giriş Endpoint'i
+// Yönetici Giriş Endpoint'i (Şu an kullanılmıyor, genel /api/login kullanılıyor)
 app.post('/api/login-admin', async (req, res) => {
     const { username, password } = req.body;
 
@@ -222,8 +271,11 @@ app.post('/api/login-admin', async (req, res) => {
             return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
         }
 
+        const token = user.id + "-" + user.role + "-" + Date.now(); // Basit bir placeholder token
         res.status(200).json({
             message: 'Yönetici girişi başarılı!',
+            token: token, // TOKEN EKLENDİ
+            role: user.role, // ROL EKLENDİ
             user: { id: user.id, username: user.username, full_name: user.full_name, role: user.role }
         });
     } catch (error) {
@@ -232,7 +284,7 @@ app.post('/api/login-admin', async (req, res) => {
     }
 });
 
-// --- YENİ: ÜRÜN YÖNETİMİ ENDPOINT'LERİ (Sadece Yönetici) ---
+// --- ÜRÜN YÖNETİMİ ENDPOINT'LERİ (Sadece Yönetici) ---
 
 // Tüm ürünleri getir
 app.get('/api/products', (req, res) => {
