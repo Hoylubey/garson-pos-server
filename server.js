@@ -129,7 +129,6 @@ app.post('/api/order', async (req, res) => {
         console.log('Sepet Ürünleri:', JSON.stringify(sepetItems, null, 2)); // Daha okunur format
 
         // Web'e gönder
-        // io.emit('newOrder', orderData); // Veya doğrudan ayrıştırılmış değişkenleri kullan
         io.emit('newOrder', {
             masaId,
             masaAdi,
@@ -141,25 +140,32 @@ app.post('/api/order', async (req, res) => {
         // 🔔 Firebase Bildirim
         const message = {
             data: {
-                masaAdi: masaAdi, // Düzeltildi
-                siparisDetay: JSON.stringify(sepetItems), // 'sepetItems' olarak düzeltildi
-                siparisId: Date.now().toString(), // Benzersiz sipariş ID'si
-                toplamTutar: toplamFiyat.toString() // Düzeltildi
+                masaAdi: masaAdi,
+                siparisDetay: JSON.stringify(sepetItems),
+                siparisId: Date.now().toString(),
+                toplamTutar: toplamFiyat.toString()
             },
             // Bildirim başlık ve gövdesini açmak isterseniz
-            // notification: {
-            //     title: `Yeni Sipariş: ${masaAdi}`,
-            //     body: `Toplam: ${toplamFiyat} TL`
-            // }
+            notification: { // notification alanı eklendi
+                title: `Yeni Sipariş: ${masaAdi}`,
+                body: `Toplam: ${toplamFiyat} TL`
+            }
         };
 
         if (fcmTokens.size > 0) {
             const tokensArray = Array.from(fcmTokens);
             try {
-                const firebaseResponse = await admin.messaging().sendEachForMulticast(message); // sendEachForMulticast kullanıldı
+                // Burada değişiklik var: message objesi ve tokensArray ayrı ayrı geçiriliyor
+                // sendEachForMulticast, her bir token için ayrı bir mesaj objesi bekler
+                const messagesToSend = tokensArray.map(token => ({ ...message, token }));
+                const firebaseResponse = await admin.messaging().sendEachForMulticast(messagesToSend);
                 console.log('🔥 FCM gönderildi:', firebaseResponse);
             } catch (error) {
                 console.error('❌ FCM gönderimi HATA:', error);
+                // Detaylı hata mesajı için
+                if (error.errorInfo) {
+                    console.error('Firebase Error Info:', error.errorInfo);
+                }
             }
         } else {
             console.log('📭 Kayıtlı cihaz yok, FCM gönderilmedi.');
@@ -167,7 +173,6 @@ app.post('/api/order', async (req, res) => {
 
         res.status(200).json({ message: 'Sipariş işlendi.' });
     } catch (error) {
-        // Hatanın detaylarını konsola yazdırma
         console.error('Sipariş veya bildirim gönderilirken hata:', error);
         res.status(500).json({ error: 'Sipariş işlenirken bir hata oluştu.' });
     }
