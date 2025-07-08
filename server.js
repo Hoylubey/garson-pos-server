@@ -46,7 +46,7 @@ db.exec(`
 // Orders tablosunu oluştur (eğer yoksa)
 db.exec(`
     CREATE TABLE IF NOT EXISTS orders (
-        orderId TEXT PRIMARY CUKEY,
+        orderId TEXT PRIMARY KEY,
         masaId TEXT NOT NULL,
         masaAdi TEXT NOT NULL,
         sepetItems TEXT NOT NULL, -- JSON string olarak saklayacağız
