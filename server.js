@@ -62,7 +62,7 @@ db.exec(`
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
-        full_name TEXT, -- Motorcular için isim veya çalışan adı (DÜZELTİLDİ: // yerine -- kullanıldı)
+        full_name TEXT, -- Motorcular için isim veya çalışan adı 
         role TEXT NOT NULL DEFAULT 'employee' -- 'employee', 'admin'
     )
 `); 
