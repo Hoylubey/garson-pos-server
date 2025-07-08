@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
         crossorigin=""/>
-    
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
         crossorigin=""></script>
@@ -16,9 +16,6 @@
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 
     <style>
-        /* CSS stilleriniz aynı kalabilir */
-        /* ... (mevcut CSS'niz buraya gelecek) ... */
-
         /* GENEL CSS STILLERI */
         body {
             font-family: Arial, sans-serif;
@@ -28,7 +25,7 @@
             display: flex; /* Flexbox kullanarak düzeni ayarla */
             flex-direction: column; /* Öğeleri dikeyde sırala */
             gap: 20px; /* Kutular arası boşluk */
-            
+
         }
         h1 {
             color: #333;
@@ -60,7 +57,7 @@
             height: 80vh; /* Yüksekliği ayarla */
             position: sticky; /* Sayfayı kaydırsan bile harita sabit kalsın */
             top: 20px; /* Üstten 20px boşluk bırak */
-            
+
         }
         #map {
             width: 100%;
@@ -272,7 +269,7 @@
     <div id="main-layout-container">
         <div id="main-content">
             <div id="orders-container">
-                </div>
+            </div>
         </div>
 
         <div id="map-container">
@@ -286,7 +283,10 @@
         // BURAYI KENDİ SUNUCU ADRESİNİZLE DEĞİŞTİRMELİSİNİZ!
         // Geliştirme ortamında: http://localhost:3000
         // Dağıtımda (örneğin Render.com): https://your-app-name.onrender.com
-        const socket = io('https://garson-pos-server.onrender.com'); 
+        const SOCKET_SERVER_URL = 'https://garson-pos-server.onrender.com'; // Backend Socket.IO sunucunuzun URL'si
+        const API_BASE_URL = 'https://garson-pos-server.onrender.com'; // Backend API'nizin temel URL'si (fetch istekleri için)
+
+        const socket = io(SOCKET_SERVER_URL);
 
         // DOM elemanlarına referanslar
         const ordersContainer = document.getElementById('orders-container');
@@ -296,7 +296,8 @@
 
         // Leaflet Harita değişkenleri
         let map;
-        const riderMarkers = {}; // Motorcu ID'sine göre markerları saklayacak obje
+        // Motorcu username'ine göre markerları saklayacak obje (artık ID değil)
+        const riderMarkers = {};
 
         // Haritayı başlatma fonksiyonu
         function initMap() {
@@ -326,7 +327,7 @@
         // addOrderToDisplay fonksiyonu: Yeni gelen siparişi ekrana ekler
         function addOrderToDisplay(order) {
             // SQLite'dan gelen siparişlerde orderId alanı var
-            if (document.getElementById(`order-${order.orderId}`)) { 
+            if (document.getElementById(`order-${order.orderId}`)) {
                 console.log(`Sipariş ${order.orderId} zaten ekranda.`);
                 return;
             }
@@ -514,24 +515,32 @@
         // Sunucudan mevcut motorcu konumları geldiğinde
         socket.on('currentRiderLocations', (locations) => {
             console.log('Mevcut motorcu konumları alındı:', locations);
-            for (const riderId in riderMarkers) {
-                if (riderMarkers[riderId]) {
-                    riderMarkers[riderId].remove();
-                    delete riderMarkers[riderId];
+            // Mevcut tüm markerları kaldır
+            for (const username in riderMarkers) { // Artık username'e göre
+                if (riderMarkers[username]) {
+                    riderMarkers[username].remove();
+                    delete riderMarkers[username];
                 }
             }
-            for (const riderId in locations) {
-                updateRiderLocation(locations[riderId]);
+            // Yeni gelen konumları ekle
+            // locations'ın bir dizi veya boş bir nesne olup olmadığını kontrol edin
+            if (Array.isArray(locations)) {
+                locations.forEach(location => updateRiderLocation(location));
+            } else if (typeof locations === 'object' && locations !== null) {
+                // Eğer bir nesne ise, değerleri üzerinde döngü yap
+                Object.values(locations).forEach(location => updateRiderLocation(location));
+            } else {
+                console.warn('currentRiderLocations olayı geçersiz veri formatı aldı:', locations);
             }
             updateRiderCount();
         });
 
         // Sunucudan 'riderDisconnected' olayı geldiğinde
-        socket.on('riderDisconnected', (disconnectedRiderId) => {
-            console.log(`Motorcu ${disconnectedRiderId} sunucudan ayrıldı. Haritadan kaldırılıyor.`);
-            if (riderMarkers[disconnectedRiderId]) {
-                riderMarkers[disconnectedRiderId].remove();
-                delete riderMarkers[disconnectedRiderId];
+        socket.on('riderDisconnected', (disconnectedUsername) => { // disconnectedUsername bekleniyor
+            console.log(`Motorcu ${disconnectedUsername} sunucudan ayrıldı. Haritadan kaldırılıyor.`);
+            if (riderMarkers[disconnectedUsername]) { // username'e göre kontrol et
+                riderMarkers[disconnectedUsername].remove();
+                delete riderMarkers[disconnectedUsername];
                 updateRiderCount();
             }
         });
@@ -547,10 +556,11 @@
 
         socket.on('disconnect', () => {
             console.log('Sunucu bağlantısı kesildi!');
-            for (const riderId in riderMarkers) {
-                if (riderMarkers[riderId]) {
-                    riderMarkers[riderId].remove();
-                    delete riderMarkers[riderId];
+            // Tüm markerları kaldır
+            for (const username in riderMarkers) { // username'e göre
+                if (riderMarkers[username]) {
+                    riderMarkers[username].remove();
+                    delete riderMarkers[username];
                 }
             }
             updateRiderCount();
@@ -562,7 +572,8 @@
 
         // Motorcu konumunu haritada güncelleyen fonksiyon (Leaflet için)
         function updateRiderLocation(locationData) {
-            const { riderId, latitude, longitude, timestamp, speed, bearing, accuracy } = locationData;
+            // locationData artık 'id', 'name', 'username', 'latitude', 'longitude' vb. içeriyor
+            const { id, name, username, latitude, longitude, timestamp, speed, bearing, accuracy } = locationData;
             const latLng = [latitude, longitude];
 
             if (!map) {
@@ -577,11 +588,13 @@
                 popupAnchor: [0, -16]
             });
 
-            if (riderMarkers[riderId]) {
-                riderMarkers[riderId].setLatLng(latLng);
-                if (riderMarkers[riderId].getPopup()) {
-                    riderMarkers[riderId].getPopup().setContent(
-                        `<div><strong>Motorcu ID:</strong> ${riderId}</div>` +
+            // Marker'ı username'e göre yönet
+            if (riderMarkers[username]) {
+                riderMarkers[username].setLatLng(latLng);
+                if (riderMarkers[username].getPopup()) {
+                    riderMarkers[username].getPopup().setContent(
+                        `<div><strong>Motorcu Adı:</strong> ${name}</div>` + // İsim gösterildi
+                        `<div><strong>Kullanıcı Adı:</strong> ${username}</div>` + // Kullanıcı Adı eklendi
                         `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
                         `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` + // Hız m/s'den km/s'ye çevrildi
                         `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
@@ -590,9 +603,10 @@
                     );
                 }
             } else {
-                riderMarkers[riderId] = L.marker(latLng, { icon: customIcon }).addTo(map)
+                riderMarkers[username] = L.marker(latLng, { icon: customIcon }).addTo(map)
                     .bindPopup(
-                        `<div><strong>Motorcu ID:</strong> ${riderId}</div>` +
+                        `<div><strong>Motorcu Adı:</strong> ${name}</div>` + // İsim gösterildi
+                        `<div><strong>Kullanıcı Adı:</strong> ${username}</div>` + // Kullanıcı Adı eklendi
                         `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
                         `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` + // Hız m/s'den km/s'ye çevrildi
                         `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
@@ -604,7 +618,7 @@
 
         // SİPARİŞ ALIMI DURUM YÖNETİMİ (Mevcut haliyle kalabilir)
         function fetchOrderStatus() {
-            fetch('/api/order-status')
+            fetch(`${API_BASE_URL}/api/order-status`) // API_BASE_URL kullanıldı
             .then(res => {
                 if (!res.ok) {
                     throw new Error(`HTTP error! status: ${res.status}`);
@@ -649,7 +663,7 @@
                     const currentStatusText = document.getElementById('order-status-text').textContent;
                     const newStatus = !currentStatusText.includes('Açık'); // Eğer 'Açık' içeriyorsa kapatılacak
 
-                    fetch('/api/set-order-status', {
+                    fetch(`${API_BASE_URL}/api/set-order-status`, { // API_BASE_URL kullanıldı
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
