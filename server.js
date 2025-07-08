@@ -54,6 +54,8 @@ const fcmTokens = new Set();
 
 // 🌍 Rider Lokasyonları
 const riderLocations = {};
+// YENİ EKLENEN: socket.id'den riderId'ye eşleme
+const socketToRiderId = {}; 
 
 // ✅ TOKEN KAYDI
 app.post('/api/register-fcm-token', (req, res) => {
@@ -195,6 +197,7 @@ io.on('connection', (socket) => {
     socket.on('riderLocationUpdate', (locationData) => {
         const { riderId, latitude, longitude, timestamp, speed, bearing, accuracy } = locationData;
         riderLocations[riderId] = { latitude, longitude, timestamp, speed, bearing, accuracy };
+        socketToRiderId[socket.id] = riderId; // YENİ EKLENEN: Socket ID'si ile Rider ID'sini eşle
         io.emit('newRiderLocation', locationData);
     });
 
@@ -206,6 +209,15 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         console.log(`[${new Date().toLocaleTimeString()}] Bağlantı koptu: ${socket.id}`);
+        const disconnectedRiderId = socketToRiderId[socket.id]; // İlgili riderId'yi al
+
+        if (disconnectedRiderId) {
+            delete riderLocations[disconnectedRiderId]; // riderLocations objesinden sil
+            delete socketToRiderId[socket.id];   // Eşlemeden de sil
+            console.log(`Motorcu ${disconnectedRiderId} bağlantısı kesildi. Haritadan kaldırılıyor.`);
+            // İstemcilere bu motorcunun ayrıldığını bildir
+            io.emit('riderDisconnected', disconnectedRiderId); // YENİ EKLENEN: Web'e motorcu ayrıldığını bildir
+        }
     });
 });
 
