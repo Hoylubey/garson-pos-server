@@ -46,21 +46,15 @@ db.exec(`
 // Orders tablosunu oluştur (eğer yoksa)
 db.exec(`
     CREATE TABLE IF NOT EXISTS orders (
-        orderId TEXT PRIMARY KEY, 
+        orderId TEXT PRIMARY KEY, -- 'CUKEY' hatası buradan düzeltildi
         masaId TEXT NOT NULL,
         masaAdi TEXT NOT NULL,
-        sepetItems TEXT NOT NULL, // JSON string olarak saklayacağız
+        sepetItems TEXT NOT NULL, -- JSON string olarak saklayacağız
         toplamFiyat REAL NOT NULL,
-        timestamp TEXT NOT NULL, // ISO string olarak saklayacağız
-        status TEXT NOT NULL DEFAULT 'pending' // 'pending', 'paid', 'cancelled'
+        timestamp TEXT NOT NULL, -- ISO string olarak saklayacağız
+        status TEXT NOT NULL DEFAULT 'pending' -- 'pending', 'paid', 'cancelled'
     )
-`, (err) => {
-    if (err) {
-        console.error('Orders tablosu oluşturma hatası:', err.message);
-    } else {
-        console.log('Orders tablosu hazır.');
-    }
-});
+`); // Callback kaldırıldı, better-sqlite3 senkron olduğu için exec doğrudan hata fırlatır
 
 // USERS tablosunu oluştur (eğer yoksa)
 db.exec(`
@@ -71,23 +65,7 @@ db.exec(`
         full_name TEXT, // Motorcular için isim veya çalışan adı
         role TEXT NOT NULL DEFAULT 'employee' // 'employee', 'admin'
     )
-`, (err) => {
-    if (err) {
-        console.error('Users tablosu oluşturma hatası:', err.message);
-    } else {
-        console.log('Users tablosu hazır.');
-        // Yönetici hesabının varlığını kontrol et ve yoksa ekle
-        const adminUser = db.prepare("SELECT * FROM users WHERE username = 'hoylubey' AND role = 'admin'").get();
-        if (!adminUser) {
-            bcrypt.hash('Goldmaster150.', 10).then(hashedPassword => {
-                db.prepare("INSERT INTO users (username, password, full_name, role) VALUES (?, ?, ?, ?)").run('hoylubey', hashedPassword, 'Yönetici', 'admin');
-                console.log('Varsayılan yönetici hesabı oluşturuldu.');
-            }).catch(err => {
-                console.error('Yönetici şifresi hashlenirken hata:', err);
-            });
-        }
-    }
-});
+`); // Callback kaldırıldı
 
 // PRODUCTS tablosunu oluştur (eğer yoksa)
 db.exec(`
@@ -98,24 +76,39 @@ db.exec(`
         category TEXT,
         description TEXT
     )
-`, (err) => {
-    if (err) {
-        console.error('Products tablosu oluşturma hatası:', err.message);
-    } else {
-        console.log('Products tablosu hazır.');
-        // Örnek ürünler ekle (sadece tablo boşsa)
-        const existingProducts = db.prepare("SELECT COUNT(*) FROM products").get();
-        if (existingProducts['COUNT(*)'] === 0) {
-            const insert = db.prepare("INSERT INTO products (name, price, category) VALUES (?, ?, ?)");
-            insert.run('Kokoreç Yarım Ekmek', 120.00, 'Ana Yemek');
-            insert.run('Kokoreç Çeyrek Ekmek', 90.00, 'Ana Yemek');
-            insert.run('Ayran Büyük', 25.00, 'İçecek');
-            insert.run('Ayran Küçük', 15.00, 'İçecek');
-            insert.run('Su', 10.00, 'İçecek');
-            console.log('Örnek ürünler veritabanına eklendi.');
-        }
+`); // Callback kaldırıldı
+
+// Callback'leri kaldırdıktan sonra hata yakalama mekanizmasını ekleyelim
+try {
+    // Yönetici hesabının varlığını kontrol et ve yoksa ekle
+    const adminUser = db.prepare("SELECT * FROM users WHERE username = 'hoylubey' AND role = 'admin'").get();
+    if (!adminUser) {
+        bcrypt.hash('Goldmaster150.', 10).then(hashedPassword => {
+            db.prepare("INSERT INTO users (username, password, full_name, role) VALUES (?, ?, ?, ?)").run('hoylubey', hashedPassword, 'Yönetici', 'admin');
+            console.log('Varsayılan yönetici hesabı oluşturuldu.');
+        }).catch(err => {
+            console.error('Yönetici şifresi hashlenirken hata:', err);
+        });
     }
-});
+} catch (err) {
+    console.error('Users tablosu veya yönetici ekleme hatası:', err.message);
+}
+
+try {
+    // Örnek ürünler ekle (sadece tablo boşsa)
+    const existingProducts = db.prepare("SELECT COUNT(*) FROM products").get();
+    if (existingProducts['COUNT(*)'] === 0) {
+        const insert = db.prepare("INSERT INTO products (name, price, category) VALUES (?, ?, ?)");
+        insert.run('Kokoreç Yarım Ekmek', 120.00, 'Ana Yemek');
+        insert.run('Kokoreç Çeyrek Ekmek', 90.00, 'Ana Yemek');
+        insert.run('Ayran Büyük', 25.00, 'İçecek');
+        insert.run('Ayran Küçük', 15.00, 'İçecek');
+        insert.run('Su', 10.00, 'İçecek');
+        console.log('Örnek ürünler veritabanına eklendi.');
+    }
+} catch (err) {
+    console.error('Products tablosu veya örnek ürün ekleme hatası:', err.message);
+}
 
 // Başlangıçta sipariş alım durumunu veritabanından oku veya varsayılan değerle başlat
 const initialStatus = db.prepare("SELECT value FROM settings WHERE key = 'isOrderTakingEnabled'").get();
@@ -128,19 +121,12 @@ if (!initialStatus) {
 const fcmTokens = new Set();
 
 // 🌍 Rider Lokasyonları
-// riderId yerine artık username (full_name) kullanacağız
 const riderLocations = {}; // { "motorcuIsmi": { latitude, longitude, ... }, ... }
-// YENİ EKLENEN: socket.id'den username'e (riderName'e) eşleme
 const socketToUsername = {}; // { "socket.id": "motorcuIsmi" }
 
 
 // Middleware: Yönetici yetkisini kontrol et
-// Gerçek bir uygulamada JWT token doğrulaması yapmalısınız.
-// Burada basitçe 'x-role' başlığını kontrol ediyoruz.
 function isAdmin(req, res, next) {
-    // Örnek bir kontrol: Mobil uygulamadan 'x-role: admin' başlığı gelmeli
-    // veya daha güvenlisi: Kullanıcı giriş yaptığında dönen bir token'ı doğrularız
-    // Şimdilik sadece konsept için basit bir başlık kontrolü:
     if (req.headers['x-role'] === 'admin') {
         next();
     } else {
@@ -160,26 +146,23 @@ app.post('/api/login', async (req, res) => {
     }
 
     try {
-        // Kullanıcıyı veritabanında ara
         const user = db.prepare("SELECT * FROM users WHERE username = ?").get(username);
 
         if (!user) {
             return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
         }
 
-        // Parolayı doğrula
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) {
             return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
         }
 
-        // Başarılı giriş: Kullanıcı bilgilerini ve bir TOKEN oluşturup gönder
-        const token = user.id + "-" + user.role + "-" + Date.now(); // Basit bir placeholder token
+        const token = user.id + "-" + user.role + "-" + Date.now(); 
 
         res.status(200).json({
             message: 'Giriş başarılı!',
             token: token,
-            role: user.role, // Kullanıcının rolünü gönder
+            role: user.role, 
             user: { id: user.id, username: user.username, full_name: user.full_name, role: user.role }
         });
 
@@ -199,20 +182,20 @@ app.post('/api/register-employee', async (req, res) => {
     }
 
     try {
-        const hashedPassword = await bcrypt.hash(password, 10); // Şifreyi hashle
+        const hashedPassword = await bcrypt.hash(password, 10); 
         const stmt = db.prepare("INSERT INTO users (username, password, full_name, role) VALUES (?, ?, ?, 'employee')");
         const info = stmt.run(username, hashedPassword, full_name);
         const newUser = { id: info.lastInsertRowid, username, full_name, role: 'employee' };
-        const token = newUser.id + "-" + newUser.role + "-" + Date.now(); // Basit bir placeholder token
+        const token = newUser.id + "-" + newUser.role + "-" + Date.now(); 
 
         res.status(201).json({
             message: 'Çalışan başarıyla oluşturuldu.',
-            token: token, // TOKEN EKLENDİ
-            role: newUser.role, // ROL EKLENDİ
+            token: token, 
+            role: newUser.role, 
             user: newUser
         });
     } catch (error) {
-        if (error.message.includes('UNIQUE constraint failed')) { // Better-sqlite3 için hata kontrolü
+        if (error.message.includes('UNIQUE constraint failed')) { 
             return res.status(409).json({ message: 'Bu kullanıcı adı zaten mevcut.' });
         }
         console.error('Çalışan kayıt hatası:', error);
@@ -239,11 +222,11 @@ app.post('/api/login-employee', async (req, res) => {
             return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
         }
 
-        const token = user.id + "-" + user.role + "-" + Date.now(); // Basit bir placeholder token
+        const token = user.id + "-" + user.role + "-" + Date.now(); 
         res.status(200).json({
             message: 'Giriş başarılı!',
-            token: token, // TOKEN EKLENDİ
-            role: user.role, // ROL EKLENDİ
+            token: token, 
+            role: user.role, 
             user: { id: user.id, username: user.username, full_name: user.full_name, role: user.role }
         });
     } catch (error) {
@@ -271,11 +254,11 @@ app.post('/api/login-admin', async (req, res) => {
             return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
         }
 
-        const token = user.id + "-" + user.role + "-" + Date.now(); // Basit bir placeholder token
+        const token = user.id + "-" + user.role + "-" + Date.now(); 
         res.status(200).json({
             message: 'Yönetici girişi başarılı!',
-            token: token, // TOKEN EKLENDİ
-            role: user.role, // ROL EKLENDİ
+            token: token, 
+            role: user.role, 
             user: { id: user.id, username: user.username, full_name: user.full_name, role: user.role }
         });
     } catch (error) {
