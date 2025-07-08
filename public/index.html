@@ -265,7 +265,8 @@
     <div id="notificationBell" class="notification-bell">🔔</div>
     <audio id="notificationSound" src="notification.mp3" preload="auto"></audio>
 
-    <h1>Mutfak / Kasa Ekranı</h1> <div id="main-layout-container">
+    <h1>Mutfak / Kasa Ekranı</h1>
+    <div id="main-layout-container">
         <div id="main-content">
             <div id="orders-container">
                 </div>
@@ -280,13 +281,13 @@
     <script>
         // Socket.IO istemcisini başlat
         // BURAYI KENDİ SUNUCU ADRESİNİZLE DEĞİŞTİRMELİSİNİZ!
-        const socket = io('https://garson-pos-server.onrender.com');
+        // Şu anki sunucu adresiniz: 'https://garson-pos-server.onrender.com'
+        const socket = io('https://garson-pos-server.onrender.com'); 
 
         // DOM elemanlarına referanslar
         const ordersContainer = document.getElementById('orders-container');
         const notificationSound = document.getElementById('notificationSound');
         const notificationBell = document.getElementById('notificationBell');
-        // Yeni eklenen eleman için referans
         const activeRiderCountEl = document.getElementById('activeRiderCount');
 
         // Leaflet Harita değişkenleri
@@ -330,12 +331,14 @@
             orderCard.id = `order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
             orderCard.dataset.orderId = orderCard.id;
 
+            // `sepetItems` içindeki `name` ve `adet` yerine `urunAdi` ve `adet` kullanıldı
+            // Fiyat hesaplaması `item.fiyat * item.adet` olarak düzeltildi.
             orderCard.innerHTML = `
                 <div class="order-header">Masa: ${order.masaAdi}</div>
                 <div class="order-details">
                     ${order.sepetItems.map(item => `
                         <div class="order-item">
-                            ${item.urunAdi} (${item.adet} adet) - ${(item.fiyat * item.adet).toFixed(2)} TL
+                            ${item.name || item.urunAdi} (${item.quantity || item.adet} adet) - ${((item.price || item.fiyat) * (item.quantity || item.adet)).toFixed(2)} TL
                         </div>
                     `).join('')}
                 </div>
@@ -378,8 +381,10 @@
                     <div class="receipt-items">
             `;
 
+            // `sepetItems` içindeki `name` ve `adet` yerine `urunAdi` ve `adet` kullanıldı
+            // Fiyat hesaplaması `item.fiyat * item.adet` olarak düzeltildi.
             order.sepetItems.forEach(item => {
-                printContent += `<p class="receipt-item">${item.urunAdi} (${item.adet} adet) - ${(item.fiyat * item.adet).toFixed(2)} TL</p>`;
+                printContent += `<p class="receipt-item">${item.name || item.urunAdi} (${item.quantity || item.adet} adet) - ${((item.price || item.fiyat) * (item.quantity || item.adet)).toFixed(2)} TL</p>`;
             });
 
             printContent += `
@@ -488,6 +493,16 @@
             updateRiderCount(); // Tüm mevcut motorcular eklendikten sonra sayıyı güncelle
         });
 
+        // YENİ EKLENEN: Sunucudan 'riderDisconnected' olayı geldiğinde
+        socket.on('riderDisconnected', (disconnectedRiderId) => {
+            console.log(`Motorcu ${disconnectedRiderId} sunucudan ayrıldı. Haritadan kaldırılıyor.`);
+            if (riderMarkers[disconnectedRiderId]) {
+                riderMarkers[disconnectedRiderId].remove(); // Haritadan kaldır
+                delete riderMarkers[disconnectedRiderId];   // riderMarkers objesinden sil
+                updateRiderCount();                         // Aktif motorcu sayısını güncelle
+            }
+        });
+
         // Bağlantı durumu logları
         socket.on('connect', () => {
             console.log('Sunucuya bağlandı!');
@@ -495,6 +510,8 @@
 
         socket.on('disconnect', () => {
             console.log('Sunucu bağlantısı kesildi!');
+            // Sunucu bağlantısı tamamen kesildiğinde tüm motorcuları haritadan kaldır.
+            // Bu durum, örneğin internet bağlantısı koptuğunda veya sunucu çöktüğünde olur.
             for (const riderId in riderMarkers) {
                 if (riderMarkers[riderId]) {
                     riderMarkers[riderId].remove();
@@ -531,8 +548,9 @@
                     riderMarkers[riderId].getPopup().setContent(
                         `<div><strong>Motorcu ID:</strong> ${riderId}</div>` +
                         `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
-                        `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` + // Hız m/s'den km/s'ye çevrildi
                         `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Hassasiyet:</strong> ${accuracy !== undefined ? accuracy.toFixed(2) + ' m' : 'Bilinmiyor'}</div>` +
                         `<div><strong>Güncellenme:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>`
                     );
                 }
@@ -541,8 +559,9 @@
                     .bindPopup(
                         `<div><strong>Motorcu ID:</strong> ${riderId}</div>` +
                         `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
-                        `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` + // Hız m/s'den km/s'ye çevrildi
                         `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Hassasiyet:</strong> ${accuracy !== undefined ? accuracy.toFixed(2) + ' m' : 'Bilinmiyor'}</div>` +
                         `<div><strong>Güncellenme:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>`
                     );
             }
@@ -624,7 +643,7 @@
             initMap(); // Harita başlatma fonksiyonu
             fetchOrderStatus(); // Sipariş alım durumunu başlat
             document.getElementById('order-status-toggle').addEventListener('click', toggleOrderStatus); // Butona dinleyici ekle
-            updateRiderCount(); // Sayfa yüklendiğinde ilk sayımı göster
+            updateRiderCount(); // Sayfa yüklendiğinde ilk sayımı göster (başlangıçta 0 olacaktır)
         });
     </script>
 </body>
