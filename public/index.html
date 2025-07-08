@@ -223,10 +223,11 @@
 
     <div id="notificationBell" class="notification-bell">🔔</div>
     <audio id="notificationSound" src="notification.mp3" preload="auto"></audio>
-    <div id="order-status-box" style="position: fixed; top: 20px; left: 20px; background: #fff; padding: 10px 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 999;">
-  <strong>Sipariş Alımı:</strong> <span id="order-status-text">Yükleniyor...</span><br>
-  <button id="order-status-toggle" style="margin-top: 5px;">Durumu Değiştir</button>
-</div>
+
+    <div id="order-status-box" style="position: fixed; top: 20px; left: 20px; background: #fff; padding: 10px 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 999; display: flex; align-items: center; gap: 10px;">
+        <span id="order-status-text" style="font-weight: bold;">Yükleniyor...</span>
+        <button id="order-status-toggle" style="padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; color: white; font-weight: bold;"></button>
+    </div>
 
     <script>
         // Socket.IO istemcisini başlat
@@ -274,17 +275,17 @@
             // Sipariş ID'sini HTML veri özelliği olarak saklayın
             orderCard.dataset.orderId = orderCard.id;
 
-            // Sipariş kartının genel HTML içeriği
+            // Sipariş kartının genel HTML içeriği - ANAHTAR İSİMLERİ DÜZELTİLDİ
             orderCard.innerHTML = `
-                <div class="order-header">Masa: ${order.tableName}</div>
+                <div class="order-header">Masa: ${order.masaAdi}</div>
                 <div class="order-details">
-                    ${order.items.map(item => `
+                    ${order.sepetItems.map(item => `
                         <div class="order-item">
-                            ${item.productName} (${item.quantity} adet) - ${item.totalPrice.toFixed(2)} TL
+                            ${item.urunAdi} (${item.adet} adet) - ${(item.fiyat * item.adet).toFixed(2)} TL
                         </div>
                     `).join('')}
                 </div>
-                <div class="order-total">Toplam: ${order.totalAmount.toFixed(2)} TL</div>
+                <div class="order-total">Toplam: ${order.toplamFiyat.toFixed(2)} TL</div>
                 <div class="order-actions">
                     <button class="pay-button">Ödendi</button>
                     <button class="print-button">Yazdır</button>
@@ -295,11 +296,11 @@
             const payButton = orderCard.querySelector('.pay-button');
             payButton.addEventListener('click', () => {
                 console.log('Sipariş ödendi:', order);
-                // Sunucuya siparişin ödendiğini bildir
+                // Sunucuya siparişin ödendiğini bildir - ANAHTAR İSİMLERİ DÜZELTİLDİ
                 socket.emit('orderPaid', {
                     orderId: orderCard.dataset.orderId,
-                    tableName: order.tableName,
-                    totalAmount: order.totalAmount
+                    tableName: order.masaAdi, // Backend'e doğru anahtar ile gönder
+                    totalAmount: order.toplamFiyat // Backend'e doğru anahtar ile gönder
                 });
                 orderCard.remove(); // Sipariş kartını ekrandan kaldır
                 playNotificationSound('payment'); // İsteğe bağlı olarak ödeme sesi çal
@@ -318,31 +319,31 @@
 
         // printOrderReceipt fonksiyonu: Sipariş fişini yazdırmak için yeni bir pencere açar
         function printOrderReceipt(order) {
-            // Yazdırılacak HTML içeriğini oluştur (template literal kullanarak değişkenleri doğru yorumla)
+            // Yazdırılacak HTML içeriğini oluştur (template literal kullanarak değişkenleri doğru yorumla) - ANAHTAR İSİMLERİ DÜZELTİLDİ
             let printContent = `
                 <div class="receipt-container">
                     <div class="receipt-header">--- Olimpiyat Kokoreç ---</div>
-                    <p class="receipt-info">Masa: ${order.tableName}</p>
+                    <p class="receipt-info">Masa: ${order.masaAdi}</p>
                     <p class="receipt-info">Tarih: ${new Date().toLocaleString()}</p>
                     <hr>
                     <div class="receipt-items">
             `;
 
-            order.items.forEach(item => {
-                printContent += `<p class="receipt-item">${item.productName} (${item.quantity} adet) - ${item.totalPrice.toFixed(2)} TL</p>`;
+            order.sepetItems.forEach(item => { // 'sepetItems' ve içindeki anahtarlar düzeltildi
+                printContent += `<p class="receipt-item">${item.urunAdi} (${item.adet} adet) - ${(item.fiyat * item.adet).toFixed(2)} TL</p>`;
             });
 
             printContent += `
                     </div>
                     <hr>
-                    <div class="receipt-total">TOPLAM: ${order.totalAmount.toFixed(2)} TL</div>
+                    <div class="receipt-total">TOPLAM: ${order.toplamFiyat.toFixed(2)} TL</div>
                     <div class="receipt-footer">Afiyet Olsun! Teşekkürler!</div>
                 </div>
             `;
 
             // Yeni bir pencerede yazdırma içeriğini göster
             let printWindow = window.open('', '_blank');
-            printWindow.document.write('<!DOCTYPE html><html><head><title>Fiş - ' + order.tableName + '</title>');
+            printWindow.document.write('<!DOCTYPE html><html><head><title>Fiş - ' + order.masaAdi + '</title>');
             printWindow.document.write('<style>');
             // @media print stillerini buraya da kopyalayın ki yazdırma penceresinde de uygulansın
             printWindow.document.write(`
@@ -460,94 +461,99 @@
 
         // Motorcu konumunu haritada güncelleyen fonksiyon (Leaflet için)
         function updateRiderLocation(locationData) {
-        const { riderId, latitude, longitude, speed, bearing, timestamp } = locationData;
-        const latLng = [latitude, longitude];
-    
-        if (!map) {
-            console.warn('Harita henüz başlatılmadı.');
-            return;
-        }
-    
-        const customIcon = L.icon({
-            iconUrl: 'images/motorcu_icon.png',
-            iconSize: [32, 32],
-            iconAnchor: [16, 16],
-            popupAnchor: [0, -16]
-        });
-    
-        if (riderMarkers[riderId]) {
-            riderMarkers[riderId].setLatLng(latLng);
-            if (riderMarkers[riderId].getPopup()) {
-                riderMarkers[riderId].getPopup().setContent(
-                    `<div><strong>Motorcu ID:</strong> ${riderId}</div>` +
-                    `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
-                    `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
-                    `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
-                    `<div><strong>Güncellenme:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>`
-                );
+            const { riderId, latitude, longitude, speed, bearing, timestamp } = locationData;
+            const latLng = [latitude, longitude];
+
+            if (!map) {
+                console.warn('Harita henüz başlatılmadı.');
+                return;
             }
-        } else {
-            riderMarkers[riderId] = L.marker(latLng, { icon: customIcon }).addTo(map)
-                .bindPopup(
-                    `<div><strong>Motorcu ID:</strong> ${riderId}</div>` +
-                    `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
-                    `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
-                    `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
-                    `<div><strong>Güncellenme:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>`
-                );
+
+            const customIcon = L.icon({
+                iconUrl: 'images/motorcu_icon.png', // Bu dosyanın public/images klasöründe olduğundan emin olun
+                iconSize: [32, 32],
+                iconAnchor: [16, 16],
+                popupAnchor: [0, -16]
+            });
+
+            if (riderMarkers[riderId]) {
+                riderMarkers[riderId].setLatLng(latLng);
+                if (riderMarkers[riderId].getPopup()) {
+                    riderMarkers[riderId].getPopup().setContent(
+                        `<div><strong>Motorcu ID:</strong> ${riderId}</div>` +
+                        `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
+                        `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Güncellenme:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>`
+                    );
+                }
+            } else {
+                riderMarkers[riderId] = L.marker(latLng, { icon: customIcon }).addTo(map)
+                    .bindPopup(
+                        `<div><strong>Motorcu ID:</strong> ${riderId}</div>` +
+                        `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
+                        `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Güncellenme:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>`
+                    );
             }
+            // Haritayı motorcunun konumuna odaklama (isteğe bağlı, çok fazla motorcu varsa rahatsız edebilir)
+            // map.panTo(latLng);
         }
 
-
+        // SİPARİŞ ALIMI DURUM YÖNETİMİ - GÜNCELLENMİŞ HALİ
         function fetchOrderStatus() {
             fetch('/api/order-status')
             .then(res => res.json())
             .then(data => {
-            const statusEl = document.getElementById('order-status-text');
-            const toggleBtn = document.getElementById('order-status-toggle');
-            if (data.enabled) {
-                statusEl.textContent = 'AÇIK';
-                statusEl.style.color = 'green';
-                toggleBtn.textContent = 'Kapat';
-          } else {
-                statusEl.textContent = 'KAPALI';
-                statusEl.style.color = 'red';
-                toggleBtn.textContent = 'Aç';
-          }
-    })
-    .catch(err => {
-      console.error('Sipariş durumu alınamadı:', err);
-      document.getElementById('order-status-text').textContent = 'HATA!';
-    });
-}
+                const statusEl = document.getElementById('order-status-text');
+                const toggleBtn = document.getElementById('order-status-toggle');
 
-    function toggleOrderStatus() {
-        const isCurrentlyOpen = document.getElementById('order-status-text').textContent === 'AÇIK';
-        const newStatus = !isCurrentlyOpen;
-
-        fetch('/api/set-order-status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled: newStatus })
-      })
-        .then(res => res.json())
-        .then(data => {
-        alert(data.message || 'Durum güncellendi');
-        fetchOrderStatus();
-        })
-        .catch(err => {
-          alert('Durum güncellenemedi: ' + err.message);
-        });
-    }
-
-// Sayfa yüklendiğinde başlat
-document.addEventListener('DOMContentLoaded', () => {
-  fetchOrderStatus();
-  document.getElementById('order-status-toggle').addEventListener('click', toggleOrderStatus);
-});
-            // Haritayı motorcunun konumuna odaklama (isteğe bağlı, çok fazla motorcu varsa rahatsız edebilir)
-            // map.panTo(latLng);
+                if (data.enabled) {
+                    statusEl.textContent = 'Sipariş Alımı: AÇIK';
+                    statusEl.style.color = 'green';
+                    toggleBtn.textContent = 'Kapat';
+                    toggleBtn.style.backgroundColor = '#dc3545'; // Kapat butonu için kırmızı
+                } else {
+                    statusEl.textContent = 'Sipariş Alımı: KAPALI';
+                    statusEl.style.color = 'red';
+                    toggleBtn.textContent = 'Aç';
+                    toggleBtn.style.backgroundColor = '#28a745'; // Aç butonu için yeşil
+                }
+            })
+            .catch(err => {
+                console.error('Sipariş durumu alınamadı:', err);
+                document.getElementById('order-status-text').textContent = 'Sipariş Alımı: HATA!';
+                document.getElementById('order-status-text').style.color = 'gray'; // Hata durumunda gri
+                document.getElementById('order-status-toggle').style.display = 'none'; // Butonu gizle
+            });
         }
+
+        function toggleOrderStatus() {
+            const isCurrentlyOpen = document.getElementById('order-status-text').textContent.includes('AÇIK');
+            const newStatus = !isCurrentlyOpen;
+
+            fetch('/api/set-order-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: newStatus })
+            })
+            .then(res => res.json())
+            .then(data => {
+                // alert(data.message || 'Durum güncellendi'); // İsteğe bağlı: alert mesajını kaldırabiliriz
+                fetchOrderStatus(); // Durumu tekrar çekerek arayüzü güncelle
+            })
+            .catch(err => {
+                alert('Durum güncellenemedi: ' + err.message);
+            });
+        }
+
+        // Sayfa yüklendiğinde başlat
+        document.addEventListener('DOMContentLoaded', () => {
+            initMap(); // Harita başlatma fonksiyonu
+            fetchOrderStatus(); // Sipariş alım durumunu başlat
+            document.getElementById('order-status-toggle').addEventListener('click', toggleOrderStatus); // Butona dinleyici ekle
+        });
     </script>
 </body>
 </html>
