@@ -8,6 +8,10 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4Nx5LZrLtx9zG+gK1Ntx9q2L9M2+D2D+p0Bq3C2A3A="
         crossorigin=""/>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-p4Nx5LZrLtx9zG+gK1Ntx9q2L9M2+D2D+p0Bq3C2A3A="
+        crossorigin=""></script>
 
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 
@@ -87,7 +91,11 @@
         .notification-bell {
             position: fixed;
             top: 20px;
-            right: 20px;
+            right: 20px; /* Bu değer 'order-status-box'un konumuna göre ayarlanmalıydı */
+            /* Zaten sağda bir kutu olduğu için, zil ikonunu biraz daha sola kaydırabiliriz
+               veya 'order-status-box'un z-index'ini zilin üzerine çıkarabiliriz.
+               Ben zilin de görünmesini istediğimiz için sağdan mesafesini artırıyorum. */
+            right: 180px; /* Örnek: Kutudan daha solda dursun */
             width: 50px;
             height: 50px;
             background-color: #FFC107; /* Sarı zil rengi */
@@ -150,7 +158,7 @@
             align-items: center;
             gap: 15px;
             font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            z-index: 999;
+            z-index: 999; /* Zilin altında kalmalı, veya zil sağdan daha içeride olmalı */
             transition: all 0.3s ease;
             box-sizing: border-box;
         }
@@ -158,6 +166,7 @@
             font-weight: 700;
             font-size: 1.1em;
             color: #333; /* JavaScript ile dinamik olarak değişecek */
+            white-space: nowrap; /* Metnin tek satırda kalmasını sağlar */
         }
         #order-status-toggle {
             padding: 10px 18px;
@@ -167,7 +176,7 @@
             color: white;
             font-weight: 600;
             font-size: 1em;
-            min-width: 80px;
+            min-width: 80px; /* Butonun minimum genişliği */
             text-align: center;
             transition: background-color 0.2s ease, transform 0.1s ease;
         }
@@ -258,10 +267,6 @@
         <button id="order-status-toggle"></button>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-p4Nx5LZrLtx9zG+gK1Ntx9q2L9M2+D2D+p0Bq3C2A3A="
-        crossorigin=""></script>
-
     <script>
         // Socket.IO istemcisini başlat
         // BURAYI KENDİ SUNUCU ADRESİNİZLE DEĞİŞTİRMELİSİNİZ!
@@ -279,33 +284,32 @@
         // Haritayı başlatma fonksiyonu
         function initMap() {
             // Harita merkezini ve zoom seviyesini ayarlayın
-            // Burası için işletmenizin veya genel bir merkezin koordinatlarını girebilirsiniz.
-            // Örneğin: İstanbul koordinatları
-            const initialLat = 41.0082;
+            const initialLat = 41.0082; // İstanbul koordinatları
             const initialLng = 28.9784;
 
-            map = L.map('map').setView([initialLat, initialLng], 12);
+            // 'map' div'inin var olduğundan emin olun
+            if (document.getElementById('map')) {
+                map = L.map('map').setView([initialLat, initialLng], 12);
 
-            // OpenStreetMap katmanı ekle
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(map);
+                // OpenStreetMap katmanı ekle
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(map);
 
-            // İlk açılışta mevcut motorcu konumlarını isteyebiliriz
-            socket.emit('requestCurrentRiderLocations');
+                // İlk açılışta mevcut motorcu konumlarını isteyebiliriz
+                socket.emit('requestCurrentRiderLocations');
+            } else {
+                console.error("Harita için 'map' ID'sine sahip element bulunamadı!");
+            }
         }
 
         // addOrderToDisplay fonksiyonu: Yeni gelen siparişi ekrana ekler
         function addOrderToDisplay(order) {
             const orderCard = document.createElement('div');
             orderCard.className = 'order-card';
-            // Her sipariş kartına benzersiz bir ID atayın
             orderCard.id = `order-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-            // Sipariş ID'sini HTML veri özelliği olarak saklayın
             orderCard.dataset.orderId = orderCard.id;
 
-            // Sipariş kartının genel HTML içeriği
             orderCard.innerHTML = `
                 <div class="order-header">Masa: ${order.masaAdi}</div>
                 <div class="order-details">
@@ -322,28 +326,24 @@
                 </div>
             `;
 
-            // "Ödendi" butonuna tıklama dinleyicisi ekle
             const payButton = orderCard.querySelector('.pay-button');
             payButton.addEventListener('click', () => {
                 console.log('Sipariş ödendi:', order);
-                // Sunucuya siparişin ödendiğini bildir
                 socket.emit('orderPaid', {
                     orderId: orderCard.dataset.orderId,
                     tableName: order.masaAdi,
                     totalAmount: order.toplamFiyat
                 });
-                orderCard.remove(); // Sipariş kartını ekrandan kaldır
-                playNotificationSound('payment'); // İsteğe bağlı olarak ödeme sesi çal
+                orderCard.remove();
+                playNotificationSound('payment');
             });
 
-            // "Yazdır" butonuna tıklama dinleyicisi ekle
             const printButton = orderCard.querySelector('.print-button');
             printButton.addEventListener('click', () => {
                 console.log('Fiş yazdırma isteği:', order);
-                printOrderReceipt(order); // Yazdırma fonksiyonunu çağır
+                printOrderReceipt(order);
             });
 
-            // En yeni siparişi en üste ekle
             ordersContainer.prepend(orderCard);
         }
 
@@ -373,7 +373,6 @@
             let printWindow = window.open('', '_blank');
             printWindow.document.write('<!DOCTYPE html><html><head><title>Fiş - ' + order.masaAdi + '</title>');
             printWindow.document.write('<style>');
-            // @media print stillerini buraya da kopyalayın ki yazdırma penceresinde de uygulansın
             printWindow.document.write(`
                 /* POS Fişi Stilleri - YAZDIRMA PENCERESİ İÇİN */
                 @page {
@@ -488,11 +487,11 @@
 
         // Motorcu konumunu haritada güncelleyen fonksiyon (Leaflet için)
         function updateRiderLocation(locationData) {
-            const { riderId, latitude, longitude, speed, bearing, timestamp } = locationData;
+            const { riderId, latitude, longitude, timestamp, speed, bearing, accuracy } = locationData;
             const latLng = [latitude, longitude];
 
             if (!map) {
-                console.warn('Harita henüz başlatılmadı.');
+                console.warn('Harita henüz başlatılmadı veya bulunamadı.');
                 return;
             }
 
@@ -524,6 +523,8 @@
                         `<div><strong>Güncellenme:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>`
                     );
             }
+            // Haritayı motorcunun konumuna odaklama (isteğe bağlı, çok fazla motorcu varsa rahatsız edebilir)
+            // map.panTo(latLng);
         }
 
         // SİPARİŞ ALIMI DURUM YÖNETİMİ
@@ -559,15 +560,14 @@
                 statusEl.textContent = 'Sipariş Alımı: HATA!';
                 statusEl.style.color = 'gray';
                 toggleBtn.style.display = 'none'; // Butonu gizle
-                alert('Sipariş durumu alınamadı. Lütfen sunucu bağlantısını kontrol edin.'); // Kullanıcıya bilgi ver
+                alert('Sipariş durumu alınamadı. Lütfen sunucu bağlantısını veya CORS ayarlarını kontrol edin.');
             });
         }
 
         function toggleOrderStatus() {
-            // Butonun kendisini devre dışı bırak, ardışık tıklamaları önlemek için
             const toggleBtn = document.getElementById('order-status-toggle');
             toggleBtn.disabled = true;
-            toggleBtn.textContent = 'Değiştiriliyor...'; // Geçici metin
+            toggleBtn.textContent = 'Değiştiriliyor...';
 
             const isCurrentlyOpen = document.getElementById('order-status-text').textContent.includes('AÇIK');
             const newStatus = !isCurrentlyOpen;
@@ -585,15 +585,14 @@
             })
             .then(data => {
                 console.log('Sipariş durumu güncellendi:', data.message);
-                fetchOrderStatus(); // Durumu tekrar çekerek arayüzü güncelle
+                fetchOrderStatus();
             })
             .catch(err => {
                 console.error('Durum güncellenemedi:', err);
-                alert('Durum güncellenemedi: ' + err.message + '. Lütfen sunucu bağlantısını kontrol edin.');
+                alert('Durum güncellenemedi: ' + err.message + '. Lütfen sunucu bağlantısını veya CORS ayarlarını kontrol edin.');
             })
             .finally(() => {
-                toggleBtn.disabled = false; // İşlem bitince butonu tekrar etkinleştir
-                // fetchOrderStatus() zaten butonu güncelleyecektir
+                toggleBtn.disabled = false;
             });
         }
 
