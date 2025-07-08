@@ -5,6 +5,7 @@ const cors = require('cors');
 const admin = require('firebase-admin'); // Firebase Admin SDK
 const path = require('path');
 const Database = require('better-sqlite3'); // better-sqlite3 kütüphanesini import edin
+const { v4: uuidv4 } = require('uuid'); // Benzersiz ID'ler için uuid kütüphanesi
 
 const app = express();
 const server = http.createServer(app);
@@ -41,8 +42,26 @@ db.exec(`
     )
 `);
 
+// Orders tablosunu oluştur (eğer yoksa) - YENİ EKLENDİ
+db.exec(`
+    CREATE TABLE IF NOT EXISTS orders (
+        orderId TEXT PRIMARY KEY,
+        masaId TEXT NOT NULL,
+        masaAdi TEXT NOT NULL,
+        sepetItems TEXT NOT NULL, -- JSON string olarak saklayacağız
+        toplamFiyat REAL NOT NULL,
+        timestamp TEXT NOT NULL, -- ISO string olarak saklayacağız
+        status TEXT NOT NULL DEFAULT 'pending' -- 'pending', 'paid', 'cancelled'
+    )
+`, (err) => { // better-sqlite3 ile callback kullanmak yerine try/catch bloğu daha yaygındır
+    if (err) {
+        console.error('Orders tablosu oluşturma hatası:', err.message);
+    } else {
+        console.log('Orders tablosu hazır.');
+    }
+});
+
 // Başlangıçta sipariş alım durumunu veritabanından oku veya varsayılan değerle başlat
-// Eğer 'isOrderTakingEnabled' anahtarı yoksa, varsayılan olarak 'true' (açık) ayarla.
 const initialStatus = db.prepare("SELECT value FROM settings WHERE key = 'isOrderTakingEnabled'").get();
 if (!initialStatus) {
     db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run('isOrderTakingEnabled', 'true');
@@ -94,6 +113,8 @@ app.post('/api/set-order-status', (req, res) => {
         try {
             db.prepare("REPLACE INTO settings (key, value) VALUES (?, ?)").run('isOrderTakingEnabled', statusValue);
             console.log(`Sipariş alımı durumu veritabanında değiştirildi: ${enabled ? 'AÇIK' : 'KAPALI'}`);
+            // Durum değiştiğinde tüm bağlı istemcilere bildir
+            io.emit('orderTakingStatusChanged', { enabled: enabled }); // YENİ EKLENDİ
             res.json({ message: 'Sipariş durumu başarıyla güncellendi.', newStatus: enabled });
         } catch (error) {
             console.error('Veritabanına sipariş durumu yazılırken hata:', error);
@@ -104,7 +125,7 @@ app.post('/api/set-order-status', (req, res) => {
     }
 });
 
-// 📦 SIPARIŞ AL
+// 📦 SIPARIŞ AL (API Endpoint'i)
 app.post('/api/order', async (req, res) => {
     try {
         // Sipariş alım durumunu veritabanından kontrol et
@@ -130,13 +151,37 @@ app.post('/api/order', async (req, res) => {
         console.log(`Toplam Fiyat: ${toplamFiyat} TL`);
         console.log('Sepet Ürünleri:', JSON.stringify(sepetItems, null, 2)); // Daha okunur format
 
-        // Web'e gönder
-        io.emit('newOrder', {
+        const orderId = uuidv4(); // Benzersiz bir sipariş ID'si oluştur
+        const timestamp = new Date().toISOString(); // ISO formatında zaman damgası
+
+        // Siparişi SQLite veritabanına kaydet
+        // sepetItems objesini JSON stringe çevirerek sakla
+        const sepetItemsJson = JSON.stringify(sepetItems);
+
+        db.prepare(`INSERT INTO orders (orderId, masaId, masaAdi, sepetItems, toplamFiyat, timestamp, status) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+            orderId,
             masaId,
             masaAdi,
+            sepetItemsJson,
             toplamFiyat,
-            sepetItems
-        });
+            timestamp,
+            'pending'
+        );
+        console.log(`Yeni sipariş SQLite'a kaydedildi. ID: ${orderId}`);
+
+        // Web'e gönderilecek sipariş objesini oluştur (sepetItems parse edilmiş haliyle)
+        const newOrderToSend = {
+            orderId: orderId, // Artık orderId kullanıyoruz
+            masaId: masaId,
+            masaAdi: masaAdi,
+            sepetItems: sepetItems, // Zaten obje olarak var
+            toplamFiyat: toplamFiyat,
+            timestamp: timestamp,
+            status: 'pending'
+        };
+
+        // Mutfak/Kasa ekranlarına yeni siparişi gönder
+        io.emit('newOrder', newOrderToSend);
         io.emit('notificationSound', { play: true });
 
         // 🔔 Firebase Bildirim
@@ -144,10 +189,9 @@ app.post('/api/order', async (req, res) => {
             data: {
                 masaAdi: masaAdi,
                 siparisDetay: JSON.stringify(sepetItems),
-                siparisId: Date.now().toString(),
+                siparisId: orderId, // Gerçek orderId'yi kullan
                 toplamTutar: toplamFiyat.toString()
             },
-            // Bildirim başlık ve gövdesini açmak isterseniz
             notification: { // notification alanı eklendi
                 title: `Yeni Sipariş: ${masaAdi}`,
                 body: `Toplam: ${toplamFiyat} TL`
@@ -157,14 +201,11 @@ app.post('/api/order', async (req, res) => {
         if (fcmTokens.size > 0) {
             const tokensArray = Array.from(fcmTokens);
             try {
-                // Burada değişiklik var: message objesi ve tokensArray ayrı ayrı geçiriliyor
-                // sendEachForMulticast, her bir token için ayrı bir mesaj objesi bekler
                 const messagesToSend = tokensArray.map(token => ({ ...message, token }));
                 const firebaseResponse = await admin.messaging().sendEachForMulticast(messagesToSend);
                 console.log('🔥 FCM gönderildi:', firebaseResponse);
             } catch (error) {
                 console.error('❌ FCM gönderimi HATA:', error);
-                // Detaylı hata mesajı için
                 if (error.errorInfo) {
                     console.error('Firebase Error Info:', error.errorInfo);
                 }
@@ -175,7 +216,7 @@ app.post('/api/order', async (req, res) => {
 
         res.status(200).json({ message: 'Sipariş işlendi.' });
     } catch (error) {
-        console.error('Sipariş veya bildirim gönderilirken hata:', error);
+        console.error('Sipariş işlenirken veya bildirim gönderilirken hata:', error);
         res.status(500).json({ error: 'Sipariş işlenirken bir hata oluştu.' });
     }
 });
@@ -190,6 +231,22 @@ app.get('/', (req, res) => {
 io.on('connection', (socket) => {
     console.log(`[${new Date().toLocaleTimeString()}] Yeni bağlantı: ${socket.id}`);
 
+    // Mutfak/Kasa Ekranı bağlandığında mevcut siparişleri SQLite'tan çek ve gönder
+    try {
+        const activeOrders = db.prepare(`SELECT * FROM orders WHERE status = 'pending' ORDER BY timestamp ASC`).all();
+        // Veritabanından gelen sepetItems JSON string olduğu için parse etmeliyiz
+        const parsedOrders = activeOrders.map(order => {
+            return {
+                ...order,
+                sepetItems: JSON.parse(order.sepetItems) // JSON stringi objeye çevir
+            };
+        });
+        socket.emit('currentActiveOrders', parsedOrders);
+        console.log(`[${new Date().toLocaleTimeString()}] Socket ${socket.id} için ${parsedOrders.length} aktif sipariş gönderildi.`);
+    } catch (error) {
+        console.error('Mevcut siparişleri SQLite\'tan çekerken hata:', error.message);
+    }
+
     socket.on('requestCurrentRiderLocations', () => {
         socket.emit('currentRiderLocations', riderLocations);
     });
@@ -202,9 +259,21 @@ io.on('connection', (socket) => {
     });
 
     socket.on('orderPaid', (data) => {
-        // orderPaid event'i için de data objesindeki anahtarları kontrol etmelisiniz
-        // örneğin, data.tableName ve data.totalAmount yerine uygulamanızın gönderdiği anahtarları kullanın
-        console.log(`[${new Date().toLocaleTimeString()}] Ödeme alındı - Masa ${data.tableName || 'Bilinmeyen Masa'}, ${data.totalAmount || '0'} TL`);
+        const { orderId } = data; // İstemciden orderId bekliyoruz
+        console.log(`[${new Date().toLocaleTimeString()}] Sipariş ödendi olarak işaretlendi: ${orderId}`);
+
+        try {
+            const info = db.prepare(`UPDATE orders SET status = 'paid' WHERE orderId = ? AND status = 'pending'`).run(orderId);
+            if (info.changes > 0) {
+                console.log(`Sipariş (ID: ${orderId}) SQLite'ta ödendi olarak güncellendi.`);
+                io.emit('orderPaidConfirmation', { orderId: orderId }); // Opsiyonel: mobil uygulamaya bildirim
+                io.emit('removeOrderFromDisplay', { orderId: orderId }); // Mutfak/Kasa ekranından kaldır
+            } else {
+                console.warn(`Ödendi olarak işaretlenen sipariş (ID: ${orderId}) bulunamadı veya zaten ödenmiş.`);
+            }
+        } catch (error) {
+            console.error('Siparişin durumunu güncellerken hata:', error.message);
+        }
     });
 
     socket.on('disconnect', () => {
@@ -213,7 +282,7 @@ io.on('connection', (socket) => {
 
         if (disconnectedRiderId) {
             delete riderLocations[disconnectedRiderId]; // riderLocations objesinden sil
-            delete socketToRiderId[socket.id];   // Eşlemeden de sil
+            delete socketToRiderId[socket.id];    // Eşlemeden de sil
             console.log(`Motorcu ${disconnectedRiderId} bağlantısı kesildi. Haritadan kaldırılıyor.`);
             // İstemcilere bu motorcunun ayrıldığını bildir
             io.emit('riderDisconnected', disconnectedRiderId); // YENİ EKLENEN: Web'e motorcu ayrıldığını bildir
