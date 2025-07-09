@@ -296,7 +296,7 @@
 
         // Leaflet Harita değişkenleri
         let map;
-        // Motorcu username'ine göre markerları saklayacak obje (artık ID değil)
+        // Motorcu username'ine göre markerları saklayacak obje
         const riderMarkers = {};
 
         // Haritayı başlatma fonksiyonu
@@ -311,12 +311,14 @@
                     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 }).addTo(map);
 
+                // Harita başlatıldığında mevcut motorcu konumlarını iste
                 socket.emit('requestCurrentRiderLocations');
             } else {
                 console.error("Harita için 'map' ID'sine sahip element bulunamadı!");
             }
         }
 
+        // Aktif motorcu sayısını güncelleyen fonksiyon
         function updateRiderCount() {
             const count = Object.keys(riderMarkers).length;
             if (activeRiderCountEl) {
@@ -512,25 +514,33 @@
             updateRiderCount();
         });
 
-        // Sunucudan mevcut motorcu konumları geldiğinde
+        // Sunucudan mevcut motorcu konumları geldiğinde (Daha akıllıca yönetim)
         socket.on('currentRiderLocations', (locations) => {
             console.log('Mevcut motorcu konumları alındı:', locations);
-            // Mevcut tüm markerları kaldır
-            for (const username in riderMarkers) { // Artık username'e göre
-                if (riderMarkers[username]) {
+            const activeUsernames = new Set();
+
+            // Gelen konumları işle ve aktif kullanıcı adlarını topla
+            if (Array.isArray(locations)) {
+                locations.forEach(location => {
+                    updateRiderLocation(location);
+                    activeUsernames.add(location.username);
+                });
+            } else if (typeof locations === 'object' && locations !== null) {
+                Object.values(locations).forEach(location => {
+                    updateRiderLocation(location);
+                    activeUsernames.add(location.username);
+                });
+            } else {
+                console.warn('currentRiderLocations olayı geçersiz veri formatı aldı:', locations);
+            }
+
+            // Artık aktif olmayan markerları kaldır
+            for (const username in riderMarkers) {
+                if (!activeUsernames.has(username)) {
+                    console.log(`Motorcu ${username} artık aktif değil. Haritadan kaldırılıyor.`);
                     riderMarkers[username].remove();
                     delete riderMarkers[username];
                 }
-            }
-            // Yeni gelen konumları ekle
-            // locations'ın bir dizi veya boş bir nesne olup olmadığını kontrol edin
-            if (Array.isArray(locations)) {
-                locations.forEach(location => updateRiderLocation(location));
-            } else if (typeof locations === 'object' && locations !== null) {
-                // Eğer bir nesne ise, değerleri üzerinde döngü yap
-                Object.values(locations).forEach(location => updateRiderLocation(location));
-            } else {
-                console.warn('currentRiderLocations olayı geçersiz veri formatı aldı:', locations);
             }
             updateRiderCount();
         });
@@ -590,7 +600,9 @@
 
             // Marker'ı username'e göre yönet
             if (riderMarkers[username]) {
+                // Mevcut marker'ın konumunu güncelle
                 riderMarkers[username].setLatLng(latLng);
+                // Popup içeriğini güncelle
                 if (riderMarkers[username].getPopup()) {
                     riderMarkers[username].getPopup().setContent(
                         `<div><strong>Motorcu Adı:</strong> ${name}</div>` + // İsim gösterildi
@@ -603,6 +615,7 @@
                     );
                 }
             } else {
+                // Yeni marker oluştur
                 riderMarkers[username] = L.marker(latLng, { icon: customIcon }).addTo(map)
                     .bindPopup(
                         `<div><strong>Motorcu Adı:</strong> ${name}</div>` + // İsim gösterildi
@@ -683,7 +696,7 @@
                     })
                     .catch(error => {
                         console.error('Sipariş durumu güncellenirken hata oluştu:', error);
-                        alert('Sipariş durumu güncellenemedi.');
+                        // alert('Sipariş durumu güncellenemedi.'); // alert yerine daha iyi bir UI bildirimi kullanılabilir
                     });
                 });
             }
