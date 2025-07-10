@@ -602,7 +602,9 @@
         // Motorcu konumunu haritada güncelleyen fonksiyon (Leaflet için)
         function updateRiderLocation(locationData) {
             console.log('[MAP DEBUG] updateRiderLocation çağrıldı. Veri:', locationData);
-            const { id, name, username, latitude, longitude, timestamp, speed, bearing, accuracy } = locationData;
+            // 'fullName' alanı varsa onu kullan, yoksa 'name' veya 'username'i kullan
+            const riderDisplayName = locationData.fullName || locationData.name || locationData.username || 'Bilinmiyor';
+            const { username, latitude, longitude, timestamp, speed, bearing, accuracy } = locationData;
             const latLng = [latitude, longitude];
 
             if (!map) {
@@ -612,7 +614,7 @@
 
             // Motorcu ikonu (public/images/motorcu_icon.png yolunda olduğundan emin olun)
             const customIcon = L.icon({
-                iconUrl: 'images/motorcu_icon.png',
+                iconUrl: 'images/motorcu_icon.png', // Bu dosyanın public/images klasöründe olduğundan emin olun
                 iconSize: [32, 32],
                 iconAnchor: [16, 16],
                 popupAnchor: [0, -16]
@@ -622,10 +624,11 @@
             if (riderMarkers[username]) {
                 console.log(`[MAP DEBUG] Mevcut marker güncelleniyor: ${username}`);
                 riderMarkers[username].setLatLng(latLng);
+                // Eğer marker zaten bir popup'a sahipse içeriğini güncelle
                 if (riderMarkers[username].getPopup()) {
                     riderMarkers[username].getPopup().setContent(
-                        `<div><strong>Motorcu Adı:</strong> ${name}</div>` +
-                        `<div><strong>Kullanıcı Adı:</strong> ${username}</div>` +
+                        `<div><strong>Motorcu Adı:</strong> ${riderDisplayName}</div>` +
+                        `<div><strong>Kullanıcı Adı (Sistem):</strong> ${username}</div>` + // Sistem kullanıcı adını da göster
                         `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
                         `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
                         `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
@@ -637,8 +640,8 @@
                 console.log(`[MAP DEBUG] Yeni marker oluşturuluyor: ${username}`);
                 riderMarkers[username] = L.marker(latLng, { icon: customIcon }).addTo(map)
                     .bindPopup(
-                        `<div><strong>Motorcu Adı:</strong> ${name}</div>` +
-                        `<div><strong>Kullanıcı Adı:</strong> ${username}</div>` +
+                        `<div><strong>Motorcu Adı:</strong> ${riderDisplayName}</div>` +
+                        `<div><strong>Kullanıcı Adı (Sistem):</strong> ${username}</div>` + // Sistem kullanıcı adını da göster
                         `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
                         `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
                         `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
