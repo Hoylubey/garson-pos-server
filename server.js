@@ -30,6 +30,7 @@ const serviceAccount = require('./serviceAccountKey.json');
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
 });
+console.log('Firebase Admin SDK başlatıldı.');
 
 // --- SQLite Veritabanı Entegrasyonu ---
 const dbPath = path.join(__dirname, 'garson_pos.db'); // Veritabanı dosya yolu
@@ -128,8 +129,9 @@ if (!initialStatus) {
     console.log("Sipariş alımı durumu veritabanına varsayılan olarak 'true' eklendi.");
 }
 
-// 🔐 Token Set'i (Şimdilik Set olarak kalacak, kalıcı depolama için veritabanına taşınabilir)
-const fcmTokens = new Set();
+// 🔐 FCM Token Depolama (username'e göre, rol bilgisiyle birlikte)
+// { "username": { token: "fcm_token_string", role: "admin" }, ... }
+const fcmTokens = {};
 
 // 🌍 Rider Lokasyonları
 // username'e göre saklayacağız, full_name'i de içerecek
@@ -138,16 +140,30 @@ const riderLocations = {};
 const socketToUsername = {}; // { "socket.id": "username" }
 
 
-// Middleware: Yönetici yetkisini kontrol et
+// Middleware: Yönetici yetkisini kontrol et (Şimdilik basit bir örnek, token doğrulama daha güvenlidir)
 function isAdmin(req, res, next) {
-    // Örnek bir kontrol: Mobil uygulamadan 'x-role: admin' başlığı gelmeli
-    // veya daha güvenlisi: Kullanıcı giriş yaptığında dönen bir token'ı doğrularız
-    // Şimdilik sadece konsept için basit bir başlık kontrolü:
-    if (req.headers['x-role'] === 'admin') {
-        next();
-    } else {
-        res.status(403).json({ message: 'Yetkisiz erişim. Yönetici yetkisi gerekli.' });
+    // Gerçek bir uygulamada, JWT gibi bir token doğrulama mekanizması kullanmalısınız.
+    // Şimdilik, sadece bir placeholder olarak duruyor.
+    // Örneğin, token'ı çözüp içindeki rolü kontrol edebilirsiniz.
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) {
+        return res.status(401).json({ message: 'Yetkilendirme başlığı eksik.' });
     }
+    // Basit token kontrolü (sadece örnek, üretimde kullanmayın)
+    const token = authHeader.split(' ')[1]; // "Bearer TOKEN"
+    if (token) {
+        // Token'ı parse ederek kullanıcı ID'si ve rolü alabiliriz
+        const parts = token.split('-');
+        if (parts.length === 3) {
+            const userId = parts[0];
+            const userRole = parts[1];
+            if (userRole === 'admin') {
+                next();
+                return;
+            }
+        }
+    }
+    res.status(403).json({ message: 'Yetkisiz erişim. Yönetici yetkisi gerekli.' });
 }
 
 
@@ -190,7 +206,7 @@ app.post('/api/login', async (req, res) => {
 
 
 // Çalışan (Motorcu) Kayıt Endpoint'i
-app.post('/api/register-employee', async (req, res) => {
+app.post('/api/register-employee', isAdmin, async (req, res) => { // isAdmin middleware eklendi
     const { username, password, full_name, role } = req.body; // 'role' de eklendi
 
     if (!username || !password || !full_name || !role) {
@@ -380,21 +396,21 @@ app.delete('/api/products/delete/:id', isAdmin, (req, res) => {
 });
 
 
-// ✅ TOKEN KAYDI
+// ✅ FCM TOKEN KAYDI (Kullanıcı adı ve rol bilgisiyle birlikte)
 app.post('/api/register-fcm-token', (req, res) => {
-    const { token } = req.body;
-    if (token) {
-        fcmTokens.add(token);
-        console.log(`FCM Token kayıt edildi: ${token}`);
-        res.status(200).send({ message: 'Token başarıyla kayıt edildi.' });
-    } else {
-        res.status(400).send({ message: 'Token sağlanmadı.' });
+    const { token, username, role } = req.body; // username ve role de al
+    if (!token || !username || !role) {
+        return res.status(400).json({ message: 'Token, username ve role gereklidir.' });
     }
+    // fcmTokens objesinde username'i anahtar olarak kullanarak token ve rolü sakla
+    fcmTokens[username] = { token, role };
+    console.log(`FCM Token kaydedildi: Kullanıcı: ${username}, Rol: ${role}`);
+    res.status(200).send({ message: 'Token başarıyla kayıt edildi.' });
 });
 
 // 🔍 Tokenları listele (debug için)
 app.get('/api/fcm-tokens', (req, res) => {
-    res.status(200).json(Array.from(fcmTokens));
+    res.status(200).json(fcmTokens); // Artık bir obje döndürüyoruz
 });
 
 // Sipariş durumu sorgulama endpoint'i
@@ -410,7 +426,7 @@ app.get('/api/order-status', (req, res) => {
 });
 
 // Sipariş durumunu değiştirme endpoint'i
-app.post('/api/set-order-status', (req, res) => {
+app.post('/api/set-order-status', isAdmin, (req, res) => { // isAdmin middleware eklendi
     const { enabled } = req.body;
     if (typeof enabled === 'boolean') {
         const statusValue = enabled ? 'true' : 'false';
@@ -488,35 +504,39 @@ app.post('/api/order', async (req, res) => {
         io.emit('newOrder', newOrderToSend);
         io.emit('notificationSound', { play: true });
 
-        // 🔔 Firebase Bildirim
-        const message = {
-            data: {
-                masaAdi: masaAdi,
-                siparisDetay: JSON.stringify(sepetItems),
-                siparisId: orderId, // Gerçek orderId'yi kullan
-                toplamTutar: toplamFiyat.toString()
-            },
-            notification: { // notification alanı eklendi
-                title: `Yeni Sipariş: ${masaAdi}`,
-                body: `Toplam: ${toplamFiyat} TL`
-            }
-        };
+        // 🔔 Firebase Bildirimlerini Adminlere Gönder
+        Object.keys(fcmTokens).forEach(username => {
+            const userData = fcmTokens[username];
+            if (userData.role === 'admin') { // Sadece admin rolündeki kullanıcılara gönder
+                const message = {
+                    notification: {
+                        title: 'Yeni Sipariş!',
+                        body: `Masa ${masaAdi} için yeni bir siparişiniz var. Toplam: ${toplamFiyat.toFixed(2)} TL`,
+                    },
+                    data: { // Custom data payload
+                        orderId: orderId.toString(),
+                        masaAdi: masaAdi,
+                        toplamFiyat: toplamFiyat.toFixed(2),
+                        sepetItems: JSON.stringify(sepetItems) // Sipariş detaylarını string olarak gönder
+                    },
+                    token: userData.token,
+                };
 
-        if (fcmTokens.size > 0) {
-            const tokensArray = Array.from(fcmTokens);
-            try {
-                const messagesToSend = tokensArray.map(token => ({ ...message, token }));
-                const firebaseResponse = await admin.messaging().sendEachForMulticast(messagesToSend);
-                console.log('🔥 FCM gönderildi:', firebaseResponse);
-            } catch (error) {
-                console.error('❌ FCM gönderimi HATA:', error);
-                if (error.errorInfo) {
-                    console.error('Firebase Error Info:', error.errorInfo);
-                }
+                admin.messaging().send(message)
+                    .then((response) => {
+                        console.log(`🔥 FCM bildirimi başarıyla gönderildi (${username}):`, response);
+                    })
+                    .catch((error) => {
+                        console.error(`❌ FCM bildirimi gönderilirken hata oluştu (${username}):`, error);
+                        // Geçersiz veya kayıtlı olmayan token'ları temizle
+                        if (error.code === 'messaging/invalid-registration-token' ||
+                            error.code === 'messaging/registration-token-not-registered') {
+                            console.warn(`Geçersiz veya kayıtlı olmayan token temizleniyor: ${username}`);
+                            delete fcmTokens[username]; // fcmTokens objesinden kaldır
+                        }
+                    });
             }
-        } else {
-            console.log('📭 Kayıtlı cihaz yok, FCM gönderilmedi.');
-        }
+        });
 
         res.status(200).json({ message: 'Sipariş işlendi.' });
     } catch (error) {
