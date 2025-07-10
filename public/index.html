@@ -25,7 +25,6 @@
             display: flex; /* Flexbox kullanarak düzeni ayarla */
             flex-direction: column; /* Öğeleri dikeyde sırala */
             gap: 20px; /* Kutular arası boşluk */
-
         }
         h1 {
             color: #333;
@@ -48,6 +47,8 @@
             display: flex;
             flex-direction: column;
         }
+
+        /* HARITA KONTEYNERİ GENEL STİLLERİ */
         #map-container {
             flex: 1; /* Harita konteyneri kalan yeri kaplasın */
             background-color: #fff;
@@ -57,13 +58,15 @@
             height: 80vh; /* Yüksekliği ayarla */
             position: sticky; /* Sayfayı kaydırsan bile harita sabit kalsın */
             top: 20px; /* Üstten 20px boşluk bırak */
-
+            display: flex; /* Flexbox kullan */
+            flex-direction: column; /* İçerikleri dikey sırala */
         }
+        /* HARİTA ELEMENTİ GENEL STİLLERİ */
         #map {
             width: 100%;
-            height: calc(100% - 30px); /* Kalan alanı kapla */
+            flex-grow: 1; /* Haritanın kalan tüm alanı doldurmasını sağla */
             border-radius: 4px;
-            margin-top: 10px;
+            margin-top: 10px; /* Başlık ile harita arasında boşluk */
         }
         #orders-container {
             display: grid;
@@ -255,25 +258,53 @@
             }
         }
 
-        /* Yeni CSS: Harita odaklı görünüm için */
+        /* Yeni CSS: Harita odaklı görünüm için (Mobil Uygulama) */
+        body.map-only {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center; /* Ortala */
+            height: 100vh; /* Tam ekran yüksekliği */
+            overflow: hidden; /* Kaydırmayı engelle */
+            padding: 0; /* İç boşluğu kaldır */
+        }
         body.map-only #main-layout-container {
-            flex-direction: column; /* Mobil görünümde dikey sıralama */
-            align-items: center; /* Ortala */
+            flex-direction: column;
+            align-items: center;
+            width: 100%; /* Tam genişlik */
+            height: 100%; /* Tam yükseklik */
+            margin: 0; /* Kenar boşluğu kaldır */
+            gap: 0; /* Boşlukları kaldır */
         }
         body.map-only #main-content {
             display: none; /* Siparişler bölümünü gizle */
         }
         body.map-only #map-container {
             width: 95%; /* Harita daha geniş yer kaplasın */
-            height: 90vh; /* Yüksekliğini artır */
+            height: 95%; /* Harita konteyneri ekranın büyük kısmını kaplasın */
             position: relative; /* Sabit konumlandırmayı kaldır */
             top: auto;
-            margin-top: 20px;
+            margin-top: 0; /* Üst boşluğu kaldır */
+            padding: 10px; /* İç boşluğu azalt */
+            box-sizing: border-box; /* Padding'i genişliğe dahil et */
+        }
+        body.map-only #map {
+            flex-grow: 1; /* Haritanın kalan tüm alanı doldurmasını sağla */
+            width: 100%; /* Harita genişliği */
+            height: 100%; /* Harita yüksekliği */
+            margin-top: 0; /* Başlık ile harita arasındaki boşluğu kaldır */
         }
         body.map-only h1,
         body.map-only #order-status-box,
         body.map-only #notificationBell {
             display: none; /* Başlık, durum kutusu ve zil ikonunu gizle */
+        }
+        body.map-only #map-container h2 {
+            display: block; /* Motorcu Konumları başlığını göster */
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+            color: #333;
         }
     </style>
 </head>
@@ -326,6 +357,10 @@
             const initialLng = 28.9784;
 
             if (document.getElementById('map')) {
+                // Harita zaten başlatılmışsa tekrar başlatma
+                if (map) {
+                    map.remove(); // Önceki harita örneğini kaldır
+                }
                 map = L.map('map').setView([initialLat, initialLng], 12);
 
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -732,6 +767,12 @@
                 document.body.classList.add('map-only');
                 // Haritayı başlat
                 initMap();
+                // Harita boyutlandırmasını tetikle (gerekliyse)
+                if (map) {
+                    setTimeout(() => {
+                        map.invalidateSize();
+                    }, 100); // Küçük bir gecikme ile yeniden boyutlandırma
+                }
             } else {
                 // Normal mutfak/kasa görünümü
                 initMap(); // Haritayı yine de başlat
@@ -775,6 +816,13 @@
                     console.log('Sunucudan sipariş alım durumu değişti:', data.enabled);
                     updateOrderStatusUI(data.enabled);
                 });
+            }
+        });
+
+        // Pencere yeniden boyutlandırıldığında haritayı yeniden boyutlandır
+        window.addEventListener('resize', () => {
+            if (map) {
+                map.invalidateSize();
             }
         });
     </script>
