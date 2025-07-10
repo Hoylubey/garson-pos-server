@@ -218,13 +218,13 @@
 
             /* POS Fişi Stilleri */
             @page {
-                size: 58mm auto; /* 58mm genişlik, yükseklik içeriğe göre ayarlanır */
-                margin: 0; /* Sayfa kenar boşluklarını kaldır */
+                size: 58mm auto;
+                margin: 0;
             }
             body {
-                width: 58mm; /* Body genişliğini fiş genişliğiyle sınırla */
+                width: 58mm;
                 margin: 0;
-                font-family: 'Consolas', 'Courier New', monospace; /* Fişler için mono-uzaylı font daha iyi olabilir */
+                font-family: 'Consolas', 'Courier New', monospace;
                 font-size: 10px;
                 line-height: 1.2;
                 color: #000;
@@ -280,12 +280,10 @@
 
     <script>
         // Socket.IO istemcisini başlat
-        // BURAYI KENDİ SUNUCU ADRESİNİZLE DEĞİŞTİRMELİSİNİZ!
-        // Geliştirme ortamında: http://localhost:3000
-        // Dağıtımda (örneğin Render.com): https://your-app-name.onrender.com
         const SOCKET_SERVER_URL = 'https://garson-pos-server.onrender.com'; // Backend Socket.IO sunucunuzun URL'si
         const API_BASE_URL = 'https://garson-pos-server.onrender.com'; // Backend API'nizin temel URL'si (fetch istekleri için)
 
+        console.log('[SOCKET DEBUG] Socket.IO sunucusuna bağlanılıyor:', SOCKET_SERVER_URL);
         const socket = io(SOCKET_SERVER_URL);
 
         // DOM elemanlarına referanslar
@@ -301,10 +299,13 @@
 
         // Haritayı başlatma fonksiyonu
         function initMap() {
+            console.log('[MAP DEBUG] initMap çağrıldı.');
             const initialLat = 41.0082; // İstanbul koordinatları
             const initialLng = 28.9784;
 
-            if (document.getElementById('map')) {
+            const mapElement = document.getElementById('map');
+            if (mapElement) {
+                console.log('[MAP DEBUG] Harita elementi bulundu. Harita başlatılıyor.');
                 map = L.map('map').setView([initialLat, initialLng], 12);
 
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -314,7 +315,7 @@
                 // Harita başlatıldığında mevcut motorcu konumlarını iste
                 socket.emit('requestCurrentRiderLocations');
             } else {
-                console.error("Harita için 'map' ID'sine sahip element bulunamadı!");
+                console.error("[MAP DEBUG] Harita için 'map' ID'sine sahip element bulunamadı!");
             }
         }
 
@@ -324,13 +325,15 @@
             if (activeRiderCountEl) {
                 activeRiderCountEl.textContent = `(${count} Aktif)`;
             }
+            console.log(`[MAP DEBUG] Aktif motorcu sayısı güncellendi: ${count}`);
+            console.log(`[MAP DEBUG] riderMarkers objesi (anahtarlar):`, Object.keys(riderMarkers));
         }
 
         // addOrderToDisplay fonksiyonu: Yeni gelen siparişi ekrana ekler
         function addOrderToDisplay(order) {
             // SQLite'dan gelen siparişlerde orderId alanı var
             if (document.getElementById(`order-${order.orderId}`)) {
-                console.log(`Sipariş ${order.orderId} zaten ekranda.`);
+                console.log(`[ORDER DEBUG] Sipariş ${order.orderId} zaten ekranda.`);
                 return;
             }
 
@@ -357,7 +360,7 @@
 
             const payButton = orderCard.querySelector('.pay-button');
             payButton.addEventListener('click', () => {
-                console.log('Sipariş ödendi (ID):', order.orderId);
+                console.log('[ORDER DEBUG] Sipariş ödendi (ID):', order.orderId);
                 // Sunucuya siparişin benzersiz ID'sini gönder
                 socket.emit('orderPaid', { orderId: order.orderId });
                 // Ekrandan kaldırma işlemi sunucudan gelecek yanıtla yapılacak
@@ -366,7 +369,7 @@
 
             const printButton = orderCard.querySelector('.print-button');
             printButton.addEventListener('click', () => {
-                console.log('Fiş yazdırma isteği:', order);
+                console.log('[ORDER DEBUG] Fiş yazdırma isteği:', order);
                 printOrderReceipt(order);
             });
 
@@ -378,9 +381,9 @@
             const orderCardToRemove = document.getElementById(`order-${orderId}`);
             if (orderCardToRemove) {
                 orderCardToRemove.remove();
-                console.log(`Sipariş ${orderId} ekrandan kaldırıldı.`);
+                console.log(`[ORDER DEBUG] Sipariş ${orderId} ekrandan kaldırıldı.`);
             } else {
-                console.warn(`Kaldırılacak sipariş kartı ${orderId} bulunamadı.`);
+                console.warn(`[ORDER DEBUG] Kaldırılacak sipariş kartı ${orderId} bulunamadı.`);
             }
         }
 
@@ -465,18 +468,15 @@
         function playNotificationSound(type = 'newOrder') {
             const audio = document.getElementById('notificationSound');
             if (audio) {
-                audio.play().catch(e => console.error("Ses çalma hatası:", e));
+                audio.play().catch(e => console.error("[AUDIO DEBUG] Ses çalma hatası:", e));
             }
         }
 
         /* Socket.IO Olay Dinleyicileri */
 
-        // Sunucudan 'newOrder' olayı geldiğinde
         socket.on('newOrder', (order) => {
-            console.log('Yeni sipariş alındı:', order);
+            console.log('[SOCKET DEBUG] "newOrder" olayı alındı:', order);
             addOrderToDisplay(order);
-
-            // Bildirim sesi çal ve zil animasyonunu tetikle
             playNotificationSound();
             notificationBell.classList.add('ringing');
             setTimeout(() => {
@@ -484,23 +484,21 @@
             }, 1500);
         });
 
-        // YENİ EKLENEN: Sunucudan mevcut aktif siparişler geldiğinde (sayfa yenilendiğinde)
         socket.on('currentActiveOrders', (orders) => {
-            console.log('Mevcut aktif siparişler alındı:', orders);
+            console.log('[SOCKET DEBUG] "currentActiveOrders" olayı alındı:', orders);
             ordersContainer.innerHTML = ''; // Ekranı temizle
-            // En yeni siparişler üstte olacak şekilde sırala (timestamp'e göre tersten)
             orders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             orders.forEach(order => addOrderToDisplay(order));
         });
 
-        // YENİ EKLENEN: Sunucudan siparişin ekrandan kaldırılması gerektiği bilgisi geldiğinde
         socket.on('removeOrderFromDisplay', (data) => {
+            console.log('[SOCKET DEBUG] "removeOrderFromDisplay" olayı alındı:', data);
             const { orderId } = data;
             removeOrderFromDisplay(orderId);
         });
 
-        // Sunucudan 'notificationSound' olayı geldiğinde
         socket.on('notificationSound', () => {
+            console.log('[SOCKET DEBUG] "notificationSound" olayı alındı.');
             playNotificationSound();
             notificationBell.classList.add('ringing');
             setTimeout(() => {
@@ -508,66 +506,71 @@
             }, 1500);
         });
 
-        // Sunucudan 'newRiderLocation' olayı geldiğinde
         socket.on('newRiderLocation', (locationData) => {
+            console.log('[SOCKET DEBUG] "newRiderLocation" olayı alındı:', locationData);
             updateRiderLocation(locationData);
             updateRiderCount();
         });
 
-        // Sunucudan mevcut motorcu konumları geldiğinde (Daha akıllıca yönetim)
         socket.on('currentRiderLocations', (locations) => {
-            console.log('Mevcut motorcu konumları alındı:', locations);
+            console.log('[SOCKET DEBUG] "currentRiderLocations" olayı alındı. Konumlar:', locations);
             const activeUsernames = new Set();
+            const bounds = new L.LatLngBounds();
 
             // Gelen konumları işle ve aktif kullanıcı adlarını topla
-            if (Array.isArray(locations)) {
-                locations.forEach(location => {
-                    updateRiderLocation(location);
+            const locationsArray = Array.isArray(locations) ? locations : Object.values(locations || {});
+
+            locationsArray.forEach(location => {
+                updateRiderLocation(location);
+                if (location.username) { // username'in varlığını kontrol et
                     activeUsernames.add(location.username);
-                });
-            } else if (typeof locations === 'object' && locations !== null) {
-                Object.values(locations).forEach(location => {
-                    updateRiderLocation(location);
-                    activeUsernames.add(location.username);
-                });
-            } else {
-                console.warn('currentRiderLocations olayı geçersiz veri formatı aldı:', locations);
-            }
+                    bounds.extend([location.latitude, location.longitude]);
+                } else {
+                    console.warn('[MAP DEBUG] "currentRiderLocations" içinde username eksik olan konum verisi:', location);
+                }
+            });
 
             // Artık aktif olmayan markerları kaldır
             for (const username in riderMarkers) {
                 if (!activeUsernames.has(username)) {
-                    console.log(`Motorcu ${username} artık aktif değil. Haritadan kaldırılıyor.`);
+                    console.log(`[MAP DEBUG] Motorcu ${username} artık aktif değil. Haritadan kaldırılıyor.`);
                     riderMarkers[username].remove();
                     delete riderMarkers[username];
                 }
             }
-            updateRiderCount();
-        });
 
-        // Sunucudan 'riderDisconnected' olayı geldiğinde
-        socket.on('riderDisconnected', (disconnectedUsername) => { // disconnectedUsername bekleniyor
-            console.log(`Motorcu ${disconnectedUsername} sunucudan ayrıldı. Haritadan kaldırılıyor.`);
-            if (riderMarkers[disconnectedUsername]) { // username'e göre kontrol et
-                riderMarkers[disconnectedUsername].remove();
-                delete riderMarkers[disconnectedUsername];
-                updateRiderCount();
+            updateRiderCount();
+
+            if (map && Object.keys(riderMarkers).length > 0) {
+                if (Object.keys(riderMarkers).length > 1) {
+                    map.fitBounds(bounds.pad(0.1));
+                } else {
+                    const singleMarker = Object.values(riderMarkers)[0];
+                    map.setView(singleMarker.getLatLng(), 14);
+                }
             }
         });
 
-        // Bağlantı durumu logları
+        socket.on('riderDisconnected', (disconnectedUsername) => {
+            console.log(`[SOCKET DEBUG] "riderDisconnected" olayı alındı: ${disconnectedUsername}`);
+            if (riderMarkers[disconnectedUsername]) {
+                riderMarkers[disconnectedUsername].remove();
+                delete riderMarkers[disconnectedUsername];
+                console.log(`[MAP DEBUG] Motorcu ${disconnectedUsername} haritadan kaldırıldı.`);
+                updateRiderCount();
+            } else {
+                console.warn(`[MAP DEBUG] Kaldırılacak motorcu marker'ı ${disconnectedUsername} bulunamadı.`);
+            }
+        });
+
         socket.on('connect', () => {
-            console.log('Sunucuya bağlandı!');
-            // Bağlantı kurulduğunda mevcut motorcu konumlarını tekrar iste
+            console.log('[SOCKET DEBUG] Sunucuya bağlandı!');
             socket.emit('requestCurrentRiderLocations');
-            // 'currentActiveOrders' olayı bağlantı kurulur kurulmaz sunucu tarafından gönderilecek,
-            // bu yüzden burada ayrıca bir istek göndermeye gerek yok.
         });
 
         socket.on('disconnect', () => {
-            console.log('Sunucu bağlantısı kesildi!');
-            // Tüm markerları kaldır
-            for (const username in riderMarkers) { // username'e göre
+            console.log('[SOCKET DEBUG] Sunucu bağlantısı kesildi!');
+            for (const username in riderMarkers) {
                 if (riderMarkers[username]) {
                     riderMarkers[username].remove();
                     delete riderMarkers[username];
@@ -577,61 +580,66 @@
         });
 
         socket.on('connect_error', (err) => {
-            console.error('Bağlantı hatası:', err.message);
+            console.error('[SOCKET DEBUG] Bağlantı hatası:', err.message);
         });
 
         // Motorcu konumunu haritada güncelleyen fonksiyon (Leaflet için)
         function updateRiderLocation(locationData) {
-            // locationData artık 'id', 'name', 'username', 'latitude', 'longitude' vb. içeriyor
+            console.log(`[MAP DEBUG] updateRiderLocation çağrıldı. İşlenen username: ${locationData.username}, Gelen veri:`, locationData);
             const { id, name, username, latitude, longitude, timestamp, speed, bearing, accuracy } = locationData;
             const latLng = [latitude, longitude];
 
+            // username'in varlığını kontrol et, yoksa hata ver ve işlemi durdur
+            if (!username) {
+                console.error('[MAP DEBUG] Konum verisinde username eksik! Marker oluşturulamıyor/güncellenemiyor. Gelen veri:', locationData);
+                return;
+            }
+
             if (!map) {
-                console.warn('Harita henüz başlatılmadı veya bulunamadı.');
+                console.warn('[MAP DEBUG] Harita henüz başlatılmadı veya bulunamadı. Konum güncellenemiyor.');
                 return;
             }
 
             const customIcon = L.icon({
-                iconUrl: 'images/motorcu_icon.png', // Bu dosyanın public/images klasöründe olduğundan emin olun
+                iconUrl: 'images/motorcu_icon.png',
                 iconSize: [32, 32],
                 iconAnchor: [16, 16],
                 popupAnchor: [0, -16]
             });
 
-            // Marker'ı username'e göre yönet
             if (riderMarkers[username]) {
-                // Mevcut marker'ın konumunu güncelle
+                console.log(`[MAP DEBUG] Mevcut marker güncelleniyor for username: ${username}`);
                 riderMarkers[username].setLatLng(latLng);
-                // Popup içeriğini güncelle
                 if (riderMarkers[username].getPopup()) {
                     riderMarkers[username].getPopup().setContent(
-                        `<div><strong>Motorcu Adı:</strong> ${name}</div>` + // İsim gösterildi
-                        `<div><strong>Kullanıcı Adı:</strong> ${username}</div>` + // Kullanıcı Adı eklendi
+                        `<div><strong>Motorcu Adı:</strong> ${name}</div>` +
+                        `<div><strong>Kullanıcı Adı:</strong> ${username}</div>` +
                         `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
-                        `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` + // Hız m/s'den km/s'ye çevrildi
+                        `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
                         `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
                         `<div><strong>Hassasiyet:</strong> ${accuracy !== undefined ? accuracy.toFixed(2) + ' m' : 'Bilinmiyor'}</div>` +
                         `<div><strong>Güncellenme:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>`
                     );
                 }
             } else {
-                // Yeni marker oluştur
+                console.log(`[MAP DEBUG] Yeni marker oluşturuluyor for username: ${username}`);
                 riderMarkers[username] = L.marker(latLng, { icon: customIcon }).addTo(map)
                     .bindPopup(
-                        `<div><strong>Motorcu Adı:</strong> ${name}</div>` + // İsim gösterildi
-                        `<div><strong>Kullanıcı Adı:</strong> ${username}</div>` + // Kullanıcı Adı eklendi
+                        `<div><strong>Motorcu Adı:</strong> ${name}</div>` +
+                        `<div><strong>Kullanıcı Adı:</strong> ${username}</div>` +
                         `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
-                        `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` + // Hız m/s'den km/s'ye çevrildi
+                        `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
                         `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
                         `<div><strong>Hassasiyet:</strong> ${accuracy !== undefined ? accuracy.toFixed(2) + ' m' : 'Bilinmiyor'}</div>` +
                         `<div><strong>Güncellenme:</strong> ${new Date(timestamp).toLocaleTimeString()}</div>`
                     );
             }
+            console.log(`[MAP DEBUG] updateRiderLocation sonrası riderMarkers objesi:`, Object.keys(riderMarkers));
         }
 
         // SİPARİŞ ALIMI DURUM YÖNETİMİ (Mevcut haliyle kalabilir)
         function fetchOrderStatus() {
-            fetch(`${API_BASE_URL}/api/order-status`) // API_BASE_URL kullanıldı
+            fetch(`${API_BASE_URL}/api/order-status`)
             .then(res => {
                 if (!res.ok) {
                     throw new Error(`HTTP error! status: ${res.status}`);
@@ -642,7 +650,7 @@
                 updateOrderStatusUI(data.enabled);
             })
             .catch(error => {
-                console.error('Sipariş durumu alınırken hata oluştu:', error);
+                console.error('[API DEBUG] Sipariş durumu alınırken hata oluştu:', error);
                 document.getElementById('order-status-text').textContent = 'Durum Hatası';
                 document.getElementById('order-status-toggle').style.backgroundColor = '#dc3545';
             });
@@ -665,18 +673,17 @@
             }
         }
 
-        // Toggle butonuna tıklama olayı
         document.addEventListener('DOMContentLoaded', () => {
+            console.log('[INIT DEBUG] DOMContentLoaded tetiklendi.');
             initMap(); // Haritayı başlat
 
             const toggleButton = document.getElementById('order-status-toggle');
             if (toggleButton) {
                 toggleButton.addEventListener('click', () => {
-                    // Mevcut durumu al ve tersini gönder
                     const currentStatusText = document.getElementById('order-status-text').textContent;
-                    const newStatus = !currentStatusText.includes('Açık'); // Eğer 'Açık' içeriyorsa kapatılacak
+                    const newStatus = !currentStatusText.includes('Açık');
 
-                    fetch(`${API_BASE_URL}/api/set-order-status`, { // API_BASE_URL kullanıldı
+                    fetch(`${API_BASE_URL}/api/set-order-status`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -690,23 +697,22 @@
                         return res.json();
                     })
                     .then(data => {
-                        console.log('Sipariş durumu güncellendi:', data.newStatus);
-                        // UI'yı sunucudan gelen gerçek duruma göre güncelle
+                        console.log('[API DEBUG] Sipariş durumu güncellendi:', data.newStatus);
                         updateOrderStatusUI(data.newStatus);
                     })
                     .catch(error => {
-                        console.error('Sipariş durumu güncellenirken hata oluştu:', error);
-                        // alert('Sipariş durumu güncellenemedi.'); // alert yerine daha iyi bir UI bildirimi kullanılabilir
+                        console.error('[API DEBUG] Sipariş durumu güncellenirken hata oluştu:', error);
+                        // alert('Sipariş durumu güncellenemedi.');
                     });
                 });
+            } else {
+                console.warn('[INIT DEBUG] Sipariş durumu toggle butonu bulunamadı.');
             }
 
-            // Başlangıçta sipariş alım durumunu çek
             fetchOrderStatus();
 
-            // Sunucudan sipariş alım durumu değiştiğinde UI'yı güncelle
             socket.on('orderTakingStatusChanged', (data) => {
-                console.log('Sunucudan sipariş alım durumu değişti:', data.enabled);
+                console.log('[SOCKET DEBUG] Sunucudan sipariş alım durumu değişti:', data.enabled);
                 updateOrderStatusUI(data.enabled);
             });
         });
