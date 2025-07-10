@@ -7,6 +7,7 @@ const path = require('path');
 const Database = require('better-sqlite3'); // better-sqlite3 kütüphanesini import edin
 const { v4: uuidv4 } = require('uuid'); // Benzersiz ID'ler için uuid kütüphanesi
 const bcrypt = require('bcryptjs'); // Şifreleme için bcryptjs kütüphanesi
+const jwt = require('jsonwebtoken'); // JWT için jsonwebtoken kütüphanesi
 
 const app = express();
 const server = http.createServer(app);
@@ -14,11 +15,14 @@ const server = http.createServer(app);
 const io = new Server(server, {
     cors: {
         origin: "*", // Güvenlik için belirli domain'lerle sınırlamak daha iyidir üretimde
-        methods: ["GET", "POST", "PUT", "DELETE"] // Yeni metotlar eklendi
+        methods: ["GET", "POST", "PUT", "DELETE"]
     }
 });
 
 const PORT = process.env.PORT || 3000;
+// JWT için gizli anahtar. Üretimde bunu bir ortam değişkeninden okuyun!
+const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_here_please_change_this_in_production';
+
 app.use(cors());
 app.use(express.json()); // Gelen JSON isteklerini ayrıştırmak için
 app.use(express.static('public'));
@@ -92,7 +96,6 @@ try {
     console.error('Users tablosu oluşturma veya yönetici ekleme hatası:', err.message);
 }
 
-
 // PRODUCTS tablosunu oluştur (eğer yoksa)
 try {
     db.exec(`
@@ -120,6 +123,22 @@ try {
     console.error('Products tablosu oluşturma veya örnek ürün ekleme hatası:', err.message);
 }
 
+// FCM Tokens tablosunu oluştur (eğer yoksa)
+try {
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS fcm_tokens (
+            token TEXT PRIMARY KEY,
+            userId INTEGER NOT NULL,
+            username TEXT NOT NULL,
+            timestamp TEXT NOT NULL,
+            FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+    console.log('FCM Tokens tablosu hazır.');
+} catch (err) {
+    console.error('FCM Tokens tablosu oluşturma hatası:', err.message);
+}
+
 
 // Başlangıçta sipariş alım durumunu veritabanından oku veya varsayılan değerle başlat
 const initialStatus = db.prepare("SELECT value FROM settings WHERE key = 'isOrderTakingEnabled'").get();
@@ -128,28 +147,36 @@ if (!initialStatus) {
     console.log("Sipariş alımı durumu veritabanına varsayılan olarak 'true' eklendi.");
 }
 
-// 🔐 Token Set'i (Şimdilik Set olarak kalacak, kalıcı depolama için veritabanına taşınabilir)
-const fcmTokens = new Set();
-
-// 🌍 Rider Lokasyonları
-// username'e göre saklayacağız, full_name'i de içerecek
+// 🌍 Rider Lokasyonları (şimdilik hafızada kalacak, ancak JWT ile daha güvenli hale getirilecek)
 // { "username": { id, username, full_name, role, latitude, longitude, timestamp, speed, bearing, accuracy }, ... }
 const riderLocations = {};
 const socketToUsername = {}; // { "socket.id": "username" }
 
+// Middleware: JWT Doğrulama
+function authenticateToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
-// Middleware: Yönetici yetkisini kontrol et
+    if (token == null) return res.status(401).json({ message: 'Yetkilendirme tokenı gerekli.' });
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) {
+            console.error('JWT doğrulama hatası:', err.message);
+            return res.status(403).json({ message: 'Geçersiz veya süresi dolmuş token.' });
+        }
+        req.user = user; // Çözümlenmiş kullanıcı bilgilerini isteğe ekle
+        next();
+    });
+}
+
+// Middleware: Yönetici yetkisini kontrol et (JWT doğrulamasından sonra çalışır)
 function isAdmin(req, res, next) {
-    // Örnek bir kontrol: Mobil uygulamadan 'x-role: admin' başlığı gelmeli
-    // veya daha güvenlisi: Kullanıcı giriş yaptığında dönen bir token'ı doğrularız
-    // Şimdilik sadece konsept için basit bir başlık kontrolü:
-    if (req.headers['x-role'] === 'admin') {
+    if (req.user && req.user.role === 'admin') {
         next();
     } else {
         res.status(403).json({ message: 'Yetkisiz erişim. Yönetici yetkisi gerekli.' });
     }
 }
-
 
 // --- KULLANICI VE YÖNETİCİ GİRİŞ / KAYIT ENDPOINT'LERİ ---
 
@@ -173,7 +200,12 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
         }
 
-        const token = user.id + "-" + user.role + "-" + Date.now();
+        // JWT oluştur
+        const token = jwt.sign(
+            { id: user.id, username: user.username, full_name: user.full_name, role: user.role },
+            JWT_SECRET,
+            { expiresIn: '24h' } // Token 24 saat geçerli olacak
+        );
 
         res.status(200).json({
             message: 'Giriş başarılı!',
@@ -189,15 +221,14 @@ app.post('/api/login', async (req, res) => {
 });
 
 
-// Çalışan (Motorcu) Kayıt Endpoint'i
-app.post('/api/register-employee', async (req, res) => {
-    const { username, password, full_name, role } = req.body; // 'role' de eklendi
+// Çalışan (Motorcu) Kayıt Endpoint'i (Sadece Yönetici tarafından kullanılmalı, bu yüzden isAdmin middleware'i eklendi)
+app.post('/api/register-employee', authenticateToken, isAdmin, async (req, res) => {
+    const { username, password, full_name, role } = req.body;
 
     if (!username || !password || !full_name || !role) {
         return res.status(400).json({ message: 'Kullanıcı adı, parola, tam ad ve rol gerekli.' });
     }
 
-    // Geçerli rollerin bir listesini tanımla
     const validRoles = ['employee', 'admin', 'rider', 'garson'];
     if (!validRoles.includes(role)) {
         return res.status(400).json({ message: 'Geçersiz rol belirtildi.' });
@@ -206,13 +237,21 @@ app.post('/api/register-employee', async (req, res) => {
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
         const stmt = db.prepare("INSERT INTO users (username, password, full_name, role) VALUES (?, ?, ?, ?)");
-        const info = stmt.run(username, hashedPassword, full_name, role); // Rolü de kaydet
+        const info = stmt.run(username, hashedPassword, full_name, role);
         const newUser = { id: info.lastInsertRowid, username, full_name, role: role };
-        const token = newUser.id + "-" + newUser.role + "-" + Date.now();
+
+        // Yeni çalışan için de JWT oluşturabiliriz, ancak bu endpoint yönetici tarafından kullanıldığı için
+        // genellikle yeni çalışanın doğrudan giriş yapması beklenir.
+        // Yine de, eğer bir token dönmesi gerekiyorsa:
+        const token = jwt.sign(
+            { id: newUser.id, username: newUser.username, full_name: newUser.full_name, role: newUser.role },
+            JWT_SECRET,
+            { expiresIn: '24h' }
+        );
 
         res.status(201).json({
             message: 'Çalışan başarıyla oluşturuldu.',
-            token: token,
+            token: token, // Yeni oluşturulan çalışan için token
             role: newUser.role,
             user: newUser
         });
@@ -225,73 +264,16 @@ app.post('/api/register-employee', async (req, res) => {
     }
 });
 
-// Çalışan (Motorcu) Giriş Endpoint'i (Şu an kullanılmıyor, genel /api/login kullanılıyor)
-app.post('/api/login-employee', async (req, res) => {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-        return res.status(400).json({ message: 'Kullanıcı adı ve parola gerekli.' });
-    }
-
-    try {
-        const user = db.prepare("SELECT * FROM users WHERE username = ? AND role = 'employee'").get(username);
-        if (!user) {
-            return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
-        }
-
-        const isPasswordValid = await bcrypt.compare(password, user.password);
-        if (!isPasswordValid) {
-            return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
-        }
-
-        const token = user.id + "-" + user.role + "-" + Date.now();
-        res.status(200).json({
-            message: 'Giriş başarılı!',
-            token: token,
-            role: user.role,
-            user: { id: user.id, username: user.username, full_name: user.full_name, role: user.role }
-        });
-    } catch (error) {
-        console.error('Çalışan giriş hatası:', error);
-        res.status(500).json({ message: 'Giriş sırasında bir hata oluştu.' });
-    }
-});
-
-// Yönetici Giriş Endpoint'i (Şu an kullanılmıyor, genel /api/login kullanılıyor)
-app.post('/api/login-admin', async (req, res) => {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-        return res.status(400).json({ message: 'Kullanıcı adı ve parola gerekli.' });
-    }
-
-    try {
-        const user = db.prepare("SELECT * FROM users WHERE username = ? AND role = 'admin'").get(username);
-        if (!user) {
-            return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
-        }
-
-        const isPasswordValid = await bcrypt.compare(password, user.password);
-        if (!isPasswordValid) {
-            return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
-        }
-
-        const token = user.id + "-" + user.role + "-" + Date.now();
-        res.status(200).json({
-            message: 'Yönetici girişi başarılı!',
-            token: token,
-            role: user.role,
-            user: { id: user.id, username: user.username, full_name: user.full_name, role: user.role }
-        });
-    } catch (error) {
-        console.error('Yönetici giriş hatası:', error);
-        res.status(500).json({ message: 'Giriş sırasında bir hata oluştu.' });
-    }
-});
+// Çalışan (Motorcu) Giriş Endpoint'i ve Yönetici Giriş Endpoint'i artık genel /api/login tarafından ele alınıyor.
+// Bu endpoint'ler kaldırılabilir veya özel roller için özelleştirilebilir.
+// Şimdilik yorum satırı olarak bırakıyorum, genel login endpoint'i yeterli.
+/*
+app.post('/api/login-employee', async (req, res) => { ... });
+app.post('/api/login-admin', async (req, res) => { ... });
+*/
 
 // --- ÜRÜN YÖNETİMİ ENDPOINT'LERİ (Sadece Yönetici) ---
-
-// Tüm ürünleri getir
+// Tüm ürünleri getir (kimlik doğrulaması gerektirmez, menü herkese açık olabilir)
 app.get('/api/products', (req, res) => {
     try {
         const products = db.prepare("SELECT * FROM products ORDER BY name ASC").all();
@@ -303,8 +285,8 @@ app.get('/api/products', (req, res) => {
     }
 });
 
-// Ürün Ekle (Sadece Yönetici)
-app.post('/api/products/add', isAdmin, (req, res) => {
+// Ürün Ekle (Sadece Yönetici) - authenticateToken ve isAdmin middleware'leri eklendi
+app.post('/api/products/add', authenticateToken, isAdmin, (req, res) => {
     const { name, price, category, description } = req.body;
     if (!name || price === undefined) {
         return res.status(400).json({ message: 'Ürün adı ve fiyatı gerekli.' });
@@ -323,8 +305,8 @@ app.post('/api/products/add', isAdmin, (req, res) => {
     }
 });
 
-// Ürün Güncelle (Sadece Yönetici)
-app.put('/api/products/update/:id', isAdmin, (req, res) => {
+// Ürün Güncelle (Sadece Yönetici) - authenticateToken ve isAdmin middleware'leri eklendi
+app.put('/api/products/update/:id', authenticateToken, isAdmin, (req, res) => {
     const { id } = req.params;
     const { name, price, category, description } = req.body;
     if (!name && price === undefined && !category && !description) {
@@ -361,8 +343,8 @@ app.put('/api/products/update/:id', isAdmin, (req, res) => {
     }
 });
 
-// Ürün Sil (Sadece Yönetici)
-app.delete('/api/products/delete/:id', isAdmin, (req, res) => {
+// Ürün Sil (Sadece Yönetici) - authenticateToken ve isAdmin middleware'leri eklendi
+app.delete('/api/products/delete/:id', authenticateToken, isAdmin, (req, res) => {
     const { id } = req.params;
     try {
         const stmt = db.prepare("DELETE FROM products WHERE id = ?");
@@ -379,22 +361,37 @@ app.delete('/api/products/delete/:id', isAdmin, (req, res) => {
     }
 });
 
-
-// ✅ TOKEN KAYDI
-app.post('/api/register-fcm-token', (req, res) => {
+// ✅ TOKEN KAYDI (JWT ile birlikte kullanıcı bilgisi de kaydedilecek)
+app.post('/api/register-fcm-token', authenticateToken, async (req, res) => {
     const { token } = req.body;
-    if (token) {
-        fcmTokens.add(token);
-        console.log(`FCM Token kayıt edildi: ${token}`);
+    const userId = req.user.id; // JWT'den alınan kullanıcı ID'si
+    const username = req.user.username; // JWT'den alınan kullanıcı adı
+
+    if (!token) {
+        return res.status(400).send({ message: 'Token sağlanmadı.' });
+    }
+
+    try {
+        // Token'ı veritabanına kaydet veya güncelle
+        const stmt = db.prepare("REPLACE INTO fcm_tokens (token, userId, username, timestamp) VALUES (?, ?, ?, ?)");
+        stmt.run(token, userId, username, new Date().toISOString());
+        console.log(`FCM Token kayıt edildi/güncellendi: ${token} (User: ${username})`);
         res.status(200).send({ message: 'Token başarıyla kayıt edildi.' });
-    } else {
-        res.status(400).send({ message: 'Token sağlanmadı.' });
+    } catch (error) {
+        console.error('FCM Token veritabanına kaydedilirken hata:', error);
+        res.status(500).send({ message: 'Token kaydedilirken bir hata oluştu.' });
     }
 });
 
-// 🔍 Tokenları listele (debug için)
-app.get('/api/fcm-tokens', (req, res) => {
-    res.status(200).json(Array.from(fcmTokens));
+// 🔍 Tokenları listele (debug için, sadece yöneticiye açık olabilir)
+app.get('/api/fcm-tokens', authenticateToken, isAdmin, (req, res) => {
+    try {
+        const tokens = db.prepare("SELECT * FROM fcm_tokens").all();
+        res.status(200).json(tokens);
+    } catch (error) {
+        console.error('FCM tokenları çekilirken hata:', error);
+        res.status(500).json({ message: 'FCM tokenları alınırken bir hata oluştu.' });
+    }
 });
 
 // Sipariş durumu sorgulama endpoint'i
@@ -409,8 +406,8 @@ app.get('/api/order-status', (req, res) => {
     }
 });
 
-// Sipariş durumunu değiştirme endpoint'i
-app.post('/api/set-order-status', (req, res) => {
+// Sipariş durumunu değiştirme endpoint'i (Sadece Yönetici)
+app.post('/api/set-order-status', authenticateToken, isAdmin, (req, res) => {
     const { enabled } = req.body;
     if (typeof enabled === 'boolean') {
         const statusValue = enabled ? 'true' : 'false';
@@ -429,8 +426,8 @@ app.post('/api/set-order-status', (req, res) => {
     }
 });
 
-// 📦 SIPARIŞ AL (API Endpoint'i)
-app.post('/api/order', async (req, res) => {
+// 📦 SIPARIŞ AL (API Endpoint'i) - Artık kimlik doğrulaması gerektiriyor
+app.post('/api/order', authenticateToken, async (req, res) => {
     try {
         // Sipariş alım durumunu veritabanından kontrol et
         const orderStatus = db.prepare("SELECT value FROM settings WHERE key = 'isOrderTakingEnabled'").get();
@@ -442,24 +439,20 @@ app.post('/api/order', async (req, res) => {
 
         const orderData = req.body;
 
-        // Uygulamadan gelen JSON anahtarları ile eşleşecek şekilde düzeltildi
         const masaId = orderData.masaId;
         const masaAdi = orderData.masaAdi;
         const toplamFiyat = orderData.toplamFiyat;
-        const sepetItems = orderData.sepetItems; // Uygulamadan 'sepetItems' olarak geliyor
+        const sepetItems = orderData.sepetItems;
 
-        // Gelen veriyi konsola yazdırma (hata ayıklama için çok önemli)
         console.log(`[${new Date().toLocaleTimeString()}] Gelen Sipariş Detayları:`);
         console.log(`Masa ID: ${masaId}`);
         console.log(`Masa Adı: ${masaAdi}`);
         console.log(`Toplam Fiyat: ${toplamFiyat} TL`);
-        console.log('Sepet Ürünleri:', JSON.stringify(sepetItems, null, 2)); // Daha okunur format
+        console.log('Sepet Ürünleri:', JSON.stringify(sepetItems, null, 2));
 
-        const orderId = uuidv4(); // Benzersiz bir sipariş ID'si oluştur
-        const timestamp = new Date().toISOString(); // ISO formatında zaman damgası
+        const orderId = uuidv4();
+        const timestamp = new Date().toISOString();
 
-        // Siparişi SQLite veritabanına kaydet
-        // sepetItems objesini JSON stringe çevirerek sakla
         const sepetItemsJson = JSON.stringify(sepetItems);
 
         db.prepare(`INSERT INTO orders (orderId, masaId, masaAdi, sepetItems, toplamFiyat, timestamp, status) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
@@ -473,18 +466,16 @@ app.post('/api/order', async (req, res) => {
         );
         console.log(`Yeni sipariş SQLite'a kaydedildi. ID: ${orderId}`);
 
-        // Web'e gönderilecek sipariş objesini oluştur (sepetItems parse edilmiş haliyle)
         const newOrderToSend = {
-            orderId: orderId, // Artık orderId kullanıyoruz
+            orderId: orderId,
             masaId: masaId,
             masaAdi: masaAdi,
-            sepetItems: sepetItems, // Zaten obje olarak var
+            sepetItems: sepetItems,
             toplamFiyat: toplamFiyat,
             timestamp: timestamp,
             status: 'pending'
         };
 
-        // Mutfak/Kasa ekranlarına yeni siparişi gönder
         io.emit('newOrder', newOrderToSend);
         io.emit('notificationSound', { play: true });
 
@@ -493,17 +484,20 @@ app.post('/api/order', async (req, res) => {
             data: {
                 masaAdi: masaAdi,
                 siparisDetay: JSON.stringify(sepetItems),
-                siparisId: orderId, // Gerçek orderId'yi kullan
+                siparisId: orderId,
                 toplamTutar: toplamFiyat.toString()
             },
-            notification: { // notification alanı eklendi
+            notification: {
                 title: `Yeni Sipariş: ${masaAdi}`,
                 body: `Toplam: ${toplamFiyat} TL`
             }
         };
 
-        if (fcmTokens.size > 0) {
-            const tokensArray = Array.from(fcmTokens);
+        // FCM tokenlarını veritabanından çek
+        const tokensFromDb = db.prepare("SELECT token FROM fcm_tokens").all();
+        const tokensArray = tokensFromDb.map(row => row.token);
+
+        if (tokensArray.length > 0) {
             try {
                 const messagesToSend = tokensArray.map(token => ({ ...message, token }));
                 const firebaseResponse = await admin.messaging().sendEachForMulticast(messagesToSend);
@@ -538,12 +532,16 @@ io.on('connection', (socket) => {
     // Mutfak/Kasa Ekranı bağlandığında mevcut siparişleri SQLite'tan çek ve gönder
     try {
         const activeOrders = db.prepare(`SELECT * FROM orders WHERE status = 'pending' ORDER BY timestamp ASC`).all();
-        // Veritabanından gelen sepetItems JSON string olduğu için parse etmeliyiz
         const parsedOrders = activeOrders.map(order => {
-            return {
-                ...order,
-                sepetItems: JSON.parse(order.sepetItems) // JSON stringi objeye çevir
-            };
+            try {
+                return {
+                    ...order,
+                    sepetItems: JSON.parse(order.sepetItems) // JSON stringi objeye çevir
+                };
+            } catch (e) {
+                console.error(`Sipariş ID ${order.orderId} için sepetItems parse edilirken hata:`, e.message);
+                return { ...order, sepetItems: [] }; // Hata durumunda boş dizi döndür
+            }
         });
         socket.emit('currentActiveOrders', parsedOrders);
         console.log(`[${new Date().toLocaleTimeString()}] Socket ${socket.id} için ${parsedOrders.length} aktif sipariş gönderildi.`);
@@ -551,75 +549,96 @@ io.on('connection', (socket) => {
         console.error('Mevcut siparişleri SQLite\'tan çekerken hata:', error.message);
     }
 
-    socket.on('requestCurrentRiderLocations', () => {
-        // Tüm mevcut motorcu konumlarını isimleriyle birlikte gönder
-        const currentRidersWithNames = Object.values(riderLocations).map(rider => ({
-            id: rider.id,
-            name: rider.full_name, // 'full_name' kullan
-            latitude: rider.latitude,
-            longitude: rider.longitude,
-            timestamp: rider.timestamp,
-            speed: rider.speed,
-            bearing: rider.bearing,
-            accuracy: rider.accuracy
-        }));
-        socket.emit('currentRiderLocations', currentRidersWithNames);
+    // `requestCurrentRiderLocations` event'i artık JWT doğrulamasını beklemeli
+    socket.on('requestCurrentRiderLocations', (token) => {
+        jwt.verify(token, JWT_SECRET, (err, user) => {
+            if (err) {
+                console.warn(`Geçersiz token ile motorcu konum isteği: ${err.message}`);
+                socket.emit('authError', { message: 'Yetkisiz erişim. Geçersiz token.' });
+                return;
+            }
+            if (user.role !== 'admin' && user.role !== 'garson') { // Sadece admin ve garson rolleri görebilir
+                socket.emit('authError', { message: 'Bu işlemi yapmaya yetkiniz yok.' });
+                return;
+            }
+
+            const currentRidersWithNames = Object.values(riderLocations).map(rider => ({
+                id: rider.id,
+                name: rider.full_name,
+                latitude: rider.latitude,
+                longitude: rider.longitude,
+                timestamp: rider.timestamp,
+                speed: rider.speed,
+                bearing: rider.bearing,
+                accuracy: rider.accuracy
+            }));
+            socket.emit('currentRiderLocations', currentRidersWithNames);
+        });
     });
 
-    // riderLocationUpdate artık 'username' bekliyor, 'riderId' değil
-    socket.on('riderLocationUpdate', (locationData) => {
-        const { username, latitude, longitude, timestamp, speed, bearing, accuracy } = locationData;
+    // riderLocationUpdate artık JWT ile kimlik doğrulaması yapacak
+    socket.on('riderLocationUpdate', (data) => {
+        const { token, locationData } = data; // Token ve konum verisi birlikte geliyor
 
-        if (!username) {
-            console.warn('Rider konum güncellemesi için kullanıcı adı (username) bulunamadı.');
+        if (!token || !locationData) {
+            console.warn('Rider konum güncellemesi için token veya konum verisi eksik.');
             return;
         }
 
-        // Kullanıcının tam adını veritabanından al
-        const user = db.prepare("SELECT id, full_name, role FROM users WHERE username = ?").get(username);
+        jwt.verify(token, JWT_SECRET, (err, user) => {
+            if (err) {
+                console.warn(`Geçersiz token ile rider konum güncelleme denemesi: ${err.message}`);
+                // İstemciye hata bildirimi gönderebiliriz
+                socket.emit('authError', { message: 'Yetkisiz konum güncellemesi. Geçersiz token.' });
+                return;
+            }
 
-        if (!user || user.role !== 'rider') { // Sadece 'rider' rolündeki kullanıcıların konumunu takip et
-            console.warn(`Kullanıcı ${username} bulunamadı veya rolü 'rider' değil. Konum güncellenmiyor.`);
-            return;
-        }
+            if (user.role !== 'rider') { // Sadece 'rider' rolündeki kullanıcılar konumunu güncelleyebilir
+                console.warn(`Kullanıcı ${user.username} rolü 'rider' değil. Konum güncellenmiyor.`);
+                socket.emit('authError', { message: 'Bu işlemi yapmaya yetkiniz yok.' });
+                return;
+            }
 
-        riderLocations[username] = {
-            id: user.id, // Kullanıcı ID'si
-            username: username,
-            full_name: user.full_name, // Tam adını kaydet
-            role: user.role,
-            latitude,
-            longitude,
-            timestamp,
-            speed,
-            bearing,
-            accuracy
-        };
-        socketToUsername[socket.id] = username; // Socket ID'si ile Kullanıcı Adını eşle
+            const { latitude, longitude, timestamp, speed, bearing, accuracy } = locationData;
 
-        // Tüm istemcilere güncellenmiş konumu gönder (isim dahil)
-        io.emit('newRiderLocation', {
-            id: user.id,
-            name: user.full_name, // İsim bilgisini gönder
-            latitude,
-            longitude,
-            timestamp,
-            speed,
-            bearing,
-            accuracy
+            riderLocations[user.username] = { // user.username'i anahtar olarak kullan
+                id: user.id,
+                username: user.username,
+                full_name: user.full_name,
+                role: user.role,
+                latitude,
+                longitude,
+                timestamp,
+                speed,
+                bearing,
+                accuracy
+            };
+            socketToUsername[socket.id] = user.username; // Socket ID'si ile Kullanıcı Adını eşle
+
+            // Tüm istemcilere güncellenmiş konumu gönder (isim dahil)
+            io.emit('newRiderLocation', {
+                id: user.id,
+                name: user.full_name,
+                latitude,
+                longitude,
+                timestamp,
+                speed,
+                bearing,
+                accuracy
+            });
         });
     });
 
     socket.on('orderPaid', (data) => {
-        const { orderId } = data; // İstemciden orderId bekliyoruz
+        const { orderId } = data;
         console.log(`[${new Date().toLocaleTimeString()}] Sipariş ödendi olarak işaretlendi: ${orderId}`);
 
         try {
             const info = db.prepare(`UPDATE orders SET status = 'paid' WHERE orderId = ? AND status = 'pending'`).run(orderId);
             if (info.changes > 0) {
                 console.log(`Sipariş (ID: ${orderId}) SQLite'ta ödendi olarak güncellendi.`);
-                io.emit('orderPaidConfirmation', { orderId: orderId }); // Opsiyonel: mobil uygulamaya bildirim
-                io.emit('removeOrderFromDisplay', { orderId: orderId }); // Mutfak/Kasa ekranından kaldır
+                io.emit('orderPaidConfirmation', { orderId: orderId });
+                io.emit('removeOrderFromDisplay', { orderId: orderId });
             } else {
                 console.warn(`Ödendi olarak işaretlenen sipariş (ID: ${orderId}) bulunamadı veya zaten ödenmiş.`);
             }
@@ -630,24 +649,28 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         console.log(`[${new Date().toLocaleTimeString()}] Bağlantı koptu: ${socket.id}`);
-        const disconnectedUsername = socketToUsername[socket.id]; // İlgili kullanıcı adını al
+        const disconnectedUsername = socketToUsername[socket.id];
 
         if (disconnectedUsername) {
-            delete riderLocations[disconnectedUsername]; // riderLocations objesinden sil
-            delete socketToUsername[socket.id];    // Eşlemeden de sil
+            delete riderLocations[disconnectedUsername];
+            delete socketToUsername[socket.id];
             console.log(`Motorcu ${disconnectedUsername} bağlantısı kesildi. Haritadan kaldırılıyor.`);
-            // İstemcilere bu motorcunun ayrıldığını bildir
             io.emit('riderDisconnected', disconnectedUsername);
         }
     });
 });
 
-// Yeni endpoint: Tüm motorcu konumlarını isimleriyle birlikte döndür
-app.get('/api/riders-locations', (req, res) => {
+// Yeni endpoint: Tüm motorcu konumlarını isimleriyle birlikte döndür (Sadece kimlik doğrulaması yapılmış kullanıcılar)
+app.get('/api/riders-locations', authenticateToken, (req, res) => {
+    // Sadece admin veya garson rolündeki kullanıcılar bu endpoint'e erişebilir
+    if (req.user.role !== 'admin' && req.user.role !== 'garson') {
+        return res.status(403).json({ message: 'Bu işlemi yapmaya yetkiniz yok.' });
+    }
+
     try {
         const activeRiders = Object.values(riderLocations).map(rider => ({
             id: rider.id,
-            name: rider.full_name, // 'full_name' kullan
+            name: rider.full_name,
             latitude: rider.latitude,
             longitude: rider.longitude,
             timestamp: rider.timestamp,
