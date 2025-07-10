@@ -555,7 +555,9 @@ io.on('connection', (socket) => {
         // Tüm mevcut motorcu konumlarını isimleriyle birlikte gönder
         const currentRidersWithNames = Object.values(riderLocations).map(rider => ({
             id: rider.id,
+            username: rider.username, // Kullanıcı adını da ekle
             name: rider.full_name, // 'full_name' kullan
+            fullName: rider.full_name, // Daha açık bir anahtar
             latitude: rider.latitude,
             longitude: rider.longitude,
             timestamp: rider.timestamp,
@@ -600,7 +602,9 @@ io.on('connection', (socket) => {
         // Tüm istemcilere güncellenmiş konumu gönder (isim dahil)
         io.emit('newRiderLocation', {
             id: user.id,
-            name: user.full_name, // İsim bilgisini gönder
+            username: username, // Kullanıcı adını da ekle
+            name: user.full_name, // Existing field for full_name
+            fullName: user.full_name, // Explicitly add full_name under 'fullName'
             latitude,
             longitude,
             timestamp,
@@ -647,7 +651,9 @@ app.get('/api/riders-locations', (req, res) => {
     try {
         const activeRiders = Object.values(riderLocations).map(rider => ({
             id: rider.id,
+            username: rider.username, // Kullanıcı adını da ekle
             name: rider.full_name, // 'full_name' kullan
+            fullName: rider.full_name, // Daha açık bir anahtar
             latitude: rider.latitude,
             longitude: rider.longitude,
             timestamp: rider.timestamp,
