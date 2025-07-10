@@ -448,7 +448,7 @@ app.post('/api/set-order-status', isAdmin, (req, res) => { // isAdmin middleware
 
 // 📦 SIPARIŞ AL (API Endpoint'i)
 app.post('/api/order', async (req, res) => {
-    console.log(`[${new Date().toLocaleTimeString()}] /api/order endpoint'ine istek geldi.`);
+    console.log(`[${new Date().toLocaleTimeString()}] /api/order endpoint'ine istek geldi.`); // <-- Yeni log
     try {
         // Sipariş alım durumunu veritabanından kontrol et
         const orderStatus = db.prepare("SELECT value FROM settings WHERE key = 'isOrderTakingEnabled'").get();
@@ -521,9 +521,11 @@ app.post('/api/order', async (req, res) => {
 
         // 🔔 Firebase Bildirimlerini Adminlere Gönder
         // fcmTokens objesindeki tüm kayıtlı token'ları döngüye al
+        console.log(`[${new Date().toLocaleTimeString()}] FCM Bildirimleri gönderilmeye başlanıyor. Kayıtlı token sayısı: ${Object.keys(fcmTokens).length}`); // <-- Yeni log
         for (const username in fcmTokens) {
             const userData = fcmTokens[username];
             if (userData.role === 'admin') { // Sadece admin rolündeki kullanıcılara gönder
+                console.log(`[${new Date().toLocaleTimeString()}] Admin rolündeki kullanıcı (${username}) için FCM bildirimi hazırlanıyor.`); // <-- Yeni log
                 const message = {
                     notification: {
                         title: 'Yeni Sipariş!',
@@ -550,6 +552,8 @@ app.post('/api/order', async (req, res) => {
                         delete fcmTokens[username]; // fcmTokens objesinden kaldır
                     }
                 }
+            } else {
+                console.log(`[${new Date().toLocaleTimeString()}] Kullanıcı ${username} admin rolünde değil, bildirim gönderilmiyor. Rol: ${userData.role}`); // <-- Yeni log
             }
         }
 
