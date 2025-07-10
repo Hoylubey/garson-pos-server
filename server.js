@@ -26,7 +26,7 @@ app.use(express.static('public'));
 // 🔥 Firebase Admin SDK Başlat
 // Kendi 'serviceAccountKey.json' dosyanızın yolunu buraya girin.
 // Bu dosyanın sunucu dosyanızla aynı dizinde olması önerilir.
-const serviceAccount = require('./serviceAccountKey.json');
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
 });
