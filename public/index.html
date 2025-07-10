@@ -254,6 +254,27 @@
                 margin: 5px 0;
             }
         }
+
+        /* Yeni CSS: Harita odaklı görünüm için */
+        body.map-only #main-layout-container {
+            flex-direction: column; /* Mobil görünümde dikey sıralama */
+            align-items: center; /* Ortala */
+        }
+        body.map-only #main-content {
+            display: none; /* Siparişler bölümünü gizle */
+        }
+        body.map-only #map-container {
+            width: 95%; /* Harita daha geniş yer kaplasın */
+            height: 90vh; /* Yüksekliğini artır */
+            position: relative; /* Sabit konumlandırmayı kaldır */
+            top: auto;
+            margin-top: 20px;
+        }
+        body.map-only h1,
+        body.map-only #order-status-box,
+        body.map-only #notificationBell {
+            display: none; /* Başlık, durum kutusu ve zil ikonunu gizle */
+        }
     </style>
 </head>
 <body>
@@ -330,6 +351,11 @@
 
         // addOrderToDisplay fonksiyonu: Yeni gelen siparişi ekrana ekler
         function addOrderToDisplay(order) {
+            // Sadece 'map-only' görünümünde değilsek siparişleri göster
+            if (isMapOnlyView()) {
+                return;
+            }
+
             // SQLite'dan gelen siparişlerde orderId alanı var
             if (document.getElementById(`order-${order.orderId}`)) {
                 console.log(`Sipariş ${order.orderId} zaten ekranda.`);
@@ -476,9 +502,9 @@
         // Sunucudan 'newOrder' olayı geldiğinde
         socket.on('newOrder', (order) => {
             console.log('[ORDER DEBUG] Yeni sipariş alındı:', order);
-            addOrderToDisplay(order);
+            addOrderToDisplay(order); // Harita odaklı görünümde siparişler eklenmeyecek
 
-            // Bildirim sesi çal ve zil animasyonunu tetikle
+            // Bildirim sesi çal ve zil animasyonunu tetikle (her zaman çalabilir)
             playNotificationSound();
             notificationBell.classList.add('ringing');
             setTimeout(() => {
@@ -489,16 +515,20 @@
         // YENİ EKLENEN: Sunucudan mevcut aktif siparişler geldiğinde (sayfa yenilendiğinde)
         socket.on('currentActiveOrders', (orders) => {
             console.log('[ORDER DEBUG] Mevcut aktif siparişler alındı:', orders);
-            ordersContainer.innerHTML = ''; // Ekranı temizle
-            // En yeni siparişler üstte olacak şekilde sırala (timestamp'e göre tersten)
-            orders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-            orders.forEach(order => addOrderToDisplay(order));
+            if (!isMapOnlyView()) { // Sadece 'map-only' görünümünde değilsek siparişleri göster
+                ordersContainer.innerHTML = ''; // Ekranı temizle
+                // En yeni siparişler üstte olacak şekilde sırala (timestamp'e göre tersten)
+                orders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                orders.forEach(order => addOrderToDisplay(order));
+            }
         });
 
         // YENİ EKLENEN: Sunucudan siparişin ekrandan kaldırılması gerektiği bilgisi geldiğinde
         socket.on('removeOrderFromDisplay', (data) => {
             const { orderId } = data;
-            removeOrderFromDisplay(orderId);
+            if (!isMapOnlyView()) { // Sadece 'map-only' görünümünde değilsek siparişleri kaldır
+                removeOrderFromDisplay(orderId);
+            }
         });
 
         // Sunucudan 'notificationSound' olayı geldiğinde
@@ -653,21 +683,24 @@
 
         // SİPARİŞ ALIMI DURUM YÖNETİMİ (Mevcut haliyle kalabilir)
         function fetchOrderStatus() {
-            fetch(`${API_BASE_URL}/api/order-status`) // API_BASE_URL kullanıldı
-            .then(res => {
-                if (!res.ok) {
-                    throw new Error(`HTTP error! status: ${res.status}`);
-                }
-                return res.json();
-            })
-            .then(data => {
-                updateOrderStatusUI(data.enabled);
-            })
-            .catch(error => {
-                console.error('Sipariş durumu alınırken hata oluştu:', error);
-                document.getElementById('order-status-text').textContent = 'Durum Hatası';
-                document.getElementById('order-status-toggle').style.backgroundColor = '#dc3545';
-            });
+            // Sadece 'map-only' görünümünde değilsek durumu çek
+            if (!isMapOnlyView()) {
+                fetch(`${API_BASE_URL}/api/order-status`) // API_BASE_URL kullanıldı
+                .then(res => {
+                    if (!res.ok) {
+                        throw new Error(`HTTP error! status: ${res.status}`);
+                    }
+                    return res.json();
+                })
+                .then(data => {
+                    updateOrderStatusUI(data.enabled);
+                })
+                .catch(error => {
+                    console.error('Sipariş durumu alınırken hata oluştu:', error);
+                    document.getElementById('order-status-text').textContent = 'Durum Hatası';
+                    document.getElementById('order-status-toggle').style.backgroundColor = '#dc3545';
+                });
+            }
         }
 
         function updateOrderStatusUI(enabled) {
@@ -687,50 +720,62 @@
             }
         }
 
-        // Toggle butonuna tıklama olayı
+        // URL'de 'view=map_only' parametresi olup olmadığını kontrol eder
+        function isMapOnlyView() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('view') === 'map_only';
+        }
+
+        // Sayfa yüklendiğinde çalışacak kod
         document.addEventListener('DOMContentLoaded', () => {
-            initMap(); // Haritayı başlat
+            if (isMapOnlyView()) {
+                document.body.classList.add('map-only');
+                // Haritayı başlat
+                initMap();
+            } else {
+                // Normal mutfak/kasa görünümü
+                initMap(); // Haritayı yine de başlat
+                const toggleButton = document.getElementById('order-status-toggle');
+                if (toggleButton) {
+                    toggleButton.addEventListener('click', () => {
+                        // Mevcut durumu al ve tersini gönder
+                        const currentStatusText = document.getElementById('order-status-text').textContent;
+                        const newStatus = !currentStatusText.includes('Açık'); // Eğer 'Açık' içeriyorsa kapatılacak
 
-            const toggleButton = document.getElementById('order-status-toggle');
-            if (toggleButton) {
-                toggleButton.addEventListener('click', () => {
-                    // Mevcut durumu al ve tersini gönder
-                    const currentStatusText = document.getElementById('order-status-text').textContent;
-                    const newStatus = !currentStatusText.includes('Açık'); // Eğer 'Açık' içeriyorsa kapatılacak
-
-                    fetch(`${API_BASE_URL}/api/set-order-status`, { // API_BASE_URL kullanıldı
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ enabled: newStatus })
-                    })
-                    .then(res => {
-                        if (!res.ok) {
-                            throw new Error(`HTTP error! status: ${res.status}`);
-                        }
-                        return res.json();
-                    })
-                    .then(data => {
-                        console.log('Sipariş durumu güncellendi:', data.newStatus);
-                        // UI'yı sunucudan gelen gerçek duruma göre güncelle
-                        updateOrderStatusUI(data.newStatus);
-                    })
-                    .catch(error => {
-                        console.error('Sipariş durumu güncellenirken hata oluştu:', error);
-                        // alert('Sipariş durumu güncellenemedi.'); // alert yerine daha iyi bir UI bildirimi kullanılabilir
+                        fetch(`${API_BASE_URL}/api/set-order-status`, { // API_BASE_URL kullanıldı
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ enabled: newStatus })
+                        })
+                        .then(res => {
+                            if (!res.ok) {
+                                throw new Error(`HTTP error! status: ${res.status}`);
+                            }
+                            return res.json();
+                        })
+                        .then(data => {
+                            console.log('Sipariş durumu güncellendi:', data.newStatus);
+                            // UI'yı sunucudan gelen gerçek duruma göre güncelle
+                            updateOrderStatusUI(data.newStatus);
+                        })
+                        .catch(error => {
+                            console.error('Sipariş durumu güncellenirken hata oluştu:', error);
+                            // alert('Sipariş durumu güncellenemedi.'); // alert yerine daha iyi bir UI bildirimi kullanılabilir
+                        });
                     });
+                }
+
+                // Başlangıçta sipariş alım durumunu çek
+                fetchOrderStatus();
+
+                // Sunucudan sipariş alım durumu değiştiğinde UI'yı güncelle
+                socket.on('orderTakingStatusChanged', (data) => {
+                    console.log('Sunucudan sipariş alım durumu değişti:', data.enabled);
+                    updateOrderStatusUI(data.enabled);
                 });
             }
-
-            // Başlangıçta sipariş alım durumunu çek
-            fetchOrderStatus();
-
-            // Sunucudan sipariş alım durumu değiştiğinde UI'yı güncelle
-            socket.on('orderTakingStatusChanged', (data) => {
-                console.log('Sunucudan sipariş alım durumu değişti:', data.enabled);
-                updateOrderStatusUI(data.enabled);
-            });
         });
     </script>
 </body>
