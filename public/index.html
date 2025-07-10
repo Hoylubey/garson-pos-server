@@ -315,6 +315,8 @@
     </div>
 
     <div id="notificationBell" class="notification-bell">🔔</div>
+    <!-- Ses dosyasının yolu doğru olduğundan emin olun! -->
+    <!-- Örneğin, public/notification.mp3 veya public/sounds/notification.mp3 -->
     <audio id="notificationSound" src="notification.mp3" preload="auto"></audio>
 
     <h1>Mutfak / Kasa Ekranı</h1>
@@ -452,8 +454,7 @@
             let printContent = `
                 <div class="receipt-container">
                     <div class="receipt-header">--- Olimpiyat Kokoreç ---</div>
-                    <p class="receipt-info">Masa: ${order.masaAdi}</p>
-                    <p class="receipt-info">Tarih: ${new Date(order.timestamp).toLocaleString()}</p>
+                    <p class="receipt-info">Masa: ${new Date(order.timestamp).toLocaleString()}</p>
                     <hr>
                     <div class="receipt-items">
             `;
@@ -528,7 +529,10 @@
         function playNotificationSound(type = 'newOrder') {
             const audio = document.getElementById('notificationSound');
             if (audio) {
-                audio.play().catch(e => console.error("Ses çalma hatası:", e));
+                console.log(`[AUDIO DEBUG] Ses çalma girişimi: ${type} için.`);
+                audio.play().catch(e => console.error("[AUDIO DEBUG] Ses çalma hatası:", e));
+            } else {
+                console.warn("[AUDIO DEBUG] 'notificationSound' ID'sine sahip ses elementi bulunamadı.");
             }
         }
 
