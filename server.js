@@ -143,26 +143,25 @@ const socketToUsername = {}; // { "socket.id": "username" }
 // Middleware: Yönetici yetkisini kontrol et (Şimdilik basit bir örnek, token doğrulama daha güvenlidir)
 function isAdmin(req, res, next) {
     // Gerçek bir uygulamada, JWT gibi bir token doğrulama mekanizması kullanmalısınız.
-    // Şimdilik, sadece bir placeholder olarak duruyor.
-    // Örneğin, token'ı çözüp içindeki rolü kontrol edebilirsiniz.
+    // Bu basit kontrol sadece konsepti göstermek içindir.
     const authHeader = req.headers['authorization'];
-    if (!authHeader) {
-        return res.status(401).json({ message: 'Yetkilendirme başlığı eksik.' });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.warn('isAdmin: Yetkilendirme başlığı eksik veya hatalı formatta.');
+        return res.status(401).json({ message: 'Yetkilendirme başlığı eksik veya hatalı formatta.' });
     }
-    // Basit token kontrolü (sadece örnek, üretimde kullanmayın)
-    const token = authHeader.split(' ')[1]; // "Bearer TOKEN"
-    if (token) {
-        // Token'ı parse ederek kullanıcı ID'si ve rolü alabiliriz
-        const parts = token.split('-');
-        if (parts.length === 3) {
-            const userId = parts[0];
-            const userRole = parts[1];
-            if (userRole === 'admin') {
-                next();
-                return;
-            }
+    
+    const token = authHeader.split(' ')[1]; // "Bearer TOKEN" kısmından sadece TOKEN'ı al
+
+    // Basit token doğrulama: token'ı parse ederek kullanıcı ID'si ve rolü al
+    const parts = token.split('-');
+    if (parts.length === 3) { // Beklenen format: id-role-timestamp
+        const userRole = parts[1];
+        if (userRole === 'admin') {
+            next(); // Yönetici ise devam et
+            return;
         }
     }
+    console.warn('isAdmin: Token geçersiz veya yönetici yetkisi yok.');
     res.status(403).json({ message: 'Yetkisiz erişim. Yönetici yetkisi gerekli.' });
 }
 
@@ -400,6 +399,7 @@ app.delete('/api/products/delete/:id', isAdmin, (req, res) => {
 app.post('/api/register-fcm-token', (req, res) => {
     const { token, username, role } = req.body; // username ve role de al
     if (!token || !username || !role) {
+        console.error('FCM Token kayıt hatası: Token, username veya role eksik.', { token, username, role });
         return res.status(400).json({ message: 'Token, username ve role gereklidir.' });
     }
     // fcmTokens objesinde username'i anahtar olarak kullanarak token ve rolü sakla
@@ -410,6 +410,7 @@ app.post('/api/register-fcm-token', (req, res) => {
 
 // 🔍 Tokenları listele (debug için)
 app.get('/api/fcm-tokens', (req, res) => {
+    console.log('FCM Tokenlar listeleniyor:', fcmTokens); // Konsola da yazdır
     res.status(200).json(fcmTokens); // Artık bir obje döndürüyoruz
 });
 
@@ -447,16 +448,25 @@ app.post('/api/set-order-status', isAdmin, (req, res) => { // isAdmin middleware
 
 // 📦 SIPARIŞ AL (API Endpoint'i)
 app.post('/api/order', async (req, res) => {
+    console.log(`[${new Date().toLocaleTimeString()}] /api/order endpoint'ine istek geldi.`);
     try {
         // Sipariş alım durumunu veritabanından kontrol et
         const orderStatus = db.prepare("SELECT value FROM settings WHERE key = 'isOrderTakingEnabled'").get();
         const isOrderTakingEnabled = orderStatus && orderStatus.value === 'true';
+
+        console.log(`[${new Date().toLocaleTimeString()}] Sipariş alım durumu: ${isOrderTakingEnabled ? 'AÇIK' : 'KAPALI'}`);
 
         if (!isOrderTakingEnabled) {
             return res.status(403).json({ error: 'Sipariş alımı şu anda kapalıdır.' });
         }
 
         const orderData = req.body;
+
+        // Gelen verinin varlığını ve yapısını kontrol et
+        if (!orderData || !orderData.masaId || !orderData.masaAdi || orderData.toplamFiyat === undefined || !orderData.sepetItems) {
+            console.error(`[${new Date().toLocaleTimeString()}] Eksik sipariş verisi:`, orderData);
+            return res.status(400).json({ error: 'Eksik sipariş verisi. Masa ID, Masa Adı, Toplam Fiyat ve Sepet Ürünleri gereklidir.' });
+        }
 
         // Uygulamadan gelen JSON anahtarları ile eşleşecek şekilde düzeltildi
         const masaId = orderData.masaId;
@@ -478,16 +488,21 @@ app.post('/api/order', async (req, res) => {
         // sepetItems objesini JSON stringe çevirerek sakla
         const sepetItemsJson = JSON.stringify(sepetItems);
 
-        db.prepare(`INSERT INTO orders (orderId, masaId, masaAdi, sepetItems, toplamFiyat, timestamp, status) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
-            orderId,
-            masaId,
-            masaAdi,
-            sepetItemsJson,
-            toplamFiyat,
-            timestamp,
-            'pending'
-        );
-        console.log(`Yeni sipariş SQLite'a kaydedildi. ID: ${orderId}`);
+        try {
+            db.prepare(`INSERT INTO orders (orderId, masaId, masaAdi, sepetItems, toplamFiyat, timestamp, status) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+                orderId,
+                masaId,
+                masaAdi,
+                sepetItemsJson,
+                toplamFiyat,
+                timestamp,
+                'pending'
+            );
+            console.log(`[${new Date().toLocaleTimeString()}] Yeni sipariş SQLite'a başarıyla kaydedildi. ID: ${orderId}`);
+        } catch (dbError) {
+            console.error(`[${new Date().toLocaleTimeString()}] SQLite'a sipariş kaydedilirken hata:`, dbError.message);
+            return res.status(500).json({ error: 'Sipariş veritabanına kaydedilirken bir hata oluştu.' });
+        }
 
         // Web'e gönderilecek sipariş objesini oluştur (sepetItems parse edilmiş haliyle)
         const newOrderToSend = {
@@ -505,7 +520,8 @@ app.post('/api/order', async (req, res) => {
         io.emit('notificationSound', { play: true });
 
         // 🔔 Firebase Bildirimlerini Adminlere Gönder
-        Object.keys(fcmTokens).forEach(username => {
+        // fcmTokens objesindeki tüm kayıtlı token'ları döngüye al
+        for (const username in fcmTokens) {
             const userData = fcmTokens[username];
             if (userData.role === 'admin') { // Sadece admin rolündeki kullanıcılara gönder
                 const message = {
@@ -522,25 +538,24 @@ app.post('/api/order', async (req, res) => {
                     token: userData.token,
                 };
 
-                admin.messaging().send(message)
-                    .then((response) => {
-                        console.log(`🔥 FCM bildirimi başarıyla gönderildi (${username}):`, response);
-                    })
-                    .catch((error) => {
-                        console.error(`❌ FCM bildirimi gönderilirken hata oluştu (${username}):`, error);
-                        // Geçersiz veya kayıtlı olmayan token'ları temizle
-                        if (error.code === 'messaging/invalid-registration-token' ||
-                            error.code === 'messaging/registration-token-not-registered') {
-                            console.warn(`Geçersiz veya kayıtlı olmayan token temizleniyor: ${username}`);
-                            delete fcmTokens[username]; // fcmTokens objesinden kaldır
-                        }
-                    });
+                try {
+                    const response = await admin.messaging().send(message); // await kullanıldı
+                    console.log(`🔥 FCM bildirimi başarıyla gönderildi (${username}):`, response);
+                } catch (error) {
+                    console.error(`❌ FCM bildirimi gönderilirken hata oluştu (${username}):`, error);
+                    // Geçersiz veya kayıtlı olmayan token'ları temizle
+                    if (error.code === 'messaging/invalid-registration-token' ||
+                        error.code === 'messaging/registration-token-not-registered') {
+                        console.warn(`Geçersiz veya kayıtlı olmayan token temizleniyor: ${username}`);
+                        delete fcmTokens[username]; // fcmTokens objesinden kaldır
+                    }
+                }
             }
-        });
+        }
 
         res.status(200).json({ message: 'Sipariş işlendi.' });
     } catch (error) {
-        console.error('Sipariş işlenirken veya bildirim gönderilirken hata:', error);
+        console.error(`[${new Date().toLocaleTimeString()}] Sipariş işlenirken veya genel bir hata oluştu:`, error);
         res.status(500).json({ error: 'Sipariş işlenirken bir hata oluştu.' });
     }
 });
