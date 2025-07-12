@@ -3,70 +3,240 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mutfak / Kasa Ekranı</title>
-
+    <title>Garson POS Sistemi - Yönetim Paneli</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
         crossorigin=""/>
-
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
         crossorigin=""></script>
-
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script> <!-- Socket.IO CDN'den yüklendi -->
 
     <style>
-        /* GENEL CSS STILLERI */
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Inter', sans-serif;
             margin: 0px;
-            background-color: #f4f4f4;
+            background-color: #f4f7f6;
             color: #333;
-            display: flex; /* Flexbox kullanarak düzeni ayarla */
-            flex-direction: column; /* Öğeleri dikeyde sırala */
-            gap: 20px; /* Kutular arası boşluk */
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
         }
-        h1 {
-            color: #333;
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+        .header {
+            background-color: #2c3e50;
+            color: #ffffff;
+            padding: 20px;
+            border-radius: 12px 12px 0 0;
+            text-align: center;
             margin-bottom: 20px;
-            text-align: center; /* Başlığı ortala */
-            width: 100%; /* Başlık tüm genişliği kaplasın */
         }
-        /* Ana içerik ve harita konteynerini içeren kapsayıcı */
+        .section-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .card {
+            background-color: #fcfcfc;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: transform 0.2s ease-in-out;
+        }
+        .card:hover {
+            transform: translateY(-3px);
+        }
+        .order-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            padding-bottom: 5px;
+            border-bottom: 1px dashed #eee;
+        }
+        .order-item:last-child {
+            border-bottom: none;
+        }
+        .order-status-btn {
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .status-pending {
+            background-color: #f39c12; /* Turuncu */
+            color: white;
+        }
+        .status-paid {
+            background-color: #27ae60; /* Yeşil */
+            color: white;
+        }
+        .status-assigned {
+            background-color: #3498db; /* Mavi */
+            color: white;
+        }
+        .status-en_route {
+            background-color: #e67e22; /* Koyu Turuncu */
+            color: white;
+        }
+        .status-delivered {
+            background-color: #2ecc71; /* Açık Yeşil */
+            color: white;
+        }
+        .status-cancelled {
+            background-color: #e74c3c; /* Kırmızı */
+            color: white;
+            opacity: 0.6; /* Soluk */
+        }
+        .rider-card {
+            background-color: #ecf0f1;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.03);
+        }
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.6); /* Black w/ opacity */
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            width: 90%;
+            max-width: 500px;
+            animation-name: animatetop;
+            animation-duration: 0.4s
+        }
+        @keyframes animatetop {
+            from {top: -300px; opacity: 0}
+            to {top: 0; opacity: 1}
+        }
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 1rem;
+        }
+        .btn-primary {
+            background-color: #3498db;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border: none;
+            transition: background-color 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
+        .btn-secondary {
+            background-color: #95a5a6;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border: none;
+            transition: background-color 0.3s ease;
+        }
+        .btn-secondary:hover {
+            background-color: #7f8c8d;
+        }
+        .map-container {
+            height: 400px;
+            width: 100%;
+            border-radius: 10px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+        #notificationSound {
+            display: none;
+        }
+
+        /* Mevcut stilinizden kopyalanan ve adapte edilenler */
         #main-layout-container {
-            display: flex; /* Ana içerik ve haritayı yan yana almak için */
+            display: flex;
             flex-direction: row;
             gap: 20px;
-            width: 100%; /* Tam genişliği kaplasın */
-            max-width: 100vw; /* Opsiyonel: maksimum genişlik belirle */
+            width: 100%;
+            max-width: 100vw;
             justify-content: space-between;
         }
 
         #main-content {
-            flex: 2; /* Ana içerik (siparişler) daha fazla yer kaplasın */
+            flex: 2;
             display: flex;
             flex-direction: column;
         }
 
-        /* HARITA KONTEYNERİ GENEL STİLLERİ */
         #map-container {
-            flex: 1; /* Harita konteyneri kalan yeri kaplasın */
+            flex: 1;
             background-color: #fff;
             border-radius: 8px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             padding: 15px;
-            height: 80vh; /* Yüksekliği ayarla */
-            position: sticky; /* Sayfayı kaydırsan bile harita sabit kalsın */
-            top: 20px; /* Üstten 20px boşluk bırak */
-            display: flex; /* Flexbox kullan */
-            flex-direction: column; /* İçerikleri dikey sırala */
+            height: 80vh;
+            position: sticky;
+            top: 20px;
+            display: flex;
+            flex-direction: column;
         }
-        /* HARİTA ELEMENTİ GENEL STİLLERİ */
         #map {
             width: 100%;
-            flex-grow: 1; /* Haritanın kalan tüm alanı doldurmasını sağla */
+            flex-grow: 1;
             border-radius: 4px;
-            margin-top: 10px; /* Başlık ile harita arasında boşluk */
+            margin-top: 10px;
         }
         #orders-container {
             display: grid;
@@ -79,15 +249,15 @@
             border-radius: 8px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             padding: 15px;
-            border-left: 5px solid #4CAF50; /* Yeşil kenarlık */
-            display: flex; /* İçeriği sütun olarak sırala */
+            border-left: 5px solid #4CAF50;
+            display: flex;
             flex-direction: column;
         }
         .order-card .order-header {
             font-weight: bold;
             margin-bottom: 10px;
             font-size: 1.1em;
-            color: #2196F3; /* Mavi başlık */
+            color: #2196F3;
         }
         .order-card .order-item {
             margin-left: 10px;
@@ -99,18 +269,17 @@
             text-align: right;
             font-size: 1.2em;
             color: #333;
-            border-top: 1px dashed #ccc; /* Toplam fiyatın üstünde kesik çizgi */
+            border-top: 1px dashed #ccc;
             padding-top: 10px;
         }
 
-        /* Bildirim zili stilleri */
         .notification-bell {
-            position: fixed; /* Sabit konumda kalsın */
+            position: fixed;
             top: 20px;
-            right: 20px; /* Sağ üst köşede kalsın */
+            right: 20px;
             width: 50px;
             height: 50px;
-            background-color: #FFC107; /* Sarı zil rengi */
+            background-color: #FFC107;
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -118,8 +287,8 @@
             font-size: 30px;
             color: #fff;
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            animation: none; /* Varsayılan olarak animasyon yok */
-            z-index: 1000; /* Diğer elementlerin üstünde olsun */
+            animation: none;
+            z-index: 1000;
         }
         @keyframes ring {
             0% { transform: rotate(0deg); }
@@ -131,16 +300,15 @@
             100% { transform: rotate(0deg); }
         }
         .ringing {
-            animation: ring 0.5s ease-in-out 3; /* 3 kez çal */
+            animation: ring 0.5s ease-in-out 3;
         }
 
-        /* Sipariş Eylem Butonları (Ödendi, Yazdır) */
         .order-actions {
             display: flex;
             gap: 10px;
             margin-top: 15px;
         }
-        .pay-button, .print-button {
+        .pay-button, .print-button, .assign-rider-btn { /* assign-rider-btn eklendi */
             flex: 1;
             color: white;
             border: none;
@@ -155,12 +323,14 @@
         .pay-button:hover { background-color: #218838; }
         .print-button { background-color: #007bff; }
         .print-button:hover { background-color: #0056b3; }
+        .assign-rider-btn { background-color: #f39c12; } /* Turuncu */
+        .assign-rider-btn:hover { background-color: #e67e22; } /* Koyu Turuncu */
 
-        /* SİPARİŞ ALIM DURUM KUTUSU STILLERI (Geliştirilmiş ve Şimdi Sol Üst Köşede) */
+
         #order-status-box {
-            position: absolute; /* Göreceli konumlandırma için mutlak konumlandırma */
+            position: absolute;
             top: 20px;
-            left: 20px; /* Sol üst köşeye konumlandır */
+            left: 20px;
             background-color: #ffffff;
             border: 1px solid #e0e0e0;
             border-radius: 12px;
@@ -170,15 +340,15 @@
             align-items: center;
             gap: 15px;
             font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            z-index: 1001; /* Diğer elementlerin üzerinde olduğundan emin ol */
+            z-index: 1001;
             transition: all 0.3s ease;
             box-sizing: border-box;
         }
         #order-status-text {
             font-weight: 700;
             font-size: 1.1em;
-            color: #333; /* JavaScript ile dinamik olarak değişecek */
-            white-space: nowrap; /* Metnin tek satırda kalmasını sağlar */
+            color: #333;
+            white-space: nowrap;
         }
         #order-status-toggle {
             padding: 10px 18px;
@@ -188,7 +358,7 @@
             color: white;
             font-weight: 600;
             font-size: 1em;
-            min-width: 80px; /* Butonun minimum genişliği */
+            min-width: 80px;
             text-align: center;
             transition: background-color 0.2s ease, transform 0.1s ease;
         }
@@ -201,25 +371,23 @@
             box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
         }
 
-        /* YAZDIRMA STILLERI (@media print) */
         @media print {
             body * {
-                visibility: hidden; /* Her şeyi gizle */
+                visibility: hidden;
             }
             .printable-content, .printable-content * {
-                visibility: visible; /* Sadece yazdırılabilir içeriği göster */
+                visibility: visible;
             }
             .printable-content {
                 position: absolute;
                 left: 0;
                 top: 0;
-                width: 100%; /* Tam genişlikte yazdır */
+                width: 100%;
             }
             .order-actions, #map-container, #order-status-box, #notificationBell, h1 {
-                display: none; /* Yazdırma çıktısında bu elementleri gizle */
+                display: none;
             }
 
-            /* POS Fişi Stilleri */
             @page {
                 size: 58mm auto;
                 margin: 0;
@@ -258,49 +426,48 @@
             }
         }
 
-        /* Yeni CSS: Harita odaklı görünüm için (Mobil Uygulama) */
         body.map-only {
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center; /* Ortala */
-            height: 100vh; /* Tam ekran yüksekliği */
-            overflow: hidden; /* Kaydırmayı engelle */
-            padding: 0; /* İç boşluğu kaldır */
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            padding: 0;
         }
         body.map-only #main-layout-container {
             flex-direction: column;
             align-items: center;
-            width: 100%; /* Tam genişlik */
-            height: 100%; /* Tam yükseklik */
-            margin: 0; /* Kenar boşluğu kaldır */
-            gap: 0; /* Boşlukları kaldır */
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            gap: 0;
         }
         body.map-only #main-content {
-            display: none; /* Siparişler bölümünü gizle */
+            display: none;
         }
         body.map-only #map-container {
-            width: 95%; /* Harita daha geniş yer kaplasın */
-            height: 95%; /* Harita konteyneri ekranın büyük kısmını kaplasın */
-            position: relative; /* Sabit konumlandırmayı kaldır */
+            width: 95%;
+            height: 95%;
+            position: relative;
             top: auto;
-            margin-top: 0; /* Üst boşluğu kaldır */
-            padding: 10px; /* İç boşluğu azalt */
-            box-sizing: border-box; /* Padding'i genişliğe dahil et */
+            margin-top: 0;
+            padding: 10px;
+            box-sizing: border-box;
         }
         body.map-only #map {
-            flex-grow: 1; /* Haritanın kalan tüm alanı doldurmasını sağla */
-            width: 100%; /* Harita genişliği */
-            height: 100%; /* Harita yüksekliği */
-            margin-top: 0; /* Başlık ile harita arasındaki boşluğu kaldır */
+            flex-grow: 1;
+            width: 100%;
+            height: 100%;
+            margin-top: 0;
         }
         body.map-only h1,
         body.map-only #order-status-box,
         body.map-only #notificationBell {
-            display: none; /* Başlık, durum kutusu ve zil ikonunu gizle */
+            display: none;
         }
         body.map-only #map-container h2 {
-            display: block; /* Motorcu Konumları başlığını göster */
+            display: block;
             text-align: center;
             margin-bottom: 10px;
             font-size: 1.2em;
@@ -323,6 +490,7 @@
     <div id="main-layout-container">
         <div id="main-content">
             <div id="orders-container">
+                <!-- Sipariş kartları buraya JavaScript ile eklenecek -->
             </div>
         </div>
 
@@ -332,13 +500,63 @@
         </div>
     </div>
 
+    <!-- Motorcuya Sipariş Gönder Modalı -->
+    <div id="assignOrderModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeAssignOrderModal()">&times;</span>
+            <h3 class="text-xl font-bold mb-4">Siparişi Motorcuya Ata</h3>
+            <div class="form-group">
+                <label for="modalOrderId">Sipariş ID:</label>
+                <input type="text" id="modalOrderId" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+                <label for="modalMasaAdi">Masa Adı:</label>
+                <input type="text" id="modalMasaAdi" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+                <label for="deliveryAddress">Teslimat Adresi:</label>
+                <textarea id="deliveryAddress" rows="3" class="form-control" placeholder="Müşteri adresi girin" required></textarea>
+            </div>
+            <div class="form-group">
+                <label for="paymentMethod">Ödeme Yöntemi:</label>
+                <select id="paymentMethod" class="form-control" required>
+                    <option value="">Seçiniz</option>
+                    <option value="Nakit">Nakit</option>
+                    <option value="Kredi/Banka Kartı">Kredi/Banka Kartı</option>
+                    <option value="Ticket">Ticket</option>
+                    <option value="Sodexo">Sodexo</option>
+                    <option value="Multinet">Multinet</option>
+                    <option value="Metropol">Metropol</option>
+                    <option value="Setcard">Setcard</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="selectRider">Motorcu Seç:</label>
+                <select id="selectRider" class="form-control" required>
+                    <option value="">Aktif Motorcu Yok</option>
+                </select>
+            </div>
+            <div class="flex justify-end space-x-4 mt-6">
+                <button class="btn-secondary" onclick="closeAssignOrderModal()">İptal</button>
+                <button class="btn-primary" onclick="assignOrder()">Gönder</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Socket.IO istemcisini başlat
         // BURAYI KENDİ SUNUCU ADRESİNİZLE DEĞİŞTİRMELİSİNİZ!
         // Geliştirme ortamında: http://localhost:3000
-        // Dağıtımda (örneğin Render.com): https://your-app-name.onrender.com
+        const orders = {}; // Siparişleri saklamak için obje
         const SOCKET_SERVER_URL = 'https://garson-pos-server.onrender.com'; // Backend Socket.IO sunucunuzun URL'si
         const API_BASE_URL = 'https://garson-pos-server.onrender.com'; // Backend API'nizin temel URL'si (fetch istekleri için)
+
+        // io'nun tanımlı olup olmadığını kontrol et
+        if (typeof io === 'undefined') {
+            console.error("Socket.IO kütüphanesi yüklenemedi. 'io' tanımlı değil.");
+            // Kullanıcıya bir hata mesajı gösterebilirsiniz
+            alert("Uygulama başlatılamadı: Socket.IO kütüphanesi yüklenemedi. Lütfen internet bağlantınızı kontrol edin veya sunucu yöneticinize başvurun.");
+        }
 
         const socket = io(SOCKET_SERVER_URL);
 
@@ -352,6 +570,16 @@
         let map;
         // Motorcu username'ine göre markerları saklayacak obje
         const riderMarkers = {};
+
+        // Modala ait elementler
+        const assignOrderModal = document.getElementById('assignOrderModal');
+        const modalOrderId = document.getElementById('modalOrderId');
+        const modalMasaAdi = document.getElementById('modalMasaAdi');
+        const deliveryAddressInput = document.getElementById('deliveryAddress');
+        const paymentMethodSelect = document.getElementById('paymentMethod');
+        const selectRider = document.getElementById('selectRider');
+
+        let currentOrderToAssign = null; // Atanacak mevcut sipariş
 
         // Haritayı başlatma fonksiyonu
         function initMap() {
@@ -386,83 +614,153 @@
             console.log(`[MAP DEBUG] riderMarkers içeriği:`, Object.keys(riderMarkers));
         }
 
-        // addOrderToDisplay fonksiyonu: Yeni gelen siparişi ekrana ekler
-        function addOrderToDisplay(order) {
-            // Sadece 'map-only' görünümünde değilsek siparişleri göster
-            if (isMapOnlyView()) {
-                return;
-            }
+        // --- Yardımcı Fonksiyonlar ---
 
-            // SQLite'dan gelen siparişlerde orderId alanı var
-            if (document.getElementById(`order-${order.orderId}`)) {
-                console.log(`Sipariş ${order.orderId} zaten ekranda.`);
+        function getAuthToken() {
+            // Lütfen buraya kendi admin kullanıcınızın geçerli token'ını girin:
+            // Örnek format: "1-admin-1678888888888" (id-role-timestamp)
+            return "YOUR_ADMIN_TOKEN_HERE"; // BURAYI GÜNCELLEYİN!
+        }
+
+        function formatPrice(price) {
+            return price.toFixed(2).replace('.', ',') + ' TL';
+        }
+
+        function getStatusClass(status) {
+            switch (status) {
+                case 'pending': return 'status-pending';
+                case 'paid': return 'status-paid';
+                case 'assigned': return 'status-assigned';
+                case 'en_route': return 'status-en_route';
+                case 'delivered': return 'status-delivered';
+                case 'cancelled': return 'status-cancelled';
+                default: return '';
+            }
+        }
+
+        // --- Sipariş Yönetimi ---
+
+        function renderOrder(order) {
+            const existingCard = document.getElementById(`order-${order.orderId}`);
+            if (existingCard) {
+                // Mevcut kartı güncelle
+                const statusTextElement = existingCard.querySelector('.order-status-text');
+                if (statusTextElement) {
+                    statusTextElement.textContent = `Durum: ${order.deliveryStatus || order.status}`;
+                    statusTextElement.className = `order-status-text text-sm font-semibold mt-2 ${getStatusClass(order.deliveryStatus || order.status)}`;
+                }
+
+                const assignButton = existingCard.querySelector('.assign-rider-btn');
+                if (assignButton) {
+                    // Sipariş ödenmişse, teslim edilmişse veya iptal edilmişse "Motorcuya Gönder" butonunu gizle
+                    if (order.status === 'paid' || order.deliveryStatus === 'delivered' || order.deliveryStatus === 'cancelled' || order.deliveryStatus === 'assigned' || order.deliveryStatus === 'en_route') {
+                        assignButton.style.display = 'none';
+                    } else {
+                        assignButton.style.display = 'inline-block'; // Diğer durumlar için göster
+                    }
+                }
+
+                // Atanan motorcu ve ödeme bilgisi varsa güncelle
+                let riderInfo = existingCard.querySelector('.rider-info');
+                if (order.riderUsername && order.deliveryAddress && order.paymentMethod) {
+                    if (!riderInfo) {
+                        riderInfo = document.createElement('div');
+                        riderInfo.className = 'rider-info';
+                        existingCard.insertBefore(riderInfo, existingCard.querySelector('.order-actions'));
+                    }
+                    riderInfo.innerHTML = `
+                        <p class="text-xs text-gray-600 mt-1">Atanan Motorcu: ${order.riderUsername}</p>
+                        <p class="text-xs text-gray-600">Teslimat Adresi: ${order.deliveryAddress}</p>
+                        <p class="text-xs text-gray-600">Ödeme Yöntemi: ${order.paymentMethod}</p>
+                    `;
+                } else if (riderInfo) {
+                    riderInfo.remove(); // Bilgi yoksa kaldır
+                }
+
                 return;
             }
 
             const orderCard = document.createElement('div');
-            orderCard.className = 'order-card';
-            orderCard.id = `order-${order.orderId}`; // Benzersiz orderId'yi kullan
-            orderCard.dataset.orderId = order.orderId; // dataset'e de ekleyelim
+            orderCard.id = `order-${order.orderId}`;
+            orderCard.className = `card ${getStatusClass(order.deliveryStatus || order.status)}`; // Başlangıç durumu
+            orderCard.dataset.orderId = order.orderId;
+
+            let riderInfoHtml = '';
+            if (order.riderUsername && order.deliveryAddress && order.paymentMethod) {
+                riderInfoHtml = `
+                    <div class="rider-info">
+                        <p class="text-xs text-gray-600 mt-1">Atanan Motorcu: ${order.riderUsername}</p>
+                        <p class="text-xs text-gray-600">Teslimat Adresi: ${order.deliveryAddress}</p>
+                        <p class="text-xs text-gray-600">Ödeme Yöntemi: ${order.paymentMethod}</p>
+                    </div>
+                `;
+            }
+
+            // "Motorcuya Gönder" butonu sadece sipariş 'pending' ve 'paid' değilse görünür
+            const showAssignButton = (order.deliveryStatus === 'pending' && order.status !== 'paid');
 
             orderCard.innerHTML = `
-                <div class="order-header">Masa: ${order.masaAdi}</div>
-                <div class="order-details">
+                <h3 class="text-lg font-bold mb-2">Masa: ${order.masaAdi} (ID: ${order.masaId})</h3>
+                <p class="text-gray-700 text-sm mb-1">Sipariş ID: ${order.orderId.substring(0, 8)}...</p>
+                <p class="text-gray-700 text-sm mb-1">Zaman: ${new Date(order.timestamp).toLocaleString()}</p>
+                <div class="mt-3 mb-2">
+                    <p class="font-semibold text-gray-800">Ürünler:</p>
                     ${order.sepetItems.map(item => `
                         <div class="order-item">
-                            ${item.name || item.urunAdi} (${item.quantity || item.adet} adet) - ${((item.price || item.fiyat) * (item.quantity || item.adet)).toFixed(2)} TL
+                            <span>${item.urunAdi} x ${item.adet}</span>
+                            <span>${formatPrice(item.fiyat * item.adet)}</span>
                         </div>
                     `).join('')}
                 </div>
-                <div class="order-total">Toplam: ${order.toplamFiyat.toFixed(2)} TL</div>
-                <div class="order-actions">
-                    <button class="pay-button">Ödendi</button>
-                    <button class="print-button">Yazdır</button>
+                <p class="text-lg font-bold text-right mt-3">Toplam: ${formatPrice(order.toplamFiyat)}</p>
+                <p class="order-status-text text-sm font-semibold mt-2 ${getStatusClass(order.deliveryStatus || order.status)}">Durum: ${order.deliveryStatus || order.status}</p>
+                ${riderInfoHtml}
+
+                <div class="flex justify-end mt-4 space-x-2">
+                    <button class="pay-button" onclick="markOrderAsPaid('${order.orderId}')">Ödendi Olarak İşaretle</button>
+                    <button class="print-button" onclick="printOrderReceipt('${order.orderId}')">Yazdır</button>
+                    ${showAssignButton ? `<button class="assign-rider-btn" onclick="openAssignOrderModal('${order.orderId}')">Motorcuya Gönder</button>` : ''}
                 </div>
             `;
-
-            const payButton = orderCard.querySelector('.pay-button');
-            payButton.addEventListener('click', () => {
-                console.log('Sipariş ödendi (ID):', order.orderId);
-                // Sunucuya siparişin benzersiz ID'sini gönder
-                socket.emit('orderPaid', { orderId: order.orderId });
-                // Ekrandan kaldırma işlemi sunucudan gelecek yanıtla yapılacak
-                playNotificationSound('payment');
-            });
-
-            const printButton = orderCard.querySelector('.print-button');
-            printButton.addEventListener('click', () => {
-                console.log('Fiş yazdırma isteği:', order);
-                printOrderReceipt(order);
-            });
-
-            ordersContainer.prepend(orderCard); // En yeni siparişi başa ekle
+            ordersContainer.prepend(orderCard); // Yeni siparişleri en üste ekle
         }
 
-        // removeOrderFromDisplay fonksiyonu: Belirli bir siparişi ekrandan kaldırır
         function removeOrderFromDisplay(orderId) {
-            const orderCardToRemove = document.getElementById(`order-${orderId}`);
-            if (orderCardToRemove) {
-                orderCardToRemove.remove();
-                console.log(`Sipariş ${orderId} ekrandan kaldırıldı.`);
-            } else {
-                console.warn(`Kaldırılacak sipariş kartı ${orderId} bulunamadı.`);
+            const orderCard = document.getElementById(`order-${orderId}`);
+            if (orderCard) {
+                orderCard.remove();
+                delete orders[orderId];
             }
         }
 
-        // printOrderReceipt fonksiyonu: Sipariş fişini yazdırmak için yeni bir pencere açar
-        function printOrderReceipt(order) {
+        function markOrderAsPaid(orderId) {
+            // Web arayüzünden siparişin ödendi olarak işaretlenmesi
+            // Bu kısım zaten var ve Socket.IO üzerinden sunucuya bilgi gönderiyor.
+            socket.emit('orderPaid', { orderId: orderId });
+        }
+
+        function printOrderReceipt(orderId) {
+            const order = orders[orderId];
+            if (!order) {
+                alert('Yazdırılacak sipariş bulunamadı!');
+                return;
+            }
             let printContent = `
                 <div class="receipt-container">
                     <div class="receipt-header">--- Olimpiyat Kokoreç ---</div>
-                    <p class="receipt-info">Masa: ${new Date(order.timestamp).toLocaleString()}</p>
+                    <p class="receipt-info">Masa: ${order.masaAdi}</p>
+                    <p class="receipt-info">Sipariş ID: ${order.orderId.substring(0, 8)}...</p>
+                    <p class="receipt-info">Zaman: ${new Date(order.timestamp).toLocaleString()}</p>
+                    ${order.deliveryAddress ? `<p class="receipt-info">Adres: ${order.deliveryAddress}</p>` : ''}
+                    ${order.paymentMethod ? `<p class="receipt-info">Ödeme: ${order.paymentMethod}</p>` : ''}
                     <hr>
                     <div class="receipt-items">
             `;
 
             order.sepetItems.forEach(item => {
-                const itemName = item.name || item.urunAdi;
-                const itemQuantity = item.quantity || item.adet;
-                const itemPrice = item.price || item.fiyat;
+                const itemName = item.urunAdi;
+                const itemQuantity = item.adet;
+                const itemPrice = item.fiyat;
                 printContent += `<p class="receipt-item">${itemName} (${itemQuantity} adet) - ${(itemPrice * itemQuantity).toFixed(2)} TL</p>`;
             });
 
@@ -525,153 +823,79 @@
             printWindow.print();
         }
 
-        // playNotificationSound fonksiyonu: Bildirim sesi çalar
-        function playNotificationSound(type = 'newOrder') {
-            const audio = document.getElementById('notificationSound');
-            if (audio) {
-                console.log(`[AUDIO DEBUG] Ses çalma girişimi: ${type} için.`);
-                audio.play().catch(e => console.error("[AUDIO DEBUG] Ses çalma hatası:", e));
+        // --- Sipariş Alım Durumu ---
+
+        function updateOrderReceptionButtonUI(isEnabled) {
+            const statusText = document.getElementById('order-status-text');
+            const toggleButton = document.getElementById('order-status-toggle');
+
+            if (isEnabled) {
+                statusText.textContent = 'Sipariş Alımı Açık';
+                statusText.style.color = '#28a745';
+                toggleButton.textContent = 'Kapat';
+                toggleButton.style.backgroundColor = '#dc3545';
             } else {
-                console.warn("[AUDIO DEBUG] 'notificationSound' ID'sine sahip ses elementi bulunamadı.");
+                statusText.textContent = 'Sipariş Alımı Kapalı';
+                statusText.style.color = '#dc3545';
+                toggleButton.textContent = 'Aç';
+                toggleButton.style.backgroundColor = '#28a745';
             }
         }
 
-        /* Socket.IO Olay Dinleyicileri */
-
-        // Sunucudan 'newOrder' olayı geldiğinde
-        socket.on('newOrder', (order) => {
-            console.log('[ORDER DEBUG] Yeni sipariş alındı:', order);
-            addOrderToDisplay(order); // Harita odaklı görünümde siparişler eklenmeyecek
-
-            // Bildirim sesi çal ve zil animasyonunu tetikle (her zaman çalabilir)
-            playNotificationSound();
-            notificationBell.classList.add('ringing');
-            setTimeout(() => {
-                notificationBell.classList.remove('ringing');
-            }, 1500);
-        });
-
-        // YENİ EKLENEN: Sunucudan mevcut aktif siparişler geldiğinde (sayfa yenilendiğinde)
-        socket.on('currentActiveOrders', (orders) => {
-            console.log('[ORDER DEBUG] Mevcut aktif siparişler alındı:', orders);
-            if (!isMapOnlyView()) { // Sadece 'map-only' görünümünde değilsek siparişleri göster
-                ordersContainer.innerHTML = ''; // Ekranı temizle
-                // En yeni siparişler üstte olacak şekilde sırala (timestamp'e göre tersten)
-                orders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-                orders.forEach(order => addOrderToDisplay(order));
-            }
-        });
-
-        // YENİ EKLENEN: Sunucudan siparişin ekrandan kaldırılması gerektiği bilgisi geldiğinde
-        socket.on('removeOrderFromDisplay', (data) => {
-            const { orderId } = data;
-            if (!isMapOnlyView()) { // Sadece 'map-only' görünümünde değilsek siparişleri kaldır
-                removeOrderFromDisplay(orderId);
-            }
-        });
-
-        // Sunucudan 'notificationSound' olayı geldiğinde
-        socket.on('notificationSound', () => {
-            playNotificationSound();
-            notificationBell.classList.add('ringing');
-            setTimeout(() => {
-                notificationBell.classList.remove('ringing');
-            }, 1500);
-        });
-
-        // Sunucudan 'newRiderLocation' olayı geldiğinde
-        socket.on('newRiderLocation', (locationData) => {
-            console.log('[MAP DEBUG] newRiderLocation olayı alındı:', locationData);
-            updateRiderLocation(locationData);
-            updateRiderCount();
-        });
-
-        // Sunucudan mevcut motorcu konumları geldiğinde (Daha akıllıca yönetim)
-        socket.on('currentRiderLocations', (locations) => {
-            console.log('[MAP DEBUG] currentRiderLocations olayı alındı:', locations);
-            const activeUsernames = new Set();
-            const bounds = new L.LatLngBounds(); // Haritayı ortalamak için sınırlar
-
-            // Gelen konumları işle ve aktif kullanıcı adlarını topla
-            if (Array.isArray(locations)) {
-                locations.forEach(location => {
-                    updateRiderLocation(location);
-                    activeUsernames.add(location.username);
-                    bounds.extend([location.latitude, location.longitude]); // Sınırları genişlet
+        async function fetchOrderReceptionStatus() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/order-status`, {
+                    headers: {
+                        'Authorization': `Bearer ${getAuthToken()}` // Yetkilendirme başlığı eklendi
+                    }
                 });
-            } else if (typeof locations === 'object' && locations !== null) {
-                Object.values(locations).forEach(location => {
-                    updateRiderLocation(location);
-                    activeUsernames.add(location.username);
-                    bounds.extend([location.latitude, location.longitude]); // Sınırları genişlet
+                const data = await response.json();
+                updateOrderReceptionButtonUI(data.enabled);
+            } catch (error) {
+                console.error('Sipariş alım durumu çekilirken hata:', error);
+                document.getElementById('order-status-text').textContent = 'Durum Hatası';
+                document.getElementById('order-status-toggle').style.backgroundColor = '#dc3545';
+            }
+        }
+
+        document.getElementById('order-status-toggle').addEventListener('click', async () => {
+            const currentStatusText = document.getElementById('order-status-text').textContent;
+            const isCurrentlyEnabled = currentStatusText.includes('Açık');
+            const newStatus = !isCurrentlyEnabled;
+
+            document.getElementById('order-status-text').textContent = 'Güncelleniyor...';
+            document.getElementById('order-status-toggle').disabled = true;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/set-order-status`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getAuthToken()}` // Yetkilendirme başlığı eklendi
+                    },
+                    body: JSON.stringify({ enabled: newStatus })
                 });
-            } else {
-                console.warn('[MAP DEBUG] currentRiderLocations olayı geçersiz veri formatı aldı:', locations);
-            }
-
-            // Artık aktif olmayan markerları kaldır
-            for (const username in riderMarkers) {
-                if (!activeUsernames.has(username)) {
-                    console.log(`[MAP DEBUG] Motorcu ${username} artık aktif değil. Haritadan kaldırılıyor.`);
-                    riderMarkers[username].remove();
-                    delete riderMarkers[username];
-                }
-            }
-
-            updateRiderCount();
-
-            // Eğer birden fazla motorcu varsa veya tek bir motorcu varsa haritayı ortala
-            if (map && Object.keys(riderMarkers).length > 0) {
-                if (Object.keys(riderMarkers).length > 1) {
-                    map.fitBounds(bounds.pad(0.1)); // %10 boşluk bırakarak sığdır
+                const data = await response.json();
+                if (response.ok) {
+                    updateOrderReceptionButtonUI(data.newStatus);
+                    alert(`Sipariş alımı başarıyla ${data.newStatus ? 'AÇILDI' : 'KAPANDI'}.`);
                 } else {
-                    // Tek bir marker varsa, direkt ona odaklan
-                    const singleMarker = Object.values(riderMarkers)[0];
-                    map.setView(singleMarker.getLatLng(), 14); // Daha yakın bir zoom seviyesi
+                    alert(`Sipariş durumu güncellenirken hata: ${data.message || response.statusText}`);
+                    updateOrderReceptionButtonUI(isCurrentlyEnabled); // Eski duruma geri dön
                 }
+            } catch (error) {
+                console.error('Sipariş durumu güncellenirken ağ hatası:', error);
+                alert('Ağ hatası: Sipariş durumu güncellenemedi.');
+                updateOrderReceptionButtonUI(isCurrentlyEnabled); // Eski duruma geri dön
+            } finally {
+                document.getElementById('order-status-toggle').disabled = false;
             }
         });
 
-        // Sunucudan 'riderDisconnected' olayı geldiğinde
-        socket.on('riderDisconnected', (disconnectedUsername) => { // disconnectedUsername bekleniyor
-            console.log(`[MAP DEBUG] riderDisconnected olayı alındı: ${disconnectedUsername}`);
-            if (riderMarkers[disconnectedUsername]) { // username'e göre kontrol et
-                riderMarkers[disconnectedUsername].remove();
-                delete riderMarkers[disconnectedUsername];
-                console.log(`[MAP DEBUG] Motorcu ${disconnectedUsername} haritadan kaldırıldı.`);
-                updateRiderCount();
-            } else {
-                console.warn(`[MAP DEBUG] Kaldırılacak motorcu marker'ı ${disconnectedUsername} bulunamadı.`);
-            }
-        });
+        // --- Motorcu Konumları ---
 
-        // Bağlantı durumu logları
-        socket.on('connect', () => {
-            console.log('[SOCKET DEBUG] Sunucuya bağlandı!');
-            // Bağlantı kurulduğunda mevcut motorcu konumlarını tekrar iste
-            socket.emit('requestCurrentRiderLocations');
-        });
-
-        socket.on('disconnect', () => {
-            console.log('[SOCKET DEBUG] Sunucu bağlantısı kesildi!');
-            // Tüm markerları kaldır
-            for (const username in riderMarkers) { // username'e göre
-                if (riderMarkers[username]) {
-                    riderMarkers[username].remove();
-                    delete riderMarkers[username];
-                }
-            }
-            updateRiderCount();
-        });
-
-        socket.on('connect_error', (err) => {
-            console.error('[SOCKET DEBUG] Bağlantı hatası:', err.message);
-        });
-
-        // Motorcu konumunu haritada güncelleyen fonksiyon (Leaflet için)
         function updateRiderLocation(locationData) {
             console.log('[MAP DEBUG] updateRiderLocation çağrıldı. Veri:', locationData);
-            // 'fullName' alanı varsa onu kullan, yoksa 'name' veya 'username'i kullan
             const riderDisplayName = locationData.fullName || locationData.name || locationData.username || 'Bilinmiyor';
             const { username, latitude, longitude, timestamp, speed, bearing, accuracy } = locationData;
             const latLng = [latitude, longitude];
@@ -693,11 +917,10 @@
             if (riderMarkers[username]) {
                 console.log(`[MAP DEBUG] Mevcut marker güncelleniyor: ${username}`);
                 riderMarkers[username].setLatLng(latLng);
-                // Eğer marker zaten bir popup'a sahipse içeriğini güncelle
                 if (riderMarkers[username].getPopup()) {
                     riderMarkers[username].getPopup().setContent(
                         `<div><strong>Motorcu Adı:</strong> ${riderDisplayName}</div>` +
-                        `<div><strong>Kullanıcı Adı (Sistem):</strong> ${username}</div>` + // Sistem kullanıcı adını da göster
+                        `<div><strong>Kullanıcı Adı (Sistem):</strong> ${username}</div>` +
                         `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
                         `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
                         `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
@@ -710,7 +933,7 @@
                 riderMarkers[username] = L.marker(latLng, { icon: customIcon }).addTo(map)
                     .bindPopup(
                         `<div><strong>Motorcu Adı:</strong> ${riderDisplayName}</div>` +
-                        `<div><strong>Kullanıcı Adı (Sistem):</strong> ${username}</div>` + // Sistem kullanıcı adını da göster
+                        `<div><strong>Kullanıcı Adı (Sistem):</strong> ${username}</div>` +
                         `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
                         `<div><strong>Hız:</strong> ${speed ? (speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
                         `<div><strong>Yön:</strong> ${bearing !== undefined ? bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
@@ -720,107 +943,248 @@
             }
         }
 
-        // SİPARİŞ ALIMI DURUM YÖNETİMİ (Mevcut haliyle kalabilir)
-        function fetchOrderStatus() {
-            // Sadece 'map-only' görünümünde değilsek durumu çek
-            if (!isMapOnlyView()) {
-                fetch(`${API_BASE_URL}/api/order-status`) // API_BASE_URL kullanıldı
-                .then(res => {
-                    if (!res.ok) {
-                        throw new Error(`HTTP error! status: ${res.status}`);
-                    }
-                    return res.json();
-                })
-                .then(data => {
-                    updateOrderStatusUI(data.enabled);
-                })
-                .catch(error => {
-                    console.error('Sipariş durumu alınırken hata oluştu:', error);
-                    document.getElementById('order-status-text').textContent = 'Durum Hatası';
-                    document.getElementById('order-status-toggle').style.backgroundColor = '#dc3545';
-                });
-            }
-        }
-
-        function updateOrderStatusUI(enabled) {
-            const statusText = document.getElementById('order-status-text');
-            const toggleButton = document.getElementById('order-status-toggle');
-
-            if (enabled) {
-                statusText.textContent = 'Sipariş Alımı Açık';
-                statusText.style.color = '#28a745';
-                toggleButton.textContent = 'Kapat';
-                toggleButton.style.backgroundColor = '#dc3545';
+        function removeRiderFromDisplay(username) {
+            if (riderMarkers[username]) {
+                riderMarkers[username].remove();
+                delete riderMarkers[username];
+                console.log(`[MAP DEBUG] Motorcu ${username} haritadan kaldırıldı.`);
+                updateRiderCount();
             } else {
-                statusText.textContent = 'Sipariş Alımı Kapalı';
-                statusText.style.color = '#dc3545';
-                toggleButton.textContent = 'Aç';
-                toggleButton.style.backgroundColor = '#28a745';
+                console.warn(`[MAP DEBUG] Kaldırılacak motorcu marker'ı ${username} bulunamadı.`);
             }
         }
 
-        // URL'de 'view=map_only' parametresi olup olmadığını kontrol eder
-        function isMapOnlyView() {
-            const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.get('view') === 'map_only';
+        // --- Motorcuya Sipariş Atama Modalı Fonksiyonları ---
+
+        async function openAssignOrderModal(orderId) {
+            currentOrderToAssign = orders[orderId]; // Global değişkene ata
+            if (!currentOrderToAssign) {
+                alert('Sipariş bulunamadı!');
+                return;
+            }
+
+            modalOrderId.value = currentOrderToAssign.orderId.substring(0, 8);
+            modalMasaAdi.value = currentOrderToAssign.masaAdi;
+            deliveryAddressInput.value = ''; // Her açıldığında temizle
+            paymentMethodSelect.value = ''; // Her açıldığında temizle
+
+            // Aktif motorcuları çek ve dropdown'a doldur
+            await fetchAndPopulateRiders();
+
+            assignOrderModal.style.display = 'flex'; // Modalı göster
         }
+
+        function closeAssignOrderModal() {
+            assignOrderModal.style.display = 'none'; // Modalı gizle
+            currentOrderToAssign = null;
+        }
+
+        async function fetchAndPopulateRiders() {
+            selectRider.innerHTML = '<option value="">Yükleniyor...</option>';
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/riders`, { // Yeni endpoint: /api/riders
+                    headers: {
+                        'Authorization': `Bearer ${getAuthToken()}` // Yetkilendirme başlığı
+                    }
+                });
+                const riders = await response.json();
+                
+                selectRider.innerHTML = ''; // Önceki seçenekleri temizle
+                if (riders.length === 0) {
+                    selectRider.innerHTML = '<option value="">Aktif Motorcu Yok</option>';
+                    selectRider.disabled = true;
+                } else {
+                    selectRider.disabled = false;
+                    selectRider.innerHTML = '<option value="">Motorcu Seçiniz</option>'; // Varsayılan seçenek
+                    riders.forEach(rider => {
+                        const option = document.createElement('option');
+                        option.value = rider.username;
+                        option.textContent = rider.full_name || rider.username;
+                        selectRider.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Motorcular çekilirken hata:', error);
+                selectRider.innerHTML = '<option value="">Motorcular yüklenemedi</option>';
+                selectRider.disabled = true;
+            }
+        }
+
+        async function assignOrder() {
+            if (!currentOrderToAssign) return;
+
+            const deliveryAddress = deliveryAddressInput.value.trim();
+            const paymentMethod = paymentMethodSelect.value;
+            const selectedRider = selectRider.value;
+
+            if (!deliveryAddress || !paymentMethod || !selectedRider) {
+                alert('Lütfen tüm alanları doldurun ve bir motorcu seçin.');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/assign-order`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getAuthToken()}` // Yetkilendirme başlığı
+                    },
+                    body: JSON.stringify({
+                        orderId: currentOrderToAssign.orderId,
+                        riderUsername: selectedRider,
+                        deliveryAddress: deliveryAddress,
+                        paymentMethod: paymentMethod
+                    })
+                });
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert('Sipariş başarıyla motorcuya atandı!');
+                    closeAssignOrderModal();
+                    // Sipariş kartını güncellemek için renderOrder'ı tekrar çağır
+                    // Backend'den gelen güncel sipariş objesini kullanabiliriz
+                    orders[data.order.orderId] = data.order; // Güncel veriyi kaydet
+                    renderOrder(data.order);
+                } else {
+                    alert(`Sipariş atama hatası: ${data.message || response.statusText}`);
+                }
+            } catch (error) {
+                console.error('Sipariş atanırken ağ hatası:', error);
+                alert('Ağ hatası: Sipariş atanamadı.');
+            }
+        }
+
+        // --- Socket.IO Olay Dinleyicileri ---
+
+        socket.on('connect', () => {
+            console.log('Socket.IO Bağlandı!');
+            // Bağlandığında mevcut aktif siparişleri ve motorcu konumlarını iste
+            socket.emit('requestCurrentActiveOrders');
+            socket.emit('requestCurrentRiderLocations');
+            fetchOrderReceptionStatus(); // Sipariş alım durumunu da çek
+            // fetchRiderLocations(); // Bu zaten initMap içinde çağrılıyor
+        });
+
+        socket.on('newOrder', (order) => {
+            console.log('Yeni sipariş alındı:', order);
+            orders[order.orderId] = order; // Objeye kaydet
+            renderOrder(order);
+            notificationSound.play(); // Ses çal
+            notificationBell.classList.add('ringing');
+            setTimeout(() => {
+                notificationBell.classList.remove('ringing');
+            }, 1500);
+        });
+
+        socket.on('orderPaidConfirmation', (data) => {
+            console.log('Sipariş ödendi onayı alındı:', data.orderId);
+            if (orders[data.orderId]) {
+                orders[data.orderId].status = 'paid';
+                renderOrder(orders[data.orderId]); // Kartı güncelle
+            }
+        });
+
+        socket.on('removeOrderFromDisplay', (data) => {
+            console.log('Sipariş ekrandan kaldırılıyor:', data.orderId);
+            removeOrderFromDisplay(data.orderId);
+        });
+
+        socket.on('orderTakingStatusChanged', (data) => {
+            console.log('Sipariş alım durumu değişti:', data.enabled);
+            updateOrderReceptionButtonUI(data.enabled);
+        });
+
+        socket.on('currentActiveOrders', (currentOrders) => {
+            console.log('Mevcut aktif siparişler alındı:', currentOrders.length);
+            ordersContainer.innerHTML = ''; // Mevcutları temizle
+            // En yeni siparişler üstte olacak şekilde sırala (timestamp'e göre tersten)
+            currentOrders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            currentOrders.forEach(order => {
+                orders[order.orderId] = order; // Objeye kaydet
+                renderOrder(order);
+            });
+        });
+
+        socket.on('newRiderLocation', (rider) => {
+            console.log('Yeni motorcu konumu alındı:', rider.username, rider.latitude, rider.longitude);
+            updateRiderLocation(rider);
+            updateRiderCount();
+        });
+
+        socket.on('currentRiderLocations', (currentRiders) => {
+            console.log('Mevcut motorcu konumları alındı:', currentRiders.length);
+            const activeUsernames = new Set();
+            const bounds = new L.LatLngBounds();
+
+            if (Array.isArray(currentRiders)) {
+                currentRiders.forEach(rider => {
+                    updateRiderLocation(rider);
+                    activeUsernames.add(rider.username);
+                    bounds.extend([rider.latitude, rider.longitude]);
+                });
+            } else if (typeof currentRiders === 'object' && currentRiders !== null) {
+                Object.values(currentRiders).forEach(rider => {
+                    updateRiderLocation(rider);
+                    activeUsernames.add(rider.username);
+                    bounds.extend([rider.latitude, rider.longitude]);
+                });
+            } else {
+                console.warn('[MAP DEBUG] currentRiderLocations olayı geçersiz veri formatı aldı:', currentRiders);
+            }
+
+            for (const username in riderMarkers) {
+                if (!activeUsernames.has(username)) {
+                    console.log(`[MAP DEBUG] Motorcu ${username} artık aktif değil. Haritadan kaldırılıyor.`);
+                    removeRiderFromDisplay(username);
+                }
+            }
+
+            updateRiderCount();
+
+            if (map && Object.keys(riderMarkers).length > 0) {
+                if (Object.keys(riderMarkers).length > 1) {
+                    map.fitBounds(bounds.pad(0.1));
+                } else {
+                    const singleMarker = Object.values(riderMarkers)[0];
+                    map.setView(singleMarker.getLatLng(), 14);
+                }
+            }
+        });
+
+        socket.on('riderDisconnected', (username) => {
+            console.log(`[MAP DEBUG] riderDisconnected olayı alındı: ${username}`);
+            removeRiderFromDisplay(username);
+        });
+
+        socket.on('orderAssigned', (order) => {
+            console.log('Sipariş atandı (Socket.IO):', order.orderId, 'Motorcu:', order.riderUsername);
+            if (orders[order.orderId]) {
+                orders[order.orderId] = order;
+                renderOrder(order);
+            }
+        });
+
+        socket.on('orderDeliveryStatusUpdated', (data) => {
+            console.log('Sipariş teslimat durumu güncellendi (Socket.IO):', data.orderId, 'Yeni Durum:', data.newDeliveryStatus);
+            if (orders[data.orderId]) {
+                orders[data.orderId].deliveryStatus = data.newDeliveryStatus;
+                renderOrder(orders[data.orderId]);
+            }
+        });
+
+        socket.on('riderDayEnded', (data) => {
+            console.log('Motorcu günü sonlandırdı (Socket.IO):', data.username, 'Teslim Edilen Paket:', data.deliveredCount);
+            removeRiderFromDisplay(data.username);
+            alert(`${data.username} adlı motorcu gününü sonlandırdı. Bugün ${data.deliveredCount} paket teslim etti.`);
+        });
 
         // Sayfa yüklendiğinde çalışacak kod
         document.addEventListener('DOMContentLoaded', () => {
-            if (isMapOnlyView()) {
-                document.body.classList.add('map-only');
-                // Haritayı başlat
-                initMap();
-                // Harita boyutlandırmasını tetikle (gerekliyse)
-                if (map) {
-                    setTimeout(() => {
-                        map.invalidateSize();
-                    }, 100); // Küçük bir gecikme ile yeniden boyutlandırma
-                }
-            } else {
-                // Normal mutfak/kasa görünümü
-                initMap(); // Haritayı yine de başlat
-                const toggleButton = document.getElementById('order-status-toggle');
-                if (toggleButton) {
-                    toggleButton.addEventListener('click', () => {
-                        // Mevcut durumu al ve tersini gönder
-                        const currentStatusText = document.getElementById('order-status-text').textContent;
-                        const newStatus = !currentStatusText.includes('Açık'); // Eğer 'Açık' içeriyorsa kapatılacak
-
-                        fetch(`${API_BASE_URL}/api/set-order-status`, { // API_BASE_URL kullanıldı
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify({ enabled: newStatus })
-                        })
-                        .then(res => {
-                            if (!res.ok) {
-                                throw new Error(`HTTP error! status: ${res.status}`);
-                            }
-                            return res.json();
-                        })
-                        .then(data => {
-                            console.log('Sipariş durumu güncellendi:', data.newStatus);
-                            // UI'yı sunucudan gelen gerçek duruma göre güncelle
-                            updateOrderStatusUI(data.newStatus);
-                        })
-                        .catch(error => {
-                            console.error('Sipariş durumu güncellenirken hata oluştu:', error);
-                            // alert('Sipariş durumu güncellenemedi.'); // alert yerine daha iyi bir UI bildirimi kullanılabilir
-                        });
-                    });
-                }
-
-                // Başlangıçta sipariş alım durumunu çek
-                fetchOrderStatus();
-
-                // Sunucudan sipariş alım durumu değiştiğinde UI'yı güncelle
-                socket.on('orderTakingStatusChanged', (data) => {
-                    console.log('Sunucudan sipariş alım durumu değişti:', data.enabled);
-                    updateOrderStatusUI(data.enabled);
-                });
-            }
+            // Haritayı başlat
+            initMap();
+            // Sayfa yüklendiğinde aktif siparişleri de çek (Socket.IO connect event'inde zaten yapılıyor)
+            // Sipariş alım durumunu da çek
+            fetchOrderReceptionStatus();
         });
 
         // Pencere yeniden boyutlandırıldığında haritayı yeniden boyutlandır
