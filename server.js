@@ -205,7 +205,7 @@ function isAdminOrGarson(req, res, next) {
             return;
         }
     }
-    console.warn('isAdminOrGarson: Token geçersiz veya yetkisiz erişim. Admin veya Garson yetkisi gerekli.');
+    console.warn('isAdminOrGarson: Token geçersiz veya yetkisiz erişim. Admin veya Garson yetkisi gerekli. Token parts:', parts); // Hata ayıklama için eklendi
     res.status(403).json({ message: 'Yetkisiz erişim. Admin veya Garson yetkisi gerekli.' });
 }
 
@@ -776,8 +776,8 @@ app.post('/api/update-order-delivery-status', isAdminOrRider, async (req, res) =
 });
 
 // 📜 YENİ ENDPOINT: MOTORCUYA ATANAN SİPARİŞLERİ GETİR
-app.get('/api/rider-assigned-orders/:username', isAdminOrRider, (req, res) => {
-    console.log(`[${new Date().toLocaleTimeString()}] /api/rider-assigned-orders endpoint'ine istek geldi.`);
+app.get('/api/rider/orders/:username', isAdminOrRider, (req, res) => { // Endpoint yolu düzeltildi
+    console.log(`[${new Date().toLocaleTimeString()}] /api/rider/orders/:username endpoint'ine istek geldi.`);
     const { username } = req.params;
 
     try {
@@ -801,9 +801,13 @@ app.get('/api/rider-assigned-orders/:username', isAdminOrRider, (req, res) => {
 });
 
 // 🏁 YENİ ENDPOINT: MOTORCUNUN GÜNÜNÜ SONLANDIR
-app.post('/api/rider-end-day/:username', isAdminOrRider, async (req, res) => {
-    console.log(`[${new Date().toLocaleTimeString()}] /api/rider-end-day endpoint'ine istek geldi.`);
-    const { username } = req.params;
+app.post('/api/rider/end-day', isAdminOrRider, async (req, res) => { // Endpoint yolu düzeltildi
+    console.log(`[${new Date().toLocaleTimeString()}] /api/rider/end-day endpoint'ine istek geldi.`);
+    const { username } = req.body; // Body'den username al
+
+    if (!username) {
+        return res.status(400).json({ message: 'Kullanıcı adı gerekli.' });
+    }
 
     try {
         // Teslim edilmiş sipariş sayısını al
