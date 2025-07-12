@@ -62,12 +62,14 @@ try {
     `);
     console.log('Orders tablosu hazır.');
 
+    // Yeni sütunları ekle, zaten varsa hata vermez
     db.exec(`
         ALTER TABLE orders ADD COLUMN riderUsername TEXT;
         ALTER TABLE orders ADD COLUMN deliveryAddress TEXT;
         ALTER TABLE orders ADD COLUMN paymentMethod TEXT;
         ALTER TABLE orders ADD COLUMN assignedTimestamp TEXT;
         ALTER TABLE orders ADD COLUMN deliveryStatus TEXT DEFAULT 'pending';
+        ALTER TABLE orders ADD COLUMN deliveredTimestamp TEXT; -- YENİ SÜTUN EKLENDİ
     `);
     console.log('Orders tablosuna yeni sütunlar eklendi (varsa).');
 
@@ -568,12 +570,9 @@ app.post('/api/order', async (req, res) => {
     }
 });
 
-// YENİ ENDPOINT: Aktif siparişleri getir
 app.get('/api/orders/active', isAdminOrGarson, (req, res) => {
     try {
-        // Sadece 'pending' durumdaki siparişleri getir
         const activeOrders = db.prepare(`SELECT * FROM orders WHERE status = 'pending' ORDER BY timestamp DESC`).all();
-        // sepetItems JSON string olduğu için parse et
         const parsedOrders = activeOrders.map(order => ({
             ...order,
             sepetItems: JSON.parse(order.sepetItems)
@@ -672,12 +671,21 @@ app.post('/api/update-order-delivery-status', isAdminOrRider, async (req, res) =
     }
 
     try {
-        const stmt = db.prepare(`
-            UPDATE orders
-            SET deliveryStatus = ?
-            WHERE orderId = ?
-        `);
-        const info = stmt.run(newDeliveryStatus, orderId);
+        let updateQuery = `UPDATE orders SET deliveryStatus = ?`;
+        const params = [newDeliveryStatus];
+
+        if (newDeliveryStatus === 'delivered') {
+            updateQuery += `, deliveredTimestamp = ?`; // YENİ: deliveredTimestamp güncelleniyor
+            params.push(new Date().toISOString());
+        } else {
+            updateQuery += `, deliveredTimestamp = NULL`; // Durum delivered değilse temizle
+        }
+
+        updateQuery += ` WHERE orderId = ?`;
+        params.push(orderId);
+
+        const stmt = db.prepare(updateQuery);
+        const info = stmt.run(...params);
 
         if (info.changes === 0) {
             return res.status(404).json({ message: 'Sipariş bulunamadı veya durumu zaten güncel.' });
@@ -721,28 +729,25 @@ app.post('/api/update-order-delivery-status', isAdminOrRider, async (req, res) =
     }
 });
 
-app.get('/api/rider/orders/:username', isAdminOrRider, (req, res) => {
-    console.log(`[${new Date().toLocaleTimeString()}] /api/rider/orders/:username endpoint'ine istek geldi.`);
+// YENİ ENDPOINT: Motorcunun bugün teslim ettiği paket sayısını getir
+app.get('/api/rider/delivered-count/:username', isAdminOrRider, (req, res) => {
     const { username } = req.params;
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD formatı
 
     try {
-        const orders = db.prepare(`
-            SELECT * FROM orders
-            WHERE riderUsername = ? AND (deliveryStatus = 'assigned' OR deliveryStatus = 'en_route')
-            ORDER BY assignedTimestamp DESC
-        `).all(username);
-
-        const parsedOrders = orders.map(order => ({
-            ...order,
-            sepetItems: JSON.parse(order.sepetItems)
-        }));
-
-        res.status(200).json(parsedOrders);
+        const deliveredCount = db.prepare(`
+            SELECT COUNT(*) AS count FROM orders
+            WHERE riderUsername = ? AND deliveryStatus = 'delivered' AND substr(deliveredTimestamp, 1, 10) = ?
+        `).get(username, today);
+        
+        console.log(`[${new Date().toLocaleTimeString()}] Motorcu ${username} için bugün teslim edilen paket sayısı: ${deliveredCount.count}`);
+        res.status(200).json({ deliveredCount: deliveredCount.count });
     } catch (error) {
-        console.error('Motorcuya atanan siparişler çekilirken hata:', error);
-        res.status(500).json({ message: 'Siparişler alınırken bir hata oluştu.' });
+        console.error(`Motorcu ${username} için teslim edilen paket sayısı çekilirken hata:`, error);
+        res.status(500).json({ message: 'Teslim edilen paket sayısı alınırken bir hata oluştu.' });
     }
 });
+
 
 app.post('/api/rider/end-day', isAdminOrRider, async (req, res) => {
     console.log(`[${new Date().toLocaleTimeString()}] /api/rider/end-day endpoint'ine istek geldi.`);
@@ -753,23 +758,26 @@ app.post('/api/rider/end-day', isAdminOrRider, async (req, res) => {
     }
 
     try {
-        const deliveredCount = db.prepare(`
+        // Günü sonlandırmadan önce bugünün teslim edilen paket sayısını al
+        const today = new Date().toISOString().split('T')[0];
+        const deliveredCountResult = db.prepare(`
             SELECT COUNT(*) AS count FROM orders
-            WHERE riderUsername = ? AND deliveryStatus = 'delivered'
-            AND assignedTimestamp >= ?
-        `).get(username, new Date().toISOString().split('T')[0]);
+            WHERE riderUsername = ? AND deliveryStatus = 'delivered' AND substr(deliveredTimestamp, 1, 10) = ?
+        `).get(username, today);
+        const deliveredCount = deliveredCountResult.count;
 
+        // Teslim edilmeyen siparişleri iptal et
         db.prepare(`
             UPDATE orders
-            SET deliveryStatus = 'cancelled', riderUsername = NULL, deliveryAddress = NULL, paymentMethod = NULL, assignedTimestamp = NULL
+            SET deliveryStatus = 'cancelled', riderUsername = NULL, deliveryAddress = NULL, paymentMethod = NULL, assignedTimestamp = NULL, deliveredTimestamp = NULL
             WHERE riderUsername = ? AND (deliveryStatus = 'assigned' OR deliveryStatus = 'en_route')
         `).run(username);
 
-        io.emit('riderDayEnded', { username, deliveredCount: deliveredCount.count });
+        io.emit('riderDayEnded', { username, deliveredCount: deliveredCount });
 
         res.status(200).json({
             message: `Motorcu ${username} günü sonlandırdı.`,
-            totalDeliveredPackagesToday: deliveredCount.count
+            totalDeliveredPackagesToday: deliveredCount
         });
 
     } catch (error) {
@@ -784,21 +792,6 @@ app.get('/', (req, res) => {
 
 io.on('connection', (socket) => {
     console.log(`[${new Date().toLocaleTimeString()}] Yeni bağlantı: ${socket.id}`);
-
-    // Bu kısım artık kullanılmıyor, frontend API'den çekiyor.
-    // try {
-    //     const activeOrders = db.prepare(`SELECT * FROM orders WHERE status = 'pending' ORDER BY timestamp ASC`).all();
-    //     const parsedOrders = activeOrders.map(order => {
-    //         return {
-    //             ...order,
-    //             sepetItems: JSON.parse(order.sepetItems)
-    //         };
-    //     });
-    //     socket.emit('currentActiveOrders', parsedOrders);
-    //     console.log(`[${new Date().toLocaleTimeString()}] Socket ${socket.id} için ${parsedOrders.length} aktif sipariş gönderildi.`);
-    // } catch (error) {
-    //     console.error('Mevcut siparişleri SQLite\'tan çekerken hata:', error.message);
-    // }
 
     socket.on('requestCurrentRiderLocations', () => {
         const currentRidersWithNames = Object.values(riderLocations).map(rider => ({
