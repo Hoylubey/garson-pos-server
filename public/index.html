@@ -616,12 +616,75 @@
 
         // --- Yardımcı Fonksiyonlar ---
 
-        function getAuthToken() {
-            // Lütfen buraya kendi admin kullanıcınızın geçerli token'ını girin:
-            // Örnek format: "1-admin-1678888888888" (id-role-timestamp)
-            return "1752307704595"; // BURAYI GÜNCELLEYİN!
+       function getAuthToken() {
+            // Buraya kopyaladığınız TAM admin veya garson token'ını yapıştırın
+            return "1752335635061"; 
         }
 
+        // --- Yardımcı Fonksiyonlar ---
+
+        async function fetchActiveRiders() {
+            const authToken = getAuthToken();
+            if (!authToken) {
+                console.error("fetchActiveRiders: Yetkilendirme token'ı bulunamadı.");
+                alert("Motorcular yüklenemedi: Yetkilendirme hatası. Lütfen admin/garson token'ınızı kontrol edin.");
+                selectRider.innerHTML = '<option value="">Motorcular yüklenemedi</option>';
+                selectRider.disabled = true;
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/riders`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (!response.ok) {
+                    // Hata durumunda yanıtı JSON olarak ayrıştırmaya çalış, başarısız olursa boş obje döndür
+                    const errorData = await response.json().catch(() => ({})); 
+                    const errorMessage = errorData.message || `Sunucu hatası: ${response.status} ${response.statusText}`;
+                    console.error(`Motorcu listesi çekilemedi: ${response.status} - ${errorMessage}`);
+                    alert(`Motorcular yüklenemedi: ${errorMessage}`);
+                    selectRider.innerHTML = '<option value="">Motorcular yüklenemedi</option>';
+                    selectRider.disabled = true;
+                    return;
+                }
+
+                // Yanıt başarılıysa, JSON olarak ayrıştır
+                const riders = await response.json();
+                console.log("Aktif motorcular:", riders); // Bu logu kontrol edin!
+
+                // Gelen veri bir dizi değilse hata fırlat
+                if (!Array.isArray(riders)) {
+                    console.error("API'den beklenen motorcu listesi bir dizi değil:", riders);
+                    alert("Motorcular yüklenemedi: Sunucudan hatalı veri formatı alındı.");
+                    selectRider.innerHTML = '<option value="">Motorcular yüklenemedi</option>';
+                    selectRider.disabled = true;
+                    return;
+                }
+
+                selectRider.innerHTML = '<option value="">Motorcu Seçiniz</option>';
+                if (riders.length > 0) {
+                    riders.forEach(rider => {
+                        const option = document.createElement('option');
+                        option.value = rider.username; // value olarak username kullan
+                        option.textContent = rider.full_name || rider.username; // Görünen metin
+                        selectRider.appendChild(option);
+                    });
+                    selectRider.disabled = false;
+                } else {
+                    selectRider.innerHTML = '<option value="">Aktif Motorcu Yok</option>';
+                    selectRider.disabled = true;
+                }
+
+            } catch (error) {
+                console.error('Motorcu listesi çekilirken ağ hatası veya JSON ayrıştırma hatası:', error);
+                alert('Motorcular yüklenemedi: Ağ bağlantı hatası veya veri işleme sorunu.');
+                selectRider.innerHTML = '<option value="">Motorcular yüklenemedi</option>';
+                selectRider.disabled = true;
+            }
+        }
         function formatPrice(price) {
             return price.toFixed(2).replace('.', ',') + ' TL';
         }
