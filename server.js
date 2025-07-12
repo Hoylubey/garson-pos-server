@@ -24,13 +24,19 @@ app.use(express.json()); // Gelen JSON isteklerini ayrıştırmak için
 app.use(express.static('public'));
 
 // 🔥 Firebase Admin SDK Başlat
-// Kendi 'serviceAccountKey.json' dosyanızın yolunu buraya girin.
-// Bu dosyanın sunucu dosyanızla aynı dizinde olması önerilir.
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-});
-console.log('Firebase Admin SDK başlatıldı.');
+// Ortam değişkeninden Firebase hizmet hesabı anahtarını oku
+try {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+    });
+    console.log('Firebase Admin SDK başlatıldı.');
+} catch (error) {
+    console.error('Firebase Admin SDK başlatılırken hata oluştu. Ortam değişkenini kontrol edin:', error.message);
+    // Uygulamanın Firebase olmadan da çalışmaya devam etmesi için burada çıkış yapmıyoruz,
+    // ancak bildirimler çalışmayacaktır.
+}
+
 
 // --- SQLite Veritabanı Entegrasyonu ---
 const dbPath = path.join(__dirname, 'garson_pos.db'); // Veritabanı dosya yolu
@@ -63,8 +69,25 @@ try {
         )
     `);
     console.log('Orders tablosu hazır.');
+
+    // Yeni sütunları ekle (IF NOT EXISTS ile mevcutsa eklemeyecek)
+    db.exec(`
+        ALTER TABLE orders ADD COLUMN riderUsername TEXT;
+        ALTER TABLE orders ADD COLUMN deliveryAddress TEXT;
+        ALTER TABLE orders ADD COLUMN paymentMethod TEXT;
+        ALTER TABLE orders ADD COLUMN assignedTimestamp TEXT;
+        ALTER TABLE orders ADD COLUMN deliveryStatus TEXT DEFAULT 'pending';
+    `);
+    console.log('Orders tablosuna yeni sütunlar eklendi (varsa).');
+
 } catch (err) {
-    console.error('Orders tablosu oluşturma hatası:', err.message);
+    // ALTER TABLE hata verirse, genellikle sütun zaten var demektir.
+    // Ancak farklı bir hata ise loglayalım.
+    if (!err.message.includes('duplicate column name')) {
+        console.error('Orders tablosu oluşturma veya güncelleme hatası:', err.message);
+    } else {
+        console.log('Orders tablosu sütunları zaten mevcut.');
+    }
 }
 
 // USERS tablosunu oluştur (eğer yoksa)
@@ -163,6 +186,48 @@ function isAdmin(req, res, next) {
     }
     console.warn('isAdmin: Token geçersiz veya yönetici yetkisi yok.');
     res.status(403).json({ message: 'Yetkisiz erişim. Yönetici yetkisi gerekli.' });
+}
+
+// Middleware: Sadece admin veya garson yetkisi olanlar için
+function isAdminOrGarson(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.warn('isAdminOrGarson: Yetkilendirme başlığı eksik veya hatalı formatta.');
+        return res.status(401).json({ message: 'Yetkilendirme başlığı eksik veya hatalı formatta.' });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    const parts = token.split('-');
+    if (parts.length === 3) {
+        const userRole = parts[1];
+        if (userRole === 'admin' || userRole === 'garson') {
+            next();
+            return;
+        }
+    }
+    console.warn('isAdminOrGarson: Token geçersiz veya yetkisiz erişim. Admin veya Garson yetkisi gerekli.');
+    res.status(403).json({ message: 'Yetkisiz erişim. Admin veya Garson yetkisi gerekli.' });
+}
+
+// Middleware: Sadece admin veya rider yetkisi olanlar için
+function isAdminOrRider(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        console.warn('isAdminOrRider: Yetkilendirme başlığı eksik veya hatalı formatta.');
+        return res.status(401).json({ message: 'Yetkilendirme başlığı eksik veya hatalı formatta.' });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    const parts = token.split('-');
+    if (parts.length === 3) {
+        const userRole = parts[1];
+        if (userRole === 'admin' || userRole === 'rider') {
+            next();
+            return;
+        }
+    }
+    console.warn('isAdminOrRider: Token geçersiz veya yetkisiz erişim. Admin veya Rider yetkisi gerekli.');
+    res.status(403).json({ message: 'Yetkisiz erişim. Admin veya Rider yetkisi gerekli.' });
 }
 
 
@@ -397,6 +462,7 @@ app.delete('/api/products/delete/:id', isAdmin, (req, res) => {
 
 // ✅ FCM TOKEN KAYDI (Kullanıcı adı ve rol bilgisiyle birlikte)
 app.post('/api/register-fcm-token', (req, res) => {
+    console.log(`[${new Date().toLocaleTimeString()}] /api/register-fcm-token endpoint'ine istek geldi. Body:`, req.body);
     const { token, username, role } = req.body; // username ve role de al
     if (!token || !username || !role) {
         console.error('FCM Token kayıt hatası: Token, username veya role eksik.', { token, username, role });
@@ -448,7 +514,7 @@ app.post('/api/set-order-status', isAdmin, (req, res) => { // isAdmin middleware
 
 // 📦 SIPARIŞ AL (API Endpoint'i)
 app.post('/api/order', async (req, res) => {
-    console.log(`[${new Date().toLocaleTimeString()}] /api/order endpoint'ine istek geldi.`); // <-- Yeni log
+    console.log(`[${new Date().toLocaleTimeString()}] /api/order endpoint'ine istek geldi.`);
     try {
         // Sipariş alım durumunu veritabanından kontrol et
         const orderStatus = db.prepare("SELECT value FROM settings WHERE key = 'isOrderTakingEnabled'").get();
@@ -489,14 +555,15 @@ app.post('/api/order', async (req, res) => {
         const sepetItemsJson = JSON.stringify(sepetItems);
 
         try {
-            db.prepare(`INSERT INTO orders (orderId, masaId, masaAdi, sepetItems, toplamFiyat, timestamp, status) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+            db.prepare(`INSERT INTO orders (orderId, masaId, masaAdi, sepetItems, toplamFiyat, timestamp, status, deliveryStatus) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
                 orderId,
                 masaId,
                 masaAdi,
                 sepetItemsJson,
                 toplamFiyat,
                 timestamp,
-                'pending'
+                'pending', // 'status' hala 'pending'
+                'pending' // Yeni 'deliveryStatus' varsayılan olarak 'pending'
             );
             console.log(`[${new Date().toLocaleTimeString()}] Yeni sipariş SQLite'a başarıyla kaydedildi. ID: ${orderId}`);
         } catch (dbError) {
@@ -512,7 +579,8 @@ app.post('/api/order', async (req, res) => {
             sepetItems: sepetItems, // Zaten obje olarak var
             toplamFiyat: toplamFiyat,
             timestamp: timestamp,
-            status: 'pending'
+            status: 'pending',
+            deliveryStatus: 'pending'
         };
 
         // Mutfak/Kasa ekranlarına yeni siparişi gönder
@@ -521,11 +589,11 @@ app.post('/api/order', async (req, res) => {
 
         // 🔔 Firebase Bildirimlerini Adminlere Gönder
         // fcmTokens objesindeki tüm kayıtlı token'ları döngüye al
-        console.log(`[${new Date().toLocaleTimeString()}] FCM Bildirimleri gönderilmeye başlanıyor. Kayıtlı token sayısı: ${Object.keys(fcmTokens).length}`); // <-- Yeni log
+        console.log(`[${new Date().toLocaleTimeString()}] FCM Bildirimleri gönderilmeye başlanıyor. Kayıtlı token sayısı: ${Object.keys(fcmTokens).length}`);
         for (const username in fcmTokens) {
             const userData = fcmTokens[username];
             if (userData.role === 'admin') { // Sadece admin rolündeki kullanıcılara gönder
-                console.log(`[${new Date().toLocaleTimeString()}] Admin rolündeki kullanıcı (${username}) için FCM bildirimi hazırlanıyor.`); // <-- Yeni log
+                console.log(`[${new Date().toLocaleTimeString()}] Admin rolündeki kullanıcı (${username}) için FCM bildirimi hazırlanıyor. Token: ${userData.token.substring(0, 10)}...`);
                 const message = {
                     notification: {
                         title: 'Yeni Sipariş!',
@@ -535,7 +603,8 @@ app.post('/api/order', async (req, res) => {
                         orderId: orderId.toString(),
                         masaAdi: masaAdi,
                         toplamFiyat: toplamFiyat.toFixed(2),
-                        sepetItems: JSON.stringify(sepetItems) // Sipariş detaylarını string olarak gönder
+                        sepetItems: JSON.stringify(sepetItems), // Sipariş detaylarını string olarak gönder
+                        type: 'new_order' // Bildirim tipini belirt
                     },
                     token: userData.token,
                 };
@@ -553,7 +622,7 @@ app.post('/api/order', async (req, res) => {
                     }
                 }
             } else {
-                console.log(`[${new Date().toLocaleTimeString()}] Kullanıcı ${username} admin rolünde değil, bildirim gönderilmiyor. Rol: ${userData.role}`); // <-- Yeni log
+                console.log(`[${new Date().toLocaleTimeString()}] Kullanıcı ${username} admin rolünde değil, bildirim gönderilmiyor. Rol: ${userData.role}`);
             }
         }
 
@@ -561,6 +630,206 @@ app.post('/api/order', async (req, res) => {
     } catch (error) {
         console.error(`[${new Date().toLocaleTimeString()}] Sipariş işlenirken veya genel bir hata oluştu:`, error);
         res.status(500).json({ error: 'Sipariş işlenirken bir hata oluştu.' });
+    }
+});
+
+// 🛵 YENİ ENDPOINT: SİPARİŞİ MOTORCUYA ATA
+app.post('/api/assign-order', isAdmin, async (req, res) => {
+    console.log(`[${new Date().toLocaleTimeString()}] /api/assign-order endpoint'ine istek geldi.`);
+    const { orderId, riderUsername, deliveryAddress, paymentMethod } = req.body;
+
+    if (!orderId || !riderUsername || !deliveryAddress || !paymentMethod) {
+        console.error('Sipariş atama hatası: Eksik veri.', req.body);
+        return res.status(400).json({ message: 'Sipariş ID, motorcu kullanıcı adı, teslimat adresi ve ödeme yöntemi gereklidir.' });
+    }
+
+    try {
+        const assignedTimestamp = new Date().toISOString();
+
+        // Siparişi veritabanında güncelle
+        const stmt = db.prepare(`
+            UPDATE orders
+            SET riderUsername = ?, deliveryAddress = ?, paymentMethod = ?, assignedTimestamp = ?, deliveryStatus = 'assigned'
+            WHERE orderId = ? AND deliveryStatus = 'pending'
+        `);
+        const info = stmt.run(riderUsername, deliveryAddress, paymentMethod, assignedTimestamp, orderId);
+
+        if (info.changes === 0) {
+            console.warn(`Sipariş (ID: ${orderId}) bulunamadı veya zaten atanmış/teslim edilmiş.`);
+            return res.status(404).json({ message: 'Sipariş bulunamadı veya zaten atanmış/teslim edilmiş.' });
+        }
+
+        // Atanan siparişi veritabanından çek (güncel haliyle)
+        const assignedOrder = db.prepare(`SELECT * FROM orders WHERE orderId = ?`).get(orderId);
+        // sepetItems JSON string olduğu için parse et
+        assignedOrder.sepetItems = JSON.parse(assignedOrder.sepetItems);
+
+        console.log(`Sipariş ${orderId} motorcu ${riderUsername} adresine (${deliveryAddress}) atandı.`);
+        io.emit('orderAssigned', assignedOrder); // Web admin ekranlarına bildir
+
+        // 🔔 Motorcuya FCM Bildirimi Gönder
+        const riderData = fcmTokens[riderUsername];
+        if (riderData && riderData.token) {
+            const message = {
+                notification: {
+                    title: 'Yeni Teslimat Siparişi!',
+                    body: `Masa ${assignedOrder.masaAdi} için yeni bir siparişiniz var. Adres: ${deliveryAddress}`,
+                },
+                data: {
+                    orderId: assignedOrder.orderId,
+                    masaAdi: assignedOrder.masaAdi,
+                    toplamFiyat: assignedOrder.toplamFiyat.toString(),
+                    deliveryAddress: assignedOrder.deliveryAddress,
+                    paymentMethod: assignedOrder.paymentMethod,
+                    sepetItems: JSON.stringify(assignedOrder.sepetItems),
+                    type: 'new_delivery_order' // Bildirim tipini belirt
+                },
+                token: riderData.token,
+            };
+
+            try {
+                const response = await admin.messaging().send(message);
+                console.log(`🔥 FCM bildirimi başarıyla motorcuya gönderildi (${riderUsername}):`, response);
+            } catch (error) {
+                console.error(`❌ FCM bildirimi motorcuya gönderilirken hata oluştu (${riderUsername}):`, error);
+                if (error.code === 'messaging/invalid-registration-token' ||
+                    error.code === 'messaging/registration-token-not-registered') {
+                    console.warn(`Geçersiz veya kayıtlı olmayan motorcu token'ı temizleniyor: ${riderUsername}`);
+                    delete fcmTokens[riderUsername];
+                }
+            }
+        } else {
+            console.warn(`Motorcu ${riderUsername} için FCM token bulunamadı veya geçersiz.`);
+        }
+
+        res.status(200).json({ message: 'Sipariş başarıyla atandı.', order: assignedOrder });
+
+    } catch (error) {
+        console.error('Sipariş atama hatası:', error);
+        res.status(500).json({ message: 'Sipariş atanırken bir hata oluştu.' });
+    }
+});
+
+// 🔄 YENİ ENDPOINT: SİPARİŞ TESLİMAT DURUMUNU GÜNCELLE
+app.post('/api/update-order-delivery-status', isAdminOrRider, async (req, res) => {
+    console.log(`[${new Date().toLocaleTimeString()}] /api/update-order-delivery-status endpoint'ine istek geldi.`);
+    const { orderId, newDeliveryStatus } = req.body; // newDeliveryStatus: 'en_route', 'delivered'
+
+    if (!orderId || !newDeliveryStatus) {
+        return res.status(400).json({ message: 'Sipariş ID ve yeni teslimat durumu gereklidir.' });
+    }
+
+    const validStatuses = ['en_route', 'delivered', 'cancelled']; // 'pending' ve 'assigned' zaten var
+    if (!validStatuses.includes(newDeliveryStatus)) {
+        return res.status(400).json({ message: 'Geçersiz teslimat durumu belirtildi.' });
+    }
+
+    try {
+        const stmt = db.prepare(`
+            UPDATE orders
+            SET deliveryStatus = ?
+            WHERE orderId = ?
+        `);
+        const info = stmt.run(newDeliveryStatus, orderId);
+
+        if (info.changes === 0) {
+            return res.status(404).json({ message: 'Sipariş bulunamadı veya durumu zaten güncel.' });
+        }
+
+        console.log(`Sipariş ${orderId} teslimat durumu güncellendi: ${newDeliveryStatus}`);
+        io.emit('orderDeliveryStatusUpdated', { orderId, newDeliveryStatus }); // Tüm istemcilere bildir
+
+        // Eğer sipariş teslim edildiyse, adminlere bildirim gönder
+        if (newDeliveryStatus === 'delivered') {
+            const deliveredOrder = db.prepare(`SELECT * FROM orders WHERE orderId = ?`).get(orderId);
+            for (const username in fcmTokens) {
+                const userData = fcmTokens[username];
+                if (userData.role === 'admin') {
+                    const message = {
+                        notification: {
+                            title: 'Sipariş Teslim Edildi!',
+                            body: `Masa ${deliveredOrder.masaAdi} için sipariş başarıyla teslim edildi.`,
+                        },
+                        data: {
+                            orderId: deliveredOrder.orderId,
+                            masaAdi: deliveredOrder.masaAdi,
+                            type: 'order_delivered'
+                        },
+                        token: userData.token,
+                    };
+                    try {
+                        await admin.messaging().send(message);
+                        console.log(`🔥 FCM bildirimi adminlere gönderildi (teslimat):`, username);
+                    } catch (error) {
+                        console.error(`❌ FCM bildirimi adminlere gönderilirken hata (teslimat):`, error);
+                    }
+                }
+            }
+        }
+
+        res.status(200).json({ message: 'Teslimat durumu başarıyla güncellendi.', orderId, newDeliveryStatus });
+
+    } catch (error) {
+        console.error('Teslimat durumu güncellenirken hata:', error);
+        res.status(500).json({ message: 'Teslimat durumu güncellenirken bir hata oluştu.' });
+    }
+});
+
+// 📜 YENİ ENDPOINT: MOTORCUYA ATANAN SİPARİŞLERİ GETİR
+app.get('/api/rider-assigned-orders/:username', isAdminOrRider, (req, res) => {
+    console.log(`[${new Date().toLocaleTimeString()}] /api/rider-assigned-orders endpoint'ine istek geldi.`);
+    const { username } = req.params;
+
+    try {
+        const orders = db.prepare(`
+            SELECT * FROM orders
+            WHERE riderUsername = ? AND (deliveryStatus = 'assigned' OR deliveryStatus = 'en_route')
+            ORDER BY assignedTimestamp DESC
+        `).all(username);
+
+        // sepetItems JSON string olduğu için parse et
+        const parsedOrders = orders.map(order => ({
+            ...order,
+            sepetItems: JSON.parse(order.sepetItems)
+        }));
+
+        res.status(200).json(parsedOrders);
+    } catch (error) {
+        console.error('Motorcuya atanan siparişler çekilirken hata:', error);
+        res.status(500).json({ message: 'Siparişler alınırken bir hata oluştu.' });
+    }
+});
+
+// 🏁 YENİ ENDPOINT: MOTORCUNUN GÜNÜNÜ SONLANDIR
+app.post('/api/rider-end-day/:username', isAdminOrRider, async (req, res) => {
+    console.log(`[${new Date().toLocaleTimeString()}] /api/rider-end-day endpoint'ine istek geldi.`);
+    const { username } = req.params;
+
+    try {
+        // Teslim edilmiş sipariş sayısını al
+        const deliveredCount = db.prepare(`
+            SELECT COUNT(*) AS count FROM orders
+            WHERE riderUsername = ? AND deliveryStatus = 'delivered'
+            AND assignedTimestamp >= ?
+        `).get(username, new Date().toISOString().split('T')[0]); // Bugün teslim edilenler
+
+        // Atanmış ve yolda olan tüm siparişleri 'cancelled' olarak işaretle (veya başka bir uygun durum)
+        db.prepare(`
+            UPDATE orders
+            SET deliveryStatus = 'cancelled', riderUsername = NULL, deliveryAddress = NULL, paymentMethod = NULL, assignedTimestamp = NULL
+            WHERE riderUsername = ? AND (deliveryStatus = 'assigned' OR deliveryStatus = 'en_route')
+        `).run(username);
+
+        io.emit('riderDayEnded', { username, deliveredCount: deliveredCount.count }); // Web admin ekranlarına bildir
+
+        res.status(200).json({
+            message: `Motorcu ${username} günü sonlandırdı.`,
+            totalDeliveredPackagesToday: deliveredCount.count
+        });
+
+    } catch (error) {
+        console.error('Motorcunun gününü sonlandırırken hata:', error);
+        res.status(500).json({ message: 'Günü sonlandırırken bir hata oluştu.' });
     }
 });
 
@@ -577,7 +846,7 @@ io.on('connection', (socket) => {
     // Mutfak/Kasa Ekranı bağlandığında mevcut siparişleri SQLite'tan çek ve gönder
     try {
         const activeOrders = db.prepare(`SELECT * FROM orders WHERE status = 'pending' ORDER BY timestamp ASC`).all();
-        // Veritabanından gelen sepetItems JSON string olduğu için parse etmeliyiz
+        // sepetItems JSON string olduğu için parse etmeliyiz
         const parsedOrders = activeOrders.map(order => {
             return {
                 ...order,
