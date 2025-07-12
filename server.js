@@ -268,6 +268,20 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
+app.get('/api/riders', isAdminOrGarson, (req, res) => { // Admin veya Garson yetkisi gerekli
+    try {
+        // Sadece 'rider' rolündeki kullanıcıları ve şu anda aktif olanları (fcmTokens'ta kayıtlı olanları) döndür
+        const riders = db.prepare("SELECT username, full_name FROM users WHERE role = 'rider'").all();
+
+        const activeRiders = riders.filter(rider => fcmTokens[rider.username] && fcmTokens[rider.username].token);
+
+        console.log(`[${new Date().toLocaleTimeString()}] /api/riders endpoint'inden ${activeRiders.length} aktif motorcu döndürüldü.`);
+        res.status(200).json(activeRiders);
+    } catch (error) {
+        console.error('Aktif motorcular çekilirken hata:', error);
+        res.status(500).json({ message: 'Aktif motorcular alınırken bir hata oluştu.' });
+    }
+});
 
 // Çalışan (Motorcu) Kayıt Endpoint'i
 app.post('/api/register-employee', isAdmin, async (req, res) => { // isAdmin middleware eklendi
