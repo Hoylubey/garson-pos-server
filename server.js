@@ -69,7 +69,7 @@ try {
         ALTER TABLE orders ADD COLUMN paymentMethod TEXT;
         ALTER TABLE orders ADD COLUMN assignedTimestamp TEXT;
         ALTER TABLE orders ADD COLUMN deliveryStatus TEXT DEFAULT 'pending';
-        ALTER TABLE orders ADD COLUMN deliveredTimestamp TEXT; -- YENİ SÜTUN EKLENDİ
+        ALTER TABLE orders ADD COLUMN deliveredTimestamp TEXT;
     `);
     console.log('Orders tablosuna yeni sütunlar eklendi (varsa).');
 
@@ -673,12 +673,16 @@ app.post('/api/update-order-delivery-status', isAdminOrRider, async (req, res) =
     try {
         let updateQuery = `UPDATE orders SET deliveryStatus = ?`;
         const params = [newDeliveryStatus];
+        let currentDeliveredTimestamp = null; // Log için tanımlandı
 
         if (newDeliveryStatus === 'delivered') {
-            updateQuery += `, deliveredTimestamp = ?`; // YENİ: deliveredTimestamp güncelleniyor
-            params.push(new Date().toISOString());
+            currentDeliveredTimestamp = new Date().toISOString(); // Yakalanan zaman damgası
+            updateQuery += `, deliveredTimestamp = ?`;
+            params.push(currentDeliveredTimestamp);
+            console.log(`[${new Date().toLocaleTimeString()}] Sipariş ${orderId} 'delivered' olarak işaretlendi. deliveredTimestamp: ${currentDeliveredTimestamp}`);
         } else {
-            updateQuery += `, deliveredTimestamp = NULL`; // Durum delivered değilse temizle
+            updateQuery += `, deliveredTimestamp = NULL`;
+            console.log(`[${new Date().toLocaleTimeString()}] Sipariş ${orderId} durumu '${newDeliveryStatus}' olarak değiştirildi. deliveredTimestamp temizlendi.`);
         }
 
         updateQuery += ` WHERE orderId = ?`;
@@ -688,10 +692,11 @@ app.post('/api/update-order-delivery-status', isAdminOrRider, async (req, res) =
         const info = stmt.run(...params);
 
         if (info.changes === 0) {
+            console.warn(`[${new Date().toLocaleTimeString()}] Sipariş (ID: ${orderId}) bulunamadı veya durumu zaten güncel. Değişiklik yapılmadı.`);
             return res.status(404).json({ message: 'Sipariş bulunamadı veya durumu zaten güncel.' });
         }
 
-        console.log(`Sipariş ${orderId} teslimat durumu güncellendi: ${newDeliveryStatus}`);
+        console.log(`[${new Date().toLocaleTimeString()}] Sipariş ${orderId} teslimat durumu güncellendi: ${newDeliveryStatus}`);
         io.emit('orderDeliveryStatusUpdated', { orderId, newDeliveryStatus });
 
         if (newDeliveryStatus === 'delivered') {
@@ -732,9 +737,10 @@ app.post('/api/update-order-delivery-status', isAdminOrRider, async (req, res) =
 // YENİ ENDPOINT: Motorcunun bugün teslim ettiği paket sayısını getir
 app.get('/api/rider/delivered-count/:username', isAdminOrRider, (req, res) => {
     const { username } = req.params;
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD formatı
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD formatı (UTC)
 
     try {
+        console.log(`[${new Date().toLocaleTimeString()}] /api/rider/delivered-count/${username} isteği alındı. Bugünün tarihi (UTC): ${today}`);
         const deliveredCount = db.prepare(`
             SELECT COUNT(*) AS count FROM orders
             WHERE riderUsername = ? AND deliveryStatus = 'delivered' AND substr(deliveredTimestamp, 1, 10) = ?
@@ -743,7 +749,7 @@ app.get('/api/rider/delivered-count/:username', isAdminOrRider, (req, res) => {
         console.log(`[${new Date().toLocaleTimeString()}] Motorcu ${username} için bugün teslim edilen paket sayısı: ${deliveredCount.count}`);
         res.status(200).json({ deliveredCount: deliveredCount.count });
     } catch (error) {
-        console.error(`Motorcu ${username} için teslim edilen paket sayısı çekilirken hata:`, error);
+        console.error(`[${new Date().toLocaleTimeString()}] Motorcu ${username} için teslim edilen paket sayısı çekilirken hata:`, error);
         res.status(500).json({ message: 'Teslim edilen paket sayısı alınırken bir hata oluştu.' });
     }
 });
@@ -760,6 +766,7 @@ app.post('/api/rider/end-day', isAdminOrRider, async (req, res) => {
     try {
         // Günü sonlandırmadan önce bugünün teslim edilen paket sayısını al
         const today = new Date().toISOString().split('T')[0];
+        console.log(`[${new Date().toLocaleTimeString()}] Günü sonlandırılıyor. Bugünün tarihi (UTC) teslimat sayımı için: ${today}`);
         const deliveredCountResult = db.prepare(`
             SELECT COUNT(*) AS count FROM orders
             WHERE riderUsername = ? AND deliveryStatus = 'delivered' AND substr(deliveredTimestamp, 1, 10) = ?
@@ -772,12 +779,13 @@ app.post('/api/rider/end-day', isAdminOrRider, async (req, res) => {
             SET deliveryStatus = 'cancelled', riderUsername = NULL, deliveryAddress = NULL, paymentMethod = NULL, assignedTimestamp = NULL, deliveredTimestamp = NULL
             WHERE riderUsername = ? AND (deliveryStatus = 'assigned' OR deliveryStatus = 'en_route')
         `).run(username);
+        console.log(`[${new Date().toLocaleTimeString()}] Motorcu ${username} için teslim edilmeyen siparişler iptal edildi.`);
 
         io.emit('riderDayEnded', { username, deliveredCount: deliveredCount });
 
         res.status(200).json({
             message: `Motorcu ${username} günü sonlandırdı.`,
-            totalDeliveredPackagesToday: deliveredCount
+            totalDeliveredPackagesToday: deliveredCount // Frontend'in beklediği anahtar adı
         });
 
     } catch (error) {
