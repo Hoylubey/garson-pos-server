@@ -23,7 +23,7 @@
             display: flex;
             flex-direction: column;
             gap: 20px;
-            min-height: 100vh; /* Sayfanın en az viewport yüksekliği kadar olmasını sağlar */
+            min-height: 100vh;
         }
         .container {
             max-width: 1200px;
@@ -32,7 +32,7 @@
             background-color: #ffffff;
             border-radius: 12px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            flex-grow: 1; /* Konteynerin kalan alanı doldurmasını sağlar */
+            flex-grow: 1;
         }
         .header {
             background-color: #2c3e50;
@@ -311,7 +311,7 @@
             gap: 10px;
             margin-top: 15px;
         }
-        .pay-button, .print-button, .assign-rider-btn { /* assign-rider-btn eklendi */
+        .pay-button, .print-button, .assign-rider-btn {
             flex: 1;
             color: white;
             border: none;
@@ -326,8 +326,8 @@
         .pay-button:hover { background-color: #218838; }
         .print-button { background-color: #007bff; }
         .print-button:hover { background-color: #0056b3; }
-        .assign-rider-btn { background-color: #f39c12; } /* Turuncu */
-        .assign-rider-btn:hover { background-color: #e67e22; } /* Koyu Turuncu */
+        .assign-rider-btn { background-color: #f39c12; }
+        .assign-rider-btn:hover { background-color: #e67e22; }
 
 
         #order-status-box {
@@ -513,7 +513,7 @@
 
         .login-box input[type="text"],
         .login-box input[type="password"] {
-            width: calc(100% - 24px); /* Padding ve border için */
+            width: calc(100% - 24px);
             padding: 12px;
             margin-bottom: 20px;
             border: 1px solid #ddd;
@@ -577,10 +577,10 @@
         }
 
         .header-buttons-top #order-status-toggle {
-            background-color: #28a745; /* Varsayılan yeşil */
+            background-color: #28a745;
         }
         .header-buttons-top #order-status-toggle.disabled {
-            background-color: #dc3545; /* Kırmızı */
+            background-color: #dc3545;
         }
 
         .header-buttons-top #logoutButton {
@@ -680,18 +680,15 @@
     </div>
 
     <script>
-        // Global Değişkenler
         const SOCKET_SERVER_URL = 'https://garson-pos-server.onrender.com';
         const API_BASE_URL = 'https://garson-pos-server.onrender.com';
 
-        // io'nun tanımlı olup olmadığını kontrol et
         if (typeof io === 'undefined') {
             console.error("Socket.IO kütüphanesi yüklenemedi. 'io' tanımlı değil.");
             alert("Uygulama başlatılamadı: Socket.IO kütüphanesi yüklenemedi. Lütfen internet bağlantınızı kontrol edin veya sunucu yöneticinize başvurun.");
         }
         const socket = io(SOCKET_SERVER_URL);
 
-        // DOM Referansları
         const loginContainer = document.getElementById('loginContainer');
         const loginForm = document.getElementById('loginForm');
         const loginError = document.getElementById('loginError');
@@ -716,12 +713,9 @@
 
         let map;
         const riderMarkers = {};
-        const orders = {}; // Siparişleri saklamak için obje
-        let currentOrderToAssign = null; // Atanacak mevcut sipariş
+        const orders = {};
+        let currentOrderToAssign = null;
 
-        // --- Fonksiyon Tanımlamaları (Yukarıya taşındı) ---
-
-        // AUTHENTICATION FONKSİYONLARI
         function getAuthToken() {
             return localStorage.getItem('authToken');
         }
@@ -812,7 +806,6 @@
             }
         }
 
-        // HARİTA VE KONUM İŞLEMLERİ
         function initMap() {
             const initialLat = 41.0082;
             const initialLng = 28.9784;
@@ -882,7 +875,6 @@
             activeRiderCountEl.textContent = `(${count} Aktif)`;
         }
 
-        // SİPARİŞ ALIM DURUMU YÖNETİMİ
         async function fetchOrderReceptionStatus() {
             const authToken = getAuthToken();
             if (!authToken) {
@@ -951,7 +943,6 @@
             }
         }
 
-        // SİPARİŞLERİ RENDER ETME
         function renderOrders() {
             const sortedOrders = Object.values(orders).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             ordersContainer.innerHTML = '';
@@ -962,6 +953,14 @@
             }
 
             sortedOrders.forEach(order => {
+                // Problem 3 için: Sadece ödendi veya iptal edildi ise kartı gösterme (veya soluklaştır)
+                // Kullanıcının isteği: "web den ödendi olarak işaretlendiğinde uygulamadan kaybolsun"
+                // Yani, deliveryStatus ne olursa olsun, status 'paid' veya 'cancelled' değilse göster.
+                if (order.status === 'paid' || order.status === 'cancelled') {
+                    // console.log(`Order ${order.orderId} is paid/cancelled, skipping render.`);
+                    return; // Ödendi veya iptal edildi ise render etme
+                }
+
                 const orderCard = document.createElement('div');
                 orderCard.id = `order-${order.orderId}`;
                 orderCard.className = `card ${getStatusClass(order.deliveryStatus || order.status)}`;
@@ -978,7 +977,13 @@
                     `;
                 }
 
-                const showAssignButton = (order.deliveryStatus === 'pending' && order.status !== 'paid');
+                // Problem 2 ve 3 için: Motorcuya atanmış olsa bile "Motorcuya Gönder" butonu görünür olmalı
+                // eğer sipariş henüz ödenmediyse.
+                // Bu buton sadece deliveryStatus 'pending' ise görünür olmalıydı.
+                // Ancak kullanıcı "web den ödendi olarak işaretlendiğinde uygulamadan kaybolsun" dediği için
+                // eğer sipariş henüz ödenmediyse (status !== 'paid'), buton görünsün.
+                const showAssignButton = (order.status !== 'paid' && order.status !== 'cancelled');
+
 
                 orderCard.innerHTML = `
                     <h3 class="text-lg font-bold mb-2">Masa: ${order.masaAdi} (ID: ${order.masaId})</h3>
@@ -1005,6 +1010,7 @@
                 `;
                 ordersContainer.prepend(orderCard);
             });
+            console.log('Current orders after render:', Object.values(orders).filter(o => o.status !== 'paid' && o.status !== 'cancelled').map(o => ({id: o.orderId.substring(0,8), status: o.status, deliveryStatus: o.deliveryStatus})));
         }
 
         function formatPrice(price) {
@@ -1040,16 +1046,6 @@
                 default: return status;
             }
         }
-
-        // Bu fonksiyon artık renderOrders tarafından çağrılacak, doğrudan kullanılmayacak.
-        // function removeOrderFromDisplay(orderId) {
-        //     const orderCard = document.getElementById(`order-${orderId}`);
-        //     if (orderCard) {
-        //         orderCard.remove();
-        //         delete orders[orderId];
-        //         renderOrders();
-        //     }
-        // }
 
         function markOrderAsPaid(orderId) {
             socket.emit('orderPaid', { orderId: orderId });
@@ -1092,7 +1088,6 @@
             printWindow.document.write('<!DOCTYPE html><html><head><title>Fiş - ' + order.masaAdi + '</title>');
             printWindow.document.write('<style>');
             printWindow.document.write(`
-                /* POS Fişi Stilleri - YAZDIRMA PENCERESİ İÇİN */
                 @page {
                     size: 58mm auto;
                     margin: 0;
@@ -1139,7 +1134,6 @@
             printWindow.print();
         }
 
-        // MOTORCUYA SİPARİŞ ATAMA MODALI FONKSİYONLARI
         async function openAssignOrderModal(orderId) {
             currentOrderToAssign = orders[orderId];
             if (!currentOrderToAssign) {
@@ -1237,6 +1231,10 @@
                 if (response.ok) {
                     alert('Sipariş başarıyla motorcuya atandı!');
                     closeAssignOrderModal();
+                    // Sipariş atandığında web panelinde kalmalı (Problem 3)
+                    // Sadece ödendiğinde veya iptal edildiğinde kaybolmalı.
+                    // Bu yüzden burada orders objesinden kaldırmıyoruz veya renderOrders'ı çağırmıyoruz.
+                    // Socket.IO olayı 'orderAssigned' ile güncellenecek.
                 } else {
                     alert(`Sipariş atama hatası: ${data.message || response.statusText}`);
                 }
@@ -1246,7 +1244,6 @@
             }
         }
 
-        // API İSTEKLERİ
         async function fetchCurrentActiveOrders() {
             const authToken = getAuthToken();
             if (!authToken) {
@@ -1266,6 +1263,7 @@
                 }
 
                 const fetchedOrders = await response.json();
+                console.log('fetchCurrentActiveOrders - Fetched orders:', fetchedOrders.map(o => ({id: o.orderId.substring(0,8), status: o.status, deliveryStatus: o.deliveryStatus})));
                 Object.keys(orders).forEach(key => delete orders[key]);
                 fetchedOrders.forEach(order => {
                     orders[order.orderId] = order;
@@ -1319,8 +1317,6 @@
             }
         }
 
-
-        // --- Olay Dinleyicileri ve Başlangıç Kodları (En Sona Taşındı) ---
         document.addEventListener('DOMContentLoaded', () => {
             loginForm.addEventListener('submit', handleLogin);
             logoutButton.addEventListener('click', performLogout);
@@ -1349,7 +1345,6 @@
             }
         });
 
-        // Socket.IO Olay Dinleyicileri
         socket.on('connect', () => {
             console.log('Socket.IO Bağlandı:', socket.id);
             if (getAuthToken()) {
@@ -1377,7 +1372,7 @@
         });
 
         socket.on('newOrder', (order) => {
-            console.log('Yeni sipariş alındı:', order);
+            console.log('Yeni sipariş alındı (Socket.IO):', order);
             orders[order.orderId] = order;
             renderOrders();
             notificationSound.play();
@@ -1388,37 +1383,31 @@
         });
 
         socket.on('orderPaidConfirmation', (data) => {
-            console.log('Sipariş ödendi onayı alındı:', data.orderId);
+            console.log('Sipariş ödendi onayı alındı (Socket.IO):', data.orderId);
             if (orders[data.orderId]) {
                 orders[data.orderId].status = 'paid';
-                renderOrders();
+                renderOrders(); // Ödendiğinde listeden kaldırılması için yeniden render et
             }
         });
 
-        socket.on('removeOrderFromDisplay', (data) => {
-            console.log('Sipariş ekrandan kaldırılıyor:', data.orderId);
-            removeOrderFromDisplay(data.orderId);
-        });
-
         socket.on('orderTakingStatusChanged', (data) => {
-            console.log('Sipariş alım durumu değişti:', data.enabled);
+            console.log('Sipariş alım durumu değişti (Socket.IO):', data.enabled);
             updateOrderReceptionButtonUI(data.enabled);
         });
 
         socket.on('currentActiveOrders', (currentOrders) => {
-            console.log('Mevcut aktif siparişler alındı:', currentOrders.length);
-            // ordersContainer.innerHTML = ''; // Bu satır renderOrders içinde zaten var
-            Object.keys(orders).forEach(key => delete orders[key]); // Mevcutları temizle
+            console.log('Mevcut aktif siparişler alındı (Socket.IO):', currentOrders.length);
+            console.log('currentActiveOrders - Received orders:', currentOrders.map(o => ({id: o.orderId.substring(0,8), status: o.status, deliveryStatus: o.deliveryStatus})));
+            Object.keys(orders).forEach(key => delete orders[key]);
             currentOrders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             currentOrders.forEach(order => {
                 orders[order.orderId] = order;
-                // renderOrder(order); // Bu çağrı kaldırıldı, renderOrders() tüm listeyi çizecek
             });
-            renderOrders(); // Tüm siparişleri burada bir kez render et
+            renderOrders();
         });
 
         socket.on('newRiderLocation', (rider) => {
-            console.log('Yeni motorcu konumu alındı:', rider.username, rider.latitude, rider.longitude);
+            console.log('Yeni motorcu konumu alındı (Socket.IO):', rider.username, rider.latitude, rider.longitude);
             updateRiderLocationOnMap(rider);
             updateActiveRiderCount();
         });
@@ -1447,7 +1436,11 @@
             for (const username in riderMarkers) {
                 if (!activeUsernames.has(username)) {
                     console.log(`Motorcu ${username} artık aktif değil. Haritadan kaldırılıyor.`);
-                    removeRiderFromDisplay(username);
+                    // removeRiderFromDisplay(username); // Bu fonksiyon artık kullanılmıyor, marker'ı direkt kaldırıyoruz
+                    if (riderMarkers[username]) {
+                        riderMarkers[username].remove();
+                        delete riderMarkers[username];
+                    }
                 }
             }
 
@@ -1465,14 +1458,18 @@
 
         socket.on('riderDisconnected', (username) => {
             console.log(`riderDisconnected olayı alındı: ${username}`);
-            removeRiderFromDisplay(username);
+            if (riderMarkers[username]) {
+                riderMarkers[username].remove();
+                delete riderMarkers[username];
+            }
+            updateActiveRiderCount();
         });
 
         socket.on('orderAssigned', (order) => {
             console.log('Sipariş atandı (Socket.IO):', order.orderId, 'Motorcu:', order.riderUsername);
             if (orders[order.orderId]) {
-                orders[order.orderId] = order;
-                renderOrders();
+                orders[order.orderId] = order; // Mevcut siparişi güncelle
+                renderOrders(); // Yeniden çiz
             }
         });
 
@@ -1480,13 +1477,17 @@
             console.log('Sipariş teslimat durumu güncellendi (Socket.IO):', data.orderId, 'Yeni Durum:', data.newDeliveryStatus);
             if (orders[data.orderId]) {
                 orders[data.orderId].deliveryStatus = data.newDeliveryStatus;
-                renderOrders();
+                renderOrders(); // Durum değiştiğinde yeniden çiz
             }
         });
 
         socket.on('riderDayEnded', (data) => {
             console.log('Motorcu günü sonlandırdı (Socket.IO):', data.username, 'Teslim Edilen Paket:', data.deliveredCount);
-            removeRiderFromDisplay(data.username);
+            if (data.username && riderMarkers[data.username]) {
+                riderMarkers[data.username].remove();
+                delete riderMarkers[data.username];
+            }
+            updateActiveRiderCount();
             alert(`${data.username} adlı motorcu gününü sonlandırdı. Bugün ${data.deliveredCount} paket teslim etti.`);
         });
     </script>
