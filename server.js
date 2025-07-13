@@ -62,7 +62,6 @@ try {
     `);
     console.log('Orders tablosu hazır.');
 
-    // Yeni sütunları ekle, zaten varsa hata vermez
     db.exec(`
         ALTER TABLE orders ADD COLUMN riderUsername TEXT;
         ALTER TABLE orders ADD COLUMN deliveryAddress TEXT;
@@ -673,10 +672,10 @@ app.post('/api/update-order-delivery-status', isAdminOrRider, async (req, res) =
     try {
         let updateQuery = `UPDATE orders SET deliveryStatus = ?`;
         const params = [newDeliveryStatus];
-        let currentDeliveredTimestamp = null; // Log için tanımlandı
+        let currentDeliveredTimestamp = null;
 
         if (newDeliveryStatus === 'delivered') {
-            currentDeliveredTimestamp = new Date().toISOString(); // Yakalanan zaman damgası
+            currentDeliveredTimestamp = new Date().toISOString();
             updateQuery += `, deliveredTimestamp = ?`;
             params.push(currentDeliveredTimestamp);
             console.log(`[${new Date().toLocaleTimeString()}] Sipariş ${orderId} 'delivered' olarak işaretlendi. deliveredTimestamp: ${currentDeliveredTimestamp}`);
@@ -734,16 +733,18 @@ app.post('/api/update-order-delivery-status', isAdminOrRider, async (req, res) =
     }
 });
 
-// YENİ ENDPOINT: Motorcunun bugün teslim ettiği paket sayısını getir
 app.get('/api/rider/delivered-count/:username', isAdminOrRider, (req, res) => {
     const { username } = req.params;
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD formatı (UTC)
+    // Bugünün tarihini UTC olarak al ve sadece tarih kısmını kullan (YYYY-MM-DD)
+    const today = new Date().toISOString().split('T')[0]; 
 
     try {
         console.log(`[${new Date().toLocaleTimeString()}] /api/rider/delivered-count/${username} isteği alındı. Bugünün tarihi (UTC): ${today}`);
         const deliveredCount = db.prepare(`
             SELECT COUNT(*) AS count FROM orders
-            WHERE riderUsername = ? AND deliveryStatus = 'delivered' AND substr(deliveredTimestamp, 1, 10) = ?
+            WHERE riderUsername = ? 
+            AND deliveryStatus = 'delivered' 
+            AND substr(deliveredTimestamp, 1, 10) = ?
         `).get(username, today);
         
         console.log(`[${new Date().toLocaleTimeString()}] Motorcu ${username} için bugün teslim edilen paket sayısı: ${deliveredCount.count}`);
@@ -764,7 +765,6 @@ app.post('/api/rider/end-day', isAdminOrRider, async (req, res) => {
     }
 
     try {
-        // Günü sonlandırmadan önce bugünün teslim edilen paket sayısını al
         const today = new Date().toISOString().split('T')[0];
         console.log(`[${new Date().toLocaleTimeString()}] Günü sonlandırılıyor. Bugünün tarihi (UTC) teslimat sayımı için: ${today}`);
         const deliveredCountResult = db.prepare(`
@@ -772,8 +772,9 @@ app.post('/api/rider/end-day', isAdminOrRider, async (req, res) => {
             WHERE riderUsername = ? AND deliveryStatus = 'delivered' AND substr(deliveredTimestamp, 1, 10) = ?
         `).get(username, today);
         const deliveredCount = deliveredCountResult.count;
+        console.log(`[${new Date().toLocaleTimeString()}] Günü sonlandırma öncesi hesaplanan teslimat sayısı: ${deliveredCount}`);
 
-        // Teslim edilmeyen siparişleri iptal et
+
         db.prepare(`
             UPDATE orders
             SET deliveryStatus = 'cancelled', riderUsername = NULL, deliveryAddress = NULL, paymentMethod = NULL, assignedTimestamp = NULL, deliveredTimestamp = NULL
@@ -785,7 +786,7 @@ app.post('/api/rider/end-day', isAdminOrRider, async (req, res) => {
 
         res.status(200).json({
             message: `Motorcu ${username} günü sonlandırdı.`,
-            totalDeliveredPackagesToday: deliveredCount // Frontend'in beklediği anahtar adı
+            totalDeliveredPackagesToday: deliveredCount
         });
 
     } catch (error) {
@@ -794,6 +795,8 @@ app.post('/api/rider/end-day', isAdminOrRider, async (req, res) => {
     }
 });
 
+// ÖNEMLİ: Bu genel route, diğer API endpoint'lerinden sonra gelmeli.
+// Aksi takdirde, tüm API istekleri index.html'e yönlendirilebilir.
 app.get('/', (req, res) => {
     res.sendFile(__dirname + '/public/index.html');
 });
