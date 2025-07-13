@@ -735,7 +735,6 @@ app.post('/api/update-order-delivery-status', isAdminOrRider, async (req, res) =
 
 app.get('/api/rider/delivered-count/:username', isAdminOrRider, (req, res) => {
     const { username } = req.params;
-    // Bugünün tarihini UTC olarak al ve sadece tarih kısmını kullan (YYYY-MM-DD)
     const today = new Date().toISOString().split('T')[0]; 
 
     try {
@@ -752,6 +751,29 @@ app.get('/api/rider/delivered-count/:username', isAdminOrRider, (req, res) => {
     } catch (error) {
         console.error(`[${new Date().toLocaleTimeString()}] Motorcu ${username} için teslim edilen paket sayısı çekilirken hata:`, error);
         res.status(500).json({ message: 'Teslim edilen paket sayısı alınırken bir hata oluştu.' });
+    }
+});
+
+// YENİ: Motorcuya atanan aktif siparişleri getiren endpoint
+app.get('/api/rider/orders/:username', isAdminOrRider, (req, res) => {
+    const { username } = req.params;
+    console.log(`[${new Date().toLocaleTimeString()}] /api/rider/orders/${username} isteği alındı.`);
+    try {
+        const orders = db.prepare(`
+            SELECT * FROM orders
+            WHERE riderUsername = ? AND (deliveryStatus = 'assigned' OR deliveryStatus = 'en_route')
+            ORDER BY assignedTimestamp DESC
+        `).all(username);
+
+        const parsedOrders = orders.map(order => ({
+            ...order,
+            sepetItems: JSON.parse(order.sepetItems)
+        }));
+        console.log(`[${new Date().toLocaleTimeString()}] Motorcu ${username} için ${parsedOrders.length} atanmış sipariş döndürüldü.`);
+        res.status(200).json(parsedOrders);
+    } catch (error) {
+        console.error(`[${new Date().toLocaleTimeString()}] Motorcu ${username} için atanmış siparişler çekilirken hata:`, error);
+        res.status(500).json({ message: 'Atanmış siparişler alınırken bir hata oluştu.' });
     }
 });
 
@@ -795,11 +817,33 @@ app.post('/api/rider/end-day', isAdminOrRider, async (req, res) => {
     }
 });
 
-// ÖNEMLİ: Bu genel route, diğer API endpoint'lerinden sonra gelmeli.
+app.get('/api/riders-locations', (req, res) => {
+    try {
+        const activeRiders = Object.values(riderLocations).map(rider => ({
+            id: rider.id,
+            username: rider.username,
+            name: rider.full_name,
+            fullName: rider.full_name,
+            latitude: rider.latitude,
+            longitude: rider.longitude,
+            timestamp: rider.timestamp,
+            speed: rider.speed,
+            bearing: rider.bearing,
+            accuracy: rider.accuracy
+        }));
+        res.json(activeRiders);
+    } catch (error) {
+        console.error('Motorcu konumları çekilirken hata:', error);
+        res.status(500).json({ message: 'Motorcu konumları alınırken bir hata oluştu.' });
+    }
+});
+
+// ÖNEMLİ: Bu genel route, tüm diğer API endpoint'lerinden sonra gelmelidir.
 // Aksi takdirde, tüm API istekleri index.html'e yönlendirilebilir.
 app.get('/', (req, res) => {
     res.sendFile(__dirname + '/public/index.html');
 });
+
 
 io.on('connection', (socket) => {
     console.log(`[${new Date().toLocaleTimeString()}] Yeni bağlantı: ${socket.id}`);
@@ -894,26 +938,6 @@ io.on('connection', (socket) => {
     });
 });
 
-app.get('/api/riders-locations', (req, res) => {
-    try {
-        const activeRiders = Object.values(riderLocations).map(rider => ({
-            id: rider.id,
-            username: rider.username,
-            name: rider.full_name,
-            fullName: rider.full_name,
-            latitude: rider.latitude,
-            longitude: rider.longitude,
-            timestamp: rider.timestamp,
-            speed: rider.speed,
-            bearing: rider.bearing,
-            accuracy: rider.accuracy
-        }));
-        res.json(activeRiders);
-    } catch (error) {
-        console.error('Motorcu konumları çekilirken hata:', error);
-        res.status(500).json({ message: 'Motorcu konumları alınırken bir hata oluştu.' });
-    }
-});
 
 server.listen(PORT, () => {
     console.log(`🟢 Sunucu ayakta: http://localhost:${PORT}`);
