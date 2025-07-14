@@ -257,8 +257,8 @@ function isAdminOrRiderMiddleware(req, res, next) {
     const decodedToken = parseToken(token);
 
     if (decodedToken && (decodedToken.role === 'admin' || decodedToken.role === 'rider')) {
-        req.user = { uid: decodedToken.id, role: decodedToken.role };
-        console.log(`[isAdminOrRiderMiddleware] Yetkili admin/rider erişimi: Kullanıcı ID: ${req.user.uid}, Rol: ${req.user.role}`);
+        req.user = { uid: decodedToken.id, role: decodedToken.role, username: decodedToken.id }; // Token'dan username'i al
+        console.log(`[isAdminOrRiderMiddleware] Yetkili admin/rider erişimi: Kullanıcı ID: ${req.user.uid}, Rol: ${req.user.role}, Username: ${req.user.username}`);
         next();
         return;
     }
@@ -289,7 +289,7 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
         }
 
-        const token = `${user.id}.${user.role}.${Date.now()}`; 
+        const token = `${user.username}.${user.role}.${Date.now()}`; // Token'a username'i ekle
         console.log(`[Login] Başarılı giriş: ${username}, Rol: ${user.role}, Token: ${token.substring(0, 20)}...`);
 
         res.status(200).json({
@@ -365,7 +365,7 @@ app.post('/api/login-employee', async (req, res) => {
             return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
         }
 
-        const token = `${user.id}.${user.role}.${Date.now()}`;
+        const token = `${user.username}.${user.role}.${Date.now()}`;
         res.status(200).json({
             message: 'Giriş başarılı!',
             token: token,
@@ -397,7 +397,7 @@ app.post('/api/login-admin', async (req, res) => {
             return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
         }
 
-        const token = `${user.id}.${user.role}.${Date.now()}`;
+        const token = `${user.username}.${user.role}.${Date.now()}`;
         res.status(200).json({
             message: 'Yönetici girişi başarılı!',
             token: token,
@@ -861,14 +861,14 @@ app.get('/api/riders', isAdminOrGarsonOrRiderMiddleware, (req, res) => {
 // 🛵 RIDER ENDPOINTS
 app.post('/api/update-order-delivery-status', isAdminOrRiderMiddleware, async (req, res) => {
     console.log(`[${new Date().toLocaleTimeString()}] /api/update-order-delivery-status endpoint'ine istek geldi. Body:`, req.body);
-    const { orderId, newDeliveryStatus, username } = req.body;
+    const { orderId, newDeliveryStatus, username } = req.body; // username'i body'den al
 
-    // Middleware'den gelen kullanıcı bilgisi
-    const requestingUser = req.user; 
-    console.log(`[${new Date().toLocaleTimeString()}] İstek yapan kullanıcı: ${requestingUser.username || requestingUser.uid} (Rol: ${requestingUser.role})`);
+    // Middleware'den gelen kullanıcı bilgisi (token'dan gelen username)
+    const requestingUserUsername = req.user.username; 
+    console.log(`[${new Date().toLocaleTimeString()}] İstek yapan kullanıcı (token'dan): ${requestingUserUsername} (Rol: ${req.user.role})`);
 
     if (!orderId || !newDeliveryStatus || !username) {
-        console.error('Sipariş teslimat durumu güncelleme hatası: Eksik veri.', req.body);
+        console.error('Sipariş teslimat durumu güncelleme hatası: Eksik veri. Gelen body:', req.body);
         return res.status(400).json({ message: 'Sipariş ID, yeni teslimat durumu ve kullanıcı adı gereklidir.' });
     }
 
@@ -879,18 +879,19 @@ app.post('/api/update-order-delivery-status', isAdminOrRiderMiddleware, async (r
     }
 
     try {
-        // Sadece atanmış motorcu veya adminin bu siparişi güncelleyebildiğinden emin ol
+        // Siparişin mevcut durumunu ve atanan motorcuyu kontrol et
         const currentOrder = db.prepare(`SELECT riderUsername, status, deliveryStatus FROM orders WHERE orderId = ?`).get(orderId);
         if (!currentOrder) {
             console.warn(`Sipariş (ID: ${orderId}) bulunamadı.`);
             return res.status(404).json({ message: 'Sipariş bulunamadı.' });
         }
 
-        if (requestingUser.role === 'rider' && currentOrder.riderUsername !== username) {
-            console.warn(`Motorcu ${username} yetkisiz sipariş güncelleme denemesi: Sipariş ${orderId} motorcu ${currentOrder.riderUsername} atanmış.`);
+        // Yetkilendirme kontrolü: Sadece atanan motorcu veya admin güncelleyebilir
+        if (req.user.role === 'rider' && currentOrder.riderUsername !== requestingUserUsername) {
+            console.warn(`Motorcu ${requestingUserUsername} yetkisiz sipariş güncelleme denemesi: Sipariş ${orderId} motorcu ${currentOrder.riderUsername} atanmış.`);
             return res.status(403).json({ message: 'Bu siparişi güncellemeye yetkiniz yok.' });
         }
-        // Admin her zaman güncelleyebilir, motorcu sadece kendisine atanmış siparişi güncelleyebilir.
+        // Admin her zaman güncelleyebilir.
 
         let updateQuery = `UPDATE orders SET deliveryStatus = ?`;
         const params = [newDeliveryStatus];
@@ -928,6 +929,10 @@ app.post('/api/update-order-delivery-status', isAdminOrRiderMiddleware, async (r
 
         console.log(`[${new Date().toLocaleTimeString()}] Sipariş ${orderId} teslimat durumu güncellendi: ${newDeliveryStatus}`);
         
+        // Güncellenmiş siparişi veritabanından çek
+        const updatedOrder = db.prepare(`SELECT * FROM orders WHERE orderId = ?`).get(orderId);
+        updatedOrder.sepetItems = JSON.parse(updatedOrder.sepetItems); // JSON string'i parse et
+
         // Web panellerine ve ilgili motorcuya Socket.IO ile bildirim gönder
         connectedClients.forEach((clientSocketId, clientInfo) => {
             if (clientInfo.role === 'admin' || clientInfo.role === 'garson') { 
@@ -938,25 +943,23 @@ app.post('/api/update-order-delivery-status', isAdminOrRiderMiddleware, async (r
                 }
             } else if (clientInfo.role === 'rider' && clientInfo.username === username) {
                 // Sadece ilgili motorcuya güncel siparişini gönder
-                const updatedOrderForRider = db.prepare(`SELECT * FROM orders WHERE orderId = ?`).get(orderId);
-                updatedOrderForRider.sepetItems = JSON.parse(updatedOrderForRider.sepetItems);
-                io.to(clientSocketId).emit('orderUpdatedForRider', updatedOrderForRider);
+                io.to(clientSocketId).emit('orderUpdatedForRider', updatedOrder);
+                console.log(`Motorcu ${username} (${clientSocketId}) için 'orderUpdatedForRider' olayı gönderildi.`);
             }
         });
 
         if (newDeliveryStatus === 'delivered') {
-            const deliveredOrder = db.prepare(`SELECT * FROM orders WHERE orderId = ?`).get(orderId);
             for (const userToken in fcmTokens) {
                 const userData = fcmTokens[userToken];
                 if (userData.role === 'admin') {
                     const message = {
                         notification: {
                             title: 'Sipariş Teslim Edildi!',
-                            body: `Masa ${deliveredOrder.masaAdi} için sipariş başarıyla teslim edildi.`,
+                            body: `Masa ${updatedOrder.masaAdi} için sipariş başarıyla teslim edildi.`,
                         },
                         data: {
-                            orderId: deliveredOrder.orderId,
-                            masaAdi: deliveredOrder.masaAdi,
+                            orderId: updatedOrder.orderId,
+                            masaAdi: updatedOrder.masaAdi,
                             type: 'order_delivered'
                         },
                         token: userData.token,
@@ -971,7 +974,7 @@ app.post('/api/update-order-delivery-status', isAdminOrRiderMiddleware, async (r
             }
         }
 
-        res.status(200).json({ message: 'Teslimat durumu başarıyla güncellendi.', orderId, newDeliveryStatus });
+        res.status(200).json({ message: 'Teslimat durumu başarıyla güncellendi.', order: updatedOrder }); // Güncel siparişi dön
 
     } catch (error) {
         console.error('Teslimat durumu güncellenirken hata:', error);
@@ -1117,7 +1120,7 @@ io.on('connection', (socket) => {
         }
 
         connectedClients.set(socket.id, { username, role, userId });
-        console.log(`[Socket.IO] Client registered: ${socket.id} -> ${username} (${role}), User ID: ${userId}. Toplam bağlı client: ${connectedClients.size}`);
+        console.log(`[Socket.IO] Client registered: ${socket.id} -> ${username} (${role}). Toplam bağlı client: ${connectedClients.size}`);
 
         if (role === 'admin' || role === 'garson') { 
             const activeOrders = db.prepare("SELECT * FROM orders WHERE status != 'paid' AND status != 'cancelled' ORDER BY timestamp DESC").all();
