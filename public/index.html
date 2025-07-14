@@ -9,8 +9,12 @@
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
         crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxTlZBo="
         crossorigin=""></script>
+    <!-- Leaflet script yüklendikten hemen sonra L'nin durumunu kontrol et -->
+    <script>
+        console.log("Leaflet script tag after: typeof L =", typeof L);
+    </script>
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 
     <style>
@@ -680,6 +684,8 @@
     </div>
 
     <script>
+        console.log("Main script block: typeof L =", typeof L); // Main script başında L'nin durumunu kontrol et
+
         const SOCKET_SERVER_URL = 'https://garson-pos-server.onrender.com';
         const API_BASE_URL = 'https://garson-pos-server.onrender.com';
 
@@ -789,11 +795,19 @@
                 orderStatusToggleButton.style.display = 'none';
             }
 
-            if (!map) {
-                initMap();
-            } else {
-                map.invalidateSize();
-            }
+            // Harita başlatma veya boyutlandırma işlemini geciktir
+            setTimeout(() => {
+                console.log("setTimeout inside showAdminPanel: typeof L =", typeof L);
+                if (typeof L !== 'undefined' && document.getElementById('map')) {
+                    if (!map) {
+                        initMap();
+                    } else {
+                        map.invalidateSize();
+                    }
+                } else {
+                    console.warn("Leaflet (L) henüz tanımlı değil veya harita elementi bulunamadı. Harita başlatılamıyor.");
+                }
+            }, 100); // 100ms'lik küçük bir gecikme ekledik, bu genellikle yeterlidir.
             
             await fetchCurrentActiveOrders();
         }
@@ -807,8 +821,14 @@
         }
 
         function initMap() {
+            console.log("initMap called. typeof L =", typeof L);
             const initialLat = 41.0082;
             const initialLng = 28.9784;
+
+            if (typeof L === 'undefined') {
+                console.error("Leaflet (L) hala tanımlı değil. Harita başlatılamıyor.");
+                return;
+            }
 
             if (document.getElementById('map')) {
                 if (map) {
@@ -836,7 +856,7 @@
             }
 
             const customIcon = L.icon({
-                iconUrl: 'images/motorcu_icon.png',
+                iconUrl: 'images/motorcu_icon.png', // Ensure this path is correct
                 iconSize: [32, 32],
                 iconAnchor: [16, 16],
                 popupAnchor: [0, -16]
@@ -957,7 +977,7 @@
                 // Kullanıcının isteği: "web den ödendi olarak işaretlendiğinde uygulamadan kaybolsun"
                 // Yani, deliveryStatus ne olursa olsun, status 'paid' veya 'cancelled' değilse göster.
                 if (order.status === 'paid' || order.status === 'cancelled') {
-                    // console.log(`Order ${order.orderId} is paid/cancelled, skipping render.`);
+                    console.log(`renderOrders: Order ${order.orderId.substring(0,8)}... is paid/cancelled, skipping render.`);
                     return; // Ödendi veya iptal edildi ise render etme
                 }
 
@@ -982,7 +1002,8 @@
                 // Bu buton sadece deliveryStatus 'pending' ise görünür olmalıydı.
                 // Ancak kullanıcı "web den ödendi olarak işaretlendiğinde uygulamadan kaybolsun" dediği için
                 // eğer sipariş henüz ödenmediyse (status !== 'paid'), buton görünsün.
-                const showAssignButton = (order.status !== 'paid' && order.status !== 'cancelled');
+                // Yeni mantık: 'assigned' veya 'en_route' ise butonu gizle.
+                const showAssignButton = (order.status !== 'paid' && order.status !== 'cancelled' && order.deliveryStatus !== 'assigned' && order.deliveryStatus !== 'en_route');
 
 
                 orderCard.innerHTML = `
@@ -1010,7 +1031,7 @@
                 `;
                 ordersContainer.prepend(orderCard);
             });
-            console.log('Current orders after render:', Object.values(orders).filter(o => o.status !== 'paid' && o.status !== 'cancelled').map(o => ({id: o.orderId.substring(0,8), status: o.status, deliveryStatus: o.deliveryStatus})));
+            console.log('Current orders after render (visible):', Object.values(orders).filter(o => o.status !== 'paid' && o.status !== 'cancelled').map(o => ({id: o.orderId.substring(0,8), status: o.status, deliveryStatus: o.deliveryStatus})));
         }
 
         function formatPrice(price) {
@@ -1263,7 +1284,7 @@
                 }
 
                 const fetchedOrders = await response.json();
-                console.log('fetchCurrentActiveOrders - Fetched orders:', fetchedOrders.map(o => ({id: o.orderId.substring(0,8), status: o.status, deliveryStatus: o.deliveryStatus})));
+                console.log('fetchCurrentActiveOrders - Fetched orders (raw):', fetchedOrders.map(o => ({id: o.orderId.substring(0,8), status: o.status, deliveryStatus: o.deliveryStatus})));
                 Object.keys(orders).forEach(key => delete orders[key]);
                 fetchedOrders.forEach(order => {
                     orders[order.orderId] = order;
@@ -1303,6 +1324,7 @@
                     return;
                 }
 
+                // Mevcut tüm marker'ları haritadan kaldır ve objeden sil
                 Object.values(riderMarkers).forEach(marker => marker.remove());
                 Object.keys(riderMarkers).forEach(key => delete riderMarkers[key]);
 
@@ -1347,7 +1369,8 @@
 
         socket.on('connect', () => {
             console.log('Socket.IO Bağlandı:', socket.id);
-            if (getAuthToken()) {
+            // Bağlantı kurulduğunda veya yeniden bağlandığında verileri çek
+            if (getAuthToken()) { // Sadece oturum açıksa verileri çek
                  fetchCurrentActiveOrders();
                  fetchRiderLocations();
                  fetchOrderReceptionStatus();
@@ -1390,6 +1413,14 @@
             }
         });
 
+        socket.on('removeOrderFromDisplay', (data) => {
+            console.log('Sipariş ekrandan kaldırılıyor (Socket.IO):', data.orderId);
+            if (orders[data.orderId]) {
+                delete orders[data.orderId];
+                renderOrders(); // Siparişi haritadan ve listeden kaldır
+            }
+        });
+
         socket.on('orderTakingStatusChanged', (data) => {
             console.log('Sipariş alım durumu değişti (Socket.IO):', data.enabled);
             updateOrderReceptionButtonUI(data.enabled);
@@ -1397,7 +1428,7 @@
 
         socket.on('currentActiveOrders', (currentOrders) => {
             console.log('Mevcut aktif siparişler alındı (Socket.IO):', currentOrders.length);
-            console.log('currentActiveOrders - Received orders:', currentOrders.map(o => ({id: o.orderId.substring(0,8), status: o.status, deliveryStatus: o.deliveryStatus})));
+            console.log('currentActiveOrders - Received orders (raw):', currentOrders.map(o => ({id: o.orderId.substring(0,8), status: o.status, deliveryStatus: o.deliveryStatus})));
             Object.keys(orders).forEach(key => delete orders[key]);
             currentOrders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             currentOrders.forEach(order => {
@@ -1436,7 +1467,6 @@
             for (const username in riderMarkers) {
                 if (!activeUsernames.has(username)) {
                     console.log(`Motorcu ${username} artık aktif değil. Haritadan kaldırılıyor.`);
-                    // removeRiderFromDisplay(username); // Bu fonksiyon artık kullanılmıyor, marker'ı direkt kaldırıyoruz
                     if (riderMarkers[username]) {
                         riderMarkers[username].remove();
                         delete riderMarkers[username];
