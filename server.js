@@ -799,7 +799,7 @@ app.post('/api/rider/end-day', isAdminOrRider, async (req, res) => {
         const deliveredCount = deliveredCountResult.count;
         console.log(`[${new Date().toLocaleTimeString()}] Günü sonlandırma öncesi hesaplanan teslimat sayısı: ${deliveredCount}`);
 
-
+        // Teslim edilmeyen siparişleri iptal et
         db.prepare(`
             UPDATE orders
             SET deliveryStatus = 'cancelled', riderUsername = NULL, deliveryAddress = NULL, paymentMethod = NULL, assignedTimestamp = NULL, deliveredTimestamp = NULL
@@ -807,7 +807,12 @@ app.post('/api/rider/end-day', isAdminOrRider, async (req, res) => {
         `).run(username);
         console.log(`[${new Date().toLocaleTimeString()}] Motorcu ${username} için teslim edilmeyen siparişler iptal edildi.`);
 
-        io.emit('riderDayEnded', { username, deliveredCount: deliveredCount });
+        // Motorcunun delivered_count'unu veritabanında sıfırla
+        db.prepare("UPDATE riders SET delivered_count = 0 WHERE username = ?").run(username);
+        console.log(`[${new Date().toLocaleTimeString()}] Motorcu ${username} için teslimat sayacı sıfırlandı.`);
+
+
+        io.emit('riderDayEnded', { username, deliveredCount: deliveredCount }); // Web paneline bildir
 
         res.status(200).json({
             message: `Motorcu ${username} günü sonlandırdı.`,
