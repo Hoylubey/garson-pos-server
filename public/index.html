@@ -327,7 +327,6 @@
             box-sizing: border-box;
             transition: background-color 0.2s ease;
         }
-        .pay-button { background-color: #28a745; }
         .pay-button:hover { background-color: #218838; }
         .print-button { background-color: #007bff; }
         .print-button:hover { background-color: #0056b3; }
@@ -434,6 +433,7 @@
             }
         }
 
+        /* Motorcu Takip Sayfası İçin Özel Stiller */
         body.map-only {
             display: flex;
             flex-direction: column;
@@ -442,6 +442,7 @@
             height: 100vh;
             overflow: hidden;
             padding: 0;
+            background-color: #f4f7f6; /* Arka plan rengi */
         }
         body.map-only #main-layout-container {
             flex-direction: column;
@@ -462,12 +463,16 @@
             margin-top: 0;
             padding: 10px;
             box-sizing: border-box;
+            background-color: #fff; /* Harita konteynerinin arka planı */
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); /* Hafif gölge */
+            border-radius: 12px; /* Köşeleri yuvarla */
         }
         body.map-only #map {
             flex-grow: 1;
             width: 100%;
             height: 100%;
             margin-top: 0;
+            border-radius: 8px; /* Harita içeriğinin köşeleri */
         }
         body.map-only h1,
         body.map-only #order-status-box,
@@ -594,6 +599,49 @@
         .header-buttons-top #logoutButton:hover {
             background-color: #c82333;
         }
+
+        /* Çalışanları Yönet Modalı */
+        #manageUsersModal .user-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 15px;
+            margin-bottom: 20px;
+        }
+        #manageUsersModal .user-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        #manageUsersModal .user-item:last-child {
+            border-bottom: none;
+        }
+        #manageUsersModal .user-info {
+            flex-grow: 1;
+        }
+        #manageUsersModal .delete-user-btn {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.8em;
+            transition: background-color 0.2s ease;
+        }
+        #manageUsersModal .delete-user-btn:hover {
+            background-color: #c0392b;
+        }
+        #manageUsersModal .add-user-form {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px dashed #ddd;
+        }
+
     </style>
 </head>
 <body>
@@ -621,6 +669,8 @@
             <h1>Mutfak / Kasa Ekranı</h1>
             <div class="right-buttons">
                 <button id="order-status-toggle">Sipariş Alımı: Yükleniyor...</button>
+                <button id="manageUsersButton" style="display: none;">Çalışanları Yönet</button>
+                <button id="trackRidersButton" style="display: none;">Motorcu Takip</button>
                 <button id="logoutButton">Çıkış Yap</button>
             </div>
         </div>
@@ -684,6 +734,45 @@
         </div>
     </div>
 
+    <!-- Çalışanları Yönet Modalı -->
+    <div id="manageUsersModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeManageUsersModal()">&times;</span>
+            <h3 class="text-xl font-bold mb-4">Çalışanları Yönet</h3>
+            <div class="user-list" id="userList">
+                <!-- Kullanıcılar buraya JS ile eklenecek -->
+                <p>Kayıtlı çalışan bulunamadı.</p>
+            </div>
+
+            <div class="add-user-form">
+                <h4 class="text-lg font-bold mb-3">Yeni Çalışan Ekle</h4>
+                <div class="form-group">
+                    <label for="newUsername">Kullanıcı Adı:</label>
+                    <input type="text" id="newUsername" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">Parola:</label>
+                    <input type="password" id="newPassword" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="newFullName">Tam Adı:</label>
+                    <input type="text" id="newFullName" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="newUserRole">Rol:</label>
+                    <select id="newUserRole" class="form-control" required>
+                        <option value="">Seçiniz</option>
+                        <option value="admin">Yönetici</option>
+                        <option value="garson">Garson</option>
+                        <option value="rider">Motorcu</option>
+                    </select>
+                </div>
+                <button class="btn-primary" onclick="addNewUser()">Çalışan Ekle</button>
+                <div id="addUserError" class="error-message mt-2"></div>
+            </div>
+        </div>
+    </div>
+
     <script>
         console.log("Main script block: typeof L =", typeof L); // Main script başında L'nin durumunu kontrol et
 
@@ -701,6 +790,9 @@
         const loginError = document.getElementById('loginError');
         const adminPanelContent = document.getElementById('adminPanelContent');
         const logoutButton = document.getElementById('logoutButton');
+        const manageUsersButton = document.getElementById('manageUsersButton');
+        const trackRidersButton = document.getElementById('trackRidersButton');
+
 
         const ordersContainer = document.getElementById('orders-container');
         const notificationSound = document.getElementById('notificationSound');
@@ -718,6 +810,15 @@
         const sendAssignButton = assignOrderModal.querySelector('.btn-primary');
         const closeModalButton = assignOrderModal.querySelector('.close-button');
 
+        const manageUsersModal = document.getElementById('manageUsersModal');
+        const userListDiv = document.getElementById('userList');
+        const newUsernameInput = document.getElementById('newUsername');
+        const newPasswordInput = document.getElementById('newPassword');
+        const newFullNameInput = document.getElementById('newFullName');
+        const newUserRoleSelect = document.getElementById('newUserRole');
+        const addUserErrorDiv = document.getElementById('addUserError');
+
+
         let map;
         const riderMarkers = {};
         const orders = {};
@@ -729,6 +830,10 @@
 
         function getUserRole() {
             return localStorage.getItem('userRole');
+        }
+
+        function getUsername() {
+            return localStorage.getItem('username');
         }
 
         async function handleLogin(event) {
@@ -751,6 +856,8 @@
                     localStorage.setItem('userRole', data.role);
                     localStorage.setItem('username', data.user.username);
                     showAdminPanel();
+                    // Sunucuya istemci rolünü bildir
+                    socket.emit('registerClient', { username: data.user.username, role: data.role });
                 } else {
                     loginError.textContent = data.message || 'Giriş başarısız oldu.';
                 }
@@ -796,6 +903,16 @@
                 orderStatusToggleButton.style.display = 'none';
             }
 
+            // Admin rolüne özel butonları göster/gizle
+            if (userRole === 'admin') {
+                manageUsersButton.style.display = 'block';
+                trackRidersButton.style.display = 'block';
+            } else {
+                manageUsersButton.style.display = 'none';
+                trackRidersButton.style.display = 'none';
+            }
+
+
             // Harita başlatma veya boyutlandırma işlemini geciktir
             // Harita konteyneri görünür hale geldikten sonra boyutlarının hesaplanması için
             // küçük bir gecikme ekliyoruz.
@@ -826,6 +943,8 @@
         function checkLoginStatus() {
             if (getAuthToken() && (getUserRole() === 'admin' || getUserRole() === 'garson')) {
                 showAdminPanel();
+                // Sayfa yüklendiğinde de registerClient gönder
+                socket.emit('registerClient', { username: getUsername(), role: getUserRole() });
             } else {
                 showLogin();
             }
@@ -1166,7 +1285,6 @@
             printWindow.document.write('</style>');
             printWindow.document.write('</head><body>');
             printWindow.document.write(printContent);
-            printWindow.document.write('</body></html>');
             printWindow.document.close();
             printWindow.focus();
             printWindow.print();
@@ -1356,18 +1474,166 @@
             }
         }
 
+        // Çalışan Yönetimi Fonksiyonları
+        function openManageUsersModal() {
+            manageUsersModal.style.display = 'flex';
+            fetchUsers();
+        }
+
+        function closeManageUsersModal() {
+            manageUsersModal.style.display = 'none';
+            addUserErrorDiv.textContent = ''; // Hata mesajını temizle
+            newUsernameInput.value = '';
+            newPasswordInput.value = '';
+            newFullNameInput.value = '';
+            newUserRoleSelect.value = '';
+        }
+
+        async function fetchUsers() {
+            userListDiv.innerHTML = '<p>Yükleniyor...</p>';
+            const authToken = getAuthToken();
+            if (!authToken) {
+                userListDiv.innerHTML = '<p>Yetkilendirme hatası. Lütfen tekrar giriş yapın.</p>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/users`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                }
+                const users = await response.json();
+                renderUserList(users);
+            } catch (error) {
+                console.error('Kullanıcılar çekilirken hata:', error);
+                userListDiv.innerHTML = `<p>Kullanıcılar yüklenemedi: ${error.message}</p>`;
+            }
+        }
+
+        function renderUserList(users) {
+            userListDiv.innerHTML = '';
+            if (users.length === 0) {
+                userListDiv.innerHTML = '<p>Kayıtlı çalışan bulunamadı.</p>';
+                return;
+            }
+
+            users.forEach(user => {
+                const userItem = document.createElement('div');
+                userItem.className = 'user-item';
+                userItem.innerHTML = `
+                    <div class="user-info">
+                        <strong>${user.full_name}</strong> (${user.username}) - ${user.role}
+                    </div>
+                    <button class="delete-user-btn" onclick="deleteUser('${user.id}')" ${user.id === req.user.uid ? 'disabled' : ''}>Sil</button>
+                `;
+                userListDiv.appendChild(userItem);
+            });
+        }
+
+        async function addNewUser() {
+            const username = newUsernameInput.value.trim();
+            const password = newPasswordInput.value.trim();
+            const fullName = newFullNameInput.value.trim();
+            const role = newUserRoleSelect.value;
+            addUserErrorDiv.textContent = '';
+
+            if (!username || !password || !fullName || !role) {
+                addUserErrorDiv.textContent = 'Lütfen tüm alanları doldurun.';
+                return;
+            }
+
+            const authToken = getAuthToken();
+            if (!authToken) {
+                addUserErrorDiv.textContent = 'Yetkilendirme hatası. Lütfen tekrar giriş yapın.';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/users`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify({ username, password, full_name: fullName, role })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert('Çalışan başarıyla eklendi!');
+                    newUsernameInput.value = '';
+                    newPasswordInput.value = '';
+                    newFullNameInput.value = '';
+                    newUserRoleSelect.value = '';
+                    fetchUsers(); // Listeyi güncelle
+                } else {
+                    addUserErrorDiv.textContent = data.message || 'Çalışan eklenirken bir hata oluştu.';
+                }
+            } catch (error) {
+                console.error('Çalışan eklenirken ağ hatası:', error);
+                addUserErrorDiv.textContent = 'Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin.';
+            }
+        }
+
+        async function deleteUser(userId) {
+            if (!confirm('Bu çalışanı silmek istediğinizden emin misiniz?')) {
+                return;
+            }
+
+            const authToken = getAuthToken();
+            if (!authToken) {
+                alert('Yetkilendirme hatası. Lütfen tekrar giriş yapın.');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/users/${userId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert('Çalışan başarıyla silindi!');
+                    fetchUsers(); // Listeyi güncelle
+                } else {
+                    alert(`Çalışan silinirken hata: ${data.message || response.statusText}`);
+                }
+            } catch (error) {
+                console.error('Çalışan silinirken ağ hatası:', error);
+                alert('Çalışan silinemedi: Ağ bağlantı hatası.');
+            }
+        }
+
+        // Motorcu Takip Sayfası Açma Fonksiyonu
+        function openRiderTrackingPage() {
+            // Yeni bir pencerede tam ekran harita sayfasını aç
+            window.open('rider-map.html', '_blank', 'fullscreen=yes,menubar=no,toolbar=no,location=no,status=no');
+        }
+
+
         document.addEventListener('DOMContentLoaded', () => {
             loginForm.addEventListener('submit', handleLogin);
             logoutButton.addEventListener('click', performLogout);
             orderStatusToggleButton.addEventListener('click', toggleOrderReceptionStatus);
+            manageUsersButton.addEventListener('click', openManageUsersModal); // Yeni buton
+            trackRidersButton.addEventListener('click', openRiderTrackingPage); // Yeni buton
+
 
             closeModalButton.addEventListener('click', closeAssignOrderModal);
             cancelAssignButton.addEventListener('click', closeAssignOrderModal);
             sendAssignButton.addEventListener('click', assignOrder);
 
+            manageUsersModal.querySelector('.close-button').addEventListener('click', closeManageUsersModal);
+
             window.addEventListener('click', (event) => {
                 if (event.target == assignOrderModal) {
                     closeAssignOrderModal();
+                }
+                if (event.target == manageUsersModal) {
+                    closeManageUsersModal();
                 }
             });
 
@@ -1388,8 +1654,9 @@
             console.log('Socket.IO Bağlandı:', socket.id);
             // Bağlantı kurulduğunda veya yeniden bağlandığında verileri çek
             if (getAuthToken()) { // Sadece oturum açıksa verileri çek
-                 fetchCurrentActiveOrders();
-                 fetchRiderLocations();
+                 // Zaten registerClient ile gönderiliyor, burada tekrar göndermeye gerek yok
+                 // fetchCurrentActiveOrders(); // registerClient callback'inde yapılıyor
+                 // fetchRiderLocations(); // registerClient callback'inde yapılıyor
                  fetchOrderReceptionStatus();
             }
         });
@@ -1405,8 +1672,9 @@
         socket.on('reconnect', (attemptNumber) => {
             console.log('Socket.IO Yeniden Bağlandı. Deneme:', attemptNumber);
             if (getAuthToken()) {
-                fetchCurrentActiveOrders();
-                fetchRiderLocations();
+                socket.emit('registerClient', { username: getUsername(), role: getUserRole() }); // Yeniden bağlanınca rolü bildir
+                // fetchCurrentActiveOrders(); // registerClient callback'inde yapılıyor
+                // fetchRiderLocations(); // registerClient callback'inde yapılıyor
                 fetchOrderReceptionStatus();
             }
         });
