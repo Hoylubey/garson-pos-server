@@ -184,8 +184,7 @@ const fcmTokens = {};
 
 // Middleware: Token doğrulama ve rol kontrolü için yardımcı fonksiyonlar
 const parseToken = (token) => {
-    // Token'ı nokta (.) ile ayır
-    const parts = token.split('.');
+    const parts = token.split('.'); // Nokta (.) ile ayır
     console.log(`[parseToken] Token ayrıştırma denemesi: ${token}, Parçalar: ${JSON.stringify(parts)}, Parça Sayısı: ${parts.length}`);
 
     if (parts.length === 3) {
@@ -193,13 +192,6 @@ const parseToken = (token) => {
         const role = parts[1];
         const timestamp = parseInt(parts[2], 10);
         
-        // userId'nin geçerli bir UUID olup olmadığını kontrol edebiliriz (isteğe bağlı)
-        // const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-        // if (!uuidRegex.test(userId)) {
-        //     console.warn(`[parseToken] Geçersiz UUID formatı: ${userId}`);
-        //     return null;
-        // }
-
         console.log(`[parseToken] Token başarıyla ayrıştırıldı: ID=${userId}, Rol=${role}, Timestamp=${timestamp}`);
         return {
             id: userId,
@@ -297,8 +289,7 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
         }
 
-        // Kendi özel token formatınızı kullanın: id.role.timestamp
-        const token = `${user.id}.${user.role}.${Date.now()}`;
+        const token = `${user.id}.${user.role}.${Date.now()}`; // Nokta (.) ile birleştir
         console.log(`[Login] Başarılı giriş: ${username}, Rol: ${user.role}, Token: ${token.substring(0, 20)}...`);
 
         res.status(200).json({
@@ -772,6 +763,48 @@ app.get('/api/users', isAdminMiddleware, (req, res) => {
         res.status(500).json({ message: 'Kullanıcılar alınırken bir hata oluştu.' });
     }
 });
+
+// Yeni çalışan ekleme endpoint'i (önceki register-employee ile aynı işlevi görür, ancak daha genel bir isim)
+app.post('/api/users', isAdminMiddleware, async (req, res) => {
+    const { username, password, full_name, role } = req.body;
+
+    if (!username || !password || !full_name || !role) {
+        return res.status(400).json({ message: 'Kullanıcı adı, parola, tam ad ve rol gerekli.' });
+    }
+
+    const validRoles = ['employee', 'admin', 'rider', 'garson'];
+    if (!validRoles.includes(role)) {
+        return res.status(400).json({ message: 'Geçersiz rol belirtildi.' });
+    }
+
+    try {
+        const existingUser = db.prepare("SELECT id FROM users WHERE username = ?").get(username);
+        if (existingUser) {
+            return res.status(409).json({ message: 'Bu kullanıcı adı zaten mevcut.' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const userId = uuidv4();
+        const stmt = db.prepare("INSERT INTO users (id, username, password, full_name, role) VALUES (?, ?, ?, ?, ?)");
+        stmt.run(userId, username, hashedPassword, full_name, role);
+        
+        if (role === 'rider') {
+            db.prepare("INSERT INTO riders (id, username, full_name, delivered_count) VALUES (?, ?, ?, ?)").run(userId, username, full_name, 0);
+        }
+
+        res.status(201).json({
+            message: 'Çalışan başarıyla oluşturuldu.',
+            user: { id: userId, username, full_name, role: role }
+        });
+    } catch (error) {
+        if (error.message.includes('UNIQUE constraint failed')) {
+            return res.status(409).json({ message: 'Bu kullanıcı adı zaten mevcut.' });
+        }
+        console.error('Çalışan ekleme hatası:', error);
+        res.status(500).json({ message: 'Çalışan eklenirken bir hata oluştu.' });
+    }
+});
+
 
 app.delete('/api/users/:id', isAdminMiddleware, (req, res) => {
     const { id } = req.params;
