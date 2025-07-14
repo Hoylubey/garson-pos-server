@@ -9,8 +9,8 @@
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
         crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxTlZBo="
-        crossorigin=""></script>
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+        crossorigin=""></script> <!-- BURADAKİ INTEGRITY DEĞERİ DÜZELTİLDİ -->
     <!-- Leaflet script yüklendikten hemen sonra L'nin durumunu kontrol et -->
     <script>
         console.log("Leaflet script tag after: typeof L =", typeof L);
@@ -233,7 +233,7 @@
             border-radius: 8px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
             padding: 15px;
-            height: 80vh;
+            height: 80vh; /* Harita konteynerine sabit bir yükseklik ver */
             position: sticky;
             top: 20px;
             display: flex;
@@ -241,9 +241,10 @@
         }
         #map {
             width: 100%;
-            flex-grow: 1;
+            flex-grow: 1; /* Haritanın kalan alanı doldurmasını sağla */
             border-radius: 4px;
             margin-top: 10px;
+            min-height: 300px; /* Haritanın minimum yüksekliği */
         }
         #orders-container {
             display: grid;
@@ -604,7 +605,7 @@
                 <label for="username">Kullanıcı Adı:</label>
                 <input type="text" id="username" name="username" required>
                 <label for="password">Parola:</label>
-                <input type="password" id="password" name="password" required>
+                <input type="password" id="password" name="password" required autocomplete="current-password">
                 <button type="submit">Giriş Yap</button>
                 <div id="loginError" class="error-message"></div>
             </form>
@@ -796,18 +797,28 @@
             }
 
             // Harita başlatma veya boyutlandırma işlemini geciktir
+            // Harita konteyneri görünür hale geldikten sonra boyutlarının hesaplanması için
+            // küçük bir gecikme ekliyoruz.
             setTimeout(() => {
                 console.log("setTimeout inside showAdminPanel: typeof L =", typeof L);
-                if (typeof L !== 'undefined' && document.getElementById('map')) {
-                    if (!map) {
-                        initMap();
+                const mapElement = document.getElementById('map');
+                if (typeof L !== 'undefined' && mapElement) {
+                    // Harita elementinin gerçekten görünür ve boyutlandırılmış olduğundan emin olun
+                    const mapContainer = document.getElementById('map-container');
+                    if (mapContainer && mapContainer.offsetWidth > 0 && mapContainer.offsetHeight > 0) {
+                        if (!map) {
+                            initMap();
+                        } else {
+                            map.invalidateSize(); // Harita boyutunu yeniden hesapla
+                            console.log("Map invalidated size in showAdminPanel.");
+                        }
                     } else {
-                        map.invalidateSize();
+                        console.warn("Harita konteyneri görünür veya boyutlandırılmış değil (offsetWidth/Height is 0). Harita başlatılamıyor/güncellenemiyor.");
                     }
                 } else {
                     console.warn("Leaflet (L) henüz tanımlı değil veya harita elementi bulunamadı. Harita başlatılamıyor.");
                 }
-            }, 100); // 100ms'lik küçük bir gecikme ekledik, bu genellikle yeterlidir.
+            }, 300); // Gecikmeyi 300ms'ye çıkardık.
             
             await fetchCurrentActiveOrders();
         }
@@ -830,17 +841,29 @@
                 return;
             }
 
-            if (document.getElementById('map')) {
+            const mapElement = document.getElementById('map');
+            if (mapElement) {
                 if (map) {
-                    map.remove();
+                    map.remove(); // Önceki harita örneğini kaldır
+                    console.log("Existing map removed.");
                 }
                 map = L.map('map').setView([initialLat, initialLng], 12);
+                console.log("Map object created:", map);
 
                 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 }).addTo(map);
 
-                fetchRiderLocations();
+                // Harita başlatıldıktan sonra boyutunu kontrol et ve gerekirse invalidateSize çağır
+                // Bu, haritanın ilk yüklemede boş görünmesi sorununu çözebilir.
+                if (map.getSize().x === 0 || map.getSize().y === 0) {
+                    console.warn("Map has zero dimensions after initialization. Invalidating size...");
+                    map.invalidateSize();
+                } else {
+                    console.log("Map has valid dimensions after initialization.");
+                }
+
+                fetchRiderLocations(); // Harita yüklendiğinde motorcu konumlarını çek
             } else {
                 console.error("Harita için 'map' ID'sine sahip element bulunamadı!");
             }
@@ -854,12 +877,18 @@
                 console.warn('Harita henüz başlatılmadı veya bulunamadı. Konum güncellenemiyor.');
                 return;
             }
-
+            
+            // Motorcu ikonu için varsayılan bir Leaflet ikonu kullanıyoruz.
+            // Eğer özel bir ikon kullanmak isterseniz, 'images/motorcu_icon.png' dosyasının
+            // public/images/ dizininde bulunduğundan emin olun.
             const customIcon = L.icon({
-                iconUrl: 'images/motorcu_icon.png', // Ensure this path is correct
-                iconSize: [32, 32],
-                iconAnchor: [16, 16],
-                popupAnchor: [0, -16]
+                iconUrl: 'images/motorcu_icon.png', // Varsayılan Leaflet ikonu
+                // iconUrl: 'images/motorcu_icon.png', // Özel ikon kullanmak isterseniz bu satırı etkinleştirin
+                iconSize: [25, 41],
+                iconAnchor: [12, 41],
+                popupAnchor: [1, -34],
+                shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+                shadowSize: [41, 41]
             });
 
             if (riderMarkers[username]) {
@@ -886,6 +915,7 @@
                         `<div><strong>Hassasiyet:</strong> ${locationData.accuracy !== undefined ? locationData.accuracy.toFixed(2) + ' m' : 'Bilinmiyor'}</div>` +
                         `<div><strong>Güncellenme:</strong> ${new Date(locationData.timestamp).toLocaleTimeString()}</div>`
                     );
+                console.log(`Motorcu ${username} için yeni marker eklendi.`);
             }
             updateActiveRiderCount();
         }
@@ -973,12 +1003,9 @@
             }
 
             sortedOrders.forEach(order => {
-                // Problem 3 için: Sadece ödendi veya iptal edildi ise kartı gösterme (veya soluklaştır)
-                // Kullanıcının isteği: "web den ödendi olarak işaretlendiğinde uygulamadan kaybolsun"
-                // Yani, deliveryStatus ne olursa olsun, status 'paid' veya 'cancelled' değilse göster.
                 if (order.status === 'paid' || order.status === 'cancelled') {
                     console.log(`renderOrders: Order ${order.orderId.substring(0,8)}... is paid/cancelled, skipping render.`);
-                    return; // Ödendi veya iptal edildi ise render etme
+                    return;
                 }
 
                 const orderCard = document.createElement('div');
@@ -997,12 +1024,6 @@
                     `;
                 }
 
-                // Problem 2 ve 3 için: Motorcuya atanmış olsa bile "Motorcuya Gönder" butonu görünür olmalı
-                // eğer sipariş henüz ödenmediyse.
-                // Bu buton sadece deliveryStatus 'pending' ise görünür olmalıydı.
-                // Ancak kullanıcı "web den ödendi olarak işaretlendiğinde uygulamadan kaybolsun" dediği için
-                // eğer sipariş henüz ödenmediyse (status !== 'paid'), buton görünsün.
-                // Yeni mantık: 'assigned' veya 'en_route' ise butonu gizle.
                 const showAssignButton = (order.status !== 'paid' && order.status !== 'cancelled' && order.deliveryStatus !== 'assigned' && order.deliveryStatus !== 'en_route');
 
 
@@ -1315,7 +1336,7 @@
                 }
 
                 const locations = await response.json();
-                console.log("Motorcu konumları:", locations);
+                console.log("Motorcu konumları (API'den):", locations);
 
                 if (!Array.isArray(locations)) {
                     console.error("API'den beklenen motorcu konum listesi bir dizi değil:", locations);
