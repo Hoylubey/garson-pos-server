@@ -571,7 +571,7 @@ app.post('/api/order', async (req, res) => {
 
 app.get('/api/orders/active', isAdminOrGarson, (req, res) => {
     try {
-        // Problem 2 için: Web paneli (mutfak/kasa) tüm bekleyen siparişleri görmeli,
+        // Web paneli (mutfak/kasa) tüm bekleyen siparişleri görmeli,
         // motorcuya atanmış olsalar bile. Sadece ödendiğinde kaybolmalı.
         const activeOrders = db.prepare(`SELECT * FROM orders WHERE status = 'pending' ORDER BY timestamp DESC`).all();
         const parsedOrders = activeOrders.map(order => ({
@@ -756,6 +756,31 @@ app.get('/api/rider/delivered-count/:username', isAdminOrRider, (req, res) => {
     }
 });
 
+// YENİ: Motorcuya atanan aktif siparişleri getiren endpoint
+app.get('/api/rider/orders/:username', isAdminOrRider, (req, res) => {
+    const { username } = req.params;
+    console.log(`[${new Date().toLocaleTimeString()}] /api/rider/orders/${username} isteği alındı.`);
+    try {
+        // Sadece motorcuya atanmış ve henüz teslim edilmemiş veya iptal edilmemiş siparişleri getir
+        const orders = db.prepare(`
+            SELECT * FROM orders
+            WHERE riderUsername = ? AND (deliveryStatus = 'assigned' OR deliveryStatus = 'en_route')
+            ORDER BY assignedTimestamp DESC
+        `).all(username);
+
+        const parsedOrders = orders.map(order => ({
+            ...order,
+            sepetItems: JSON.parse(order.sepetItems)
+        }));
+        console.log(`[${new Date().toLocaleTimeString()}] Motorcu ${username} için ${parsedOrders.length} atanmış sipariş döndürüldü.`);
+        res.status(200).json(parsedOrders);
+    } catch (error) {
+        console.error(`[${new Date().toLocaleTimeString()}] Motorcu ${username} için atanmış siparişler çekilirken hata:`, error);
+        res.status(500).json({ message: 'Atanmış siparişler alınırken bir hata oluştu.' });
+    }
+});
+
+
 app.post('/api/rider/end-day', isAdminOrRider, async (req, res) => {
     console.log(`[${new Date().toLocaleTimeString()}] /api/rider/end-day endpoint'ine istek geldi.`);
     const { username } = req.body;
@@ -894,7 +919,7 @@ io.on('connection', (socket) => {
             if (info.changes > 0) {
                 console.log(`Sipariş (ID: ${orderId}) SQLite'ta ödendi olarak güncellendi.`);
                 io.emit('orderPaidConfirmation', { orderId: orderId });
-                io.emit('removeOrderFromDisplay', { orderId: orderId });
+                io.emit('removeOrderFromDisplay', { orderId: orderId }); // Bu olay web panelinde siparişi kaldırır
             } else {
                 console.warn(`Ödendi olarak işaretlenen sipariş (ID: ${orderId}) bulunamadı veya zaten ödenmiş.`);
             }
