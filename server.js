@@ -184,19 +184,30 @@ const fcmTokens = {};
 
 // Middleware: Token doğrulama ve rol kontrolü için yardımcı fonksiyonlar
 const parseToken = (token) => {
-    const parts = token.split('-');
+    // Token'ı nokta (.) ile ayır
+    const parts = token.split('.');
+    console.log(`[parseToken] Token ayrıştırma denemesi: ${token}, Parçalar: ${JSON.stringify(parts)}, Parça Sayısı: ${parts.length}`);
+
     if (parts.length === 3) {
         const userId = parts[0];
         const role = parts[1];
         const timestamp = parseInt(parts[2], 10);
-        console.log(`[parseToken] Token ayrıştırıldı: ID=${userId}, Rol=${role}, Timestamp=${timestamp}`);
+        
+        // userId'nin geçerli bir UUID olup olmadığını kontrol edebiliriz (isteğe bağlı)
+        // const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[4][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        // if (!uuidRegex.test(userId)) {
+        //     console.warn(`[parseToken] Geçersiz UUID formatı: ${userId}`);
+        //     return null;
+        // }
+
+        console.log(`[parseToken] Token başarıyla ayrıştırıldı: ID=${userId}, Rol=${role}, Timestamp=${timestamp}`);
         return {
             id: userId,
             role: role,
             timestamp: timestamp
         };
     }
-    console.warn(`[parseToken] Hatalı token formatı: ${token}`);
+    console.warn(`[parseToken] Hatalı token formatı: Beklenen 3 parça, alınan ${parts.length} parça. Token: ${token}`);
     return null;
 };
 
@@ -212,7 +223,7 @@ function isAdminMiddleware(req, res, next) {
     const decodedToken = parseToken(token);
 
     if (decodedToken && decodedToken.role === 'admin') {
-        req.user = { uid: decodedToken.id, role: decodedToken.role }; // uid ve role ekle
+        req.user = { uid: decodedToken.id, role: decodedToken.role };
         console.log(`[isAdminMiddleware] Yetkili admin erişimi: Kullanıcı ID: ${req.user.uid}, Rol: ${req.user.role}`);
         next();
         return;
@@ -233,7 +244,7 @@ function isAdminOrGarsonMiddleware(req, res, next) {
     const decodedToken = parseToken(token);
 
     if (decodedToken && (decodedToken.role === 'admin' || decodedToken.role === 'garson')) {
-        req.user = { uid: decodedToken.id, role: decodedToken.role }; // uid ve role ekle
+        req.user = { uid: decodedToken.id, role: decodedToken.role };
         console.log(`[isAdminOrGarsonMiddleware] Yetkili admin/garson erişimi: Kullanıcı ID: ${req.user.uid}, Rol: ${req.user.role}`);
         next();
         return;
@@ -254,7 +265,7 @@ function isAdminOrRiderMiddleware(req, res, next) {
     const decodedToken = parseToken(token);
 
     if (decodedToken && (decodedToken.role === 'admin' || decodedToken.role === 'rider')) {
-        req.user = { uid: decodedToken.id, role: decodedToken.role }; // uid ve role ekle
+        req.user = { uid: decodedToken.id, role: decodedToken.role };
         console.log(`[isAdminOrRiderMiddleware] Yetkili admin/rider erişimi: Kullanıcı ID: ${req.user.uid}, Rol: ${req.user.role}`);
         next();
         return;
@@ -286,8 +297,8 @@ app.post('/api/login', async (req, res) => {
             return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
         }
 
-        // Kendi özel token formatınızı kullanın: id-role-timestamp
-        const token = `${user.id}-${user.role}-${Date.now()}`;
+        // Kendi özel token formatınızı kullanın: id.role.timestamp
+        const token = `${user.id}.${user.role}.${Date.now()}`;
         console.log(`[Login] Başarılı giriş: ${username}, Rol: ${user.role}, Token: ${token.substring(0, 20)}...`);
 
         res.status(200).json({
@@ -363,7 +374,7 @@ app.post('/api/login-employee', async (req, res) => {
             return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
         }
 
-        const token = `${user.id}-${user.role}-${Date.now()}`;
+        const token = `${user.id}.${user.role}.${Date.now()}`;
         res.status(200).json({
             message: 'Giriş başarılı!',
             token: token,
@@ -395,7 +406,7 @@ app.post('/api/login-admin', async (req, res) => {
             return res.status(401).json({ message: 'Geçersiz kullanıcı adı veya parola.' });
         }
 
-        const token = `${user.id}-${user.role}-${Date.now()}`;
+        const token = `${user.id}.${user.role}.${Date.now()}`;
         res.status(200).json({
             message: 'Yönetici girişi başarılı!',
             token: token,
@@ -1012,8 +1023,8 @@ io.on('connection', (socket) => {
     console.log(`[${new Date().toLocaleTimeString()}] Yeni bağlantı: ${socket.id}`);
 
     socket.on('registerClient', (clientInfo) => {
-        const { username, role, userId } = clientInfo; // userId'yi de al
-        connectedClients.set(socket.id, { username, role, userId }); // userId'yi kaydet
+        const { username, role, userId } = clientInfo;
+        connectedClients.set(socket.id, { username, role, userId });
         console.log(`Client registered: ${socket.id} -> ${username} (${role}), User ID: ${userId}`);
 
         if (role === 'admin' || role === 'garson') {
