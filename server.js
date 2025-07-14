@@ -184,7 +184,7 @@ const fcmTokens = {};
 
 // Middleware: Token doğrulama ve rol kontrolü için yardımcı fonksiyonlar
 const parseToken = (token) => {
-    const parts = token.split('.'); // Nokta (.) ile ayır
+    const parts = token.split('.'); 
     console.log(`[parseToken] Token ayrıştırma denemesi: ${token}, Parçalar: ${JSON.stringify(parts)}, Parça Sayısı: ${parts.length}`);
 
     if (parts.length === 3) {
@@ -860,25 +860,44 @@ app.get('/api/riders', isAdminOrGarsonOrRiderMiddleware, (req, res) => {
 
 // 🛵 RIDER ENDPOINTS
 app.post('/api/update-order-delivery-status', isAdminOrRiderMiddleware, async (req, res) => {
-    console.log(`[${new Date().toLocaleTimeString()}] /api/update-order-delivery-status endpoint'ine istek geldi.`);
+    console.log(`[${new Date().toLocaleTimeString()}] /api/update-order-delivery-status endpoint'ine istek geldi. Body:`, req.body);
     const { orderId, newDeliveryStatus, username } = req.body;
 
+    // Middleware'den gelen kullanıcı bilgisi
+    const requestingUser = req.user; 
+    console.log(`[${new Date().toLocaleTimeString()}] İstek yapan kullanıcı: ${requestingUser.username || requestingUser.uid} (Rol: ${requestingUser.role})`);
+
     if (!orderId || !newDeliveryStatus || !username) {
+        console.error('Sipariş teslimat durumu güncelleme hatası: Eksik veri.', req.body);
         return res.status(400).json({ message: 'Sipariş ID, yeni teslimat durumu ve kullanıcı adı gereklidir.' });
     }
 
     const validStatuses = ['en_route', 'delivered', 'cancelled'];
     if (!validStatuses.includes(newDeliveryStatus)) {
+        console.error(`Sipariş teslimat durumu güncelleme hatası: Geçersiz durum '${newDeliveryStatus}'`);
         return res.status(400).json({ message: 'Geçersiz teslimat durumu belirtildi.' });
     }
 
     try {
+        // Sadece atanmış motorcu veya adminin bu siparişi güncelleyebildiğinden emin ol
+        const currentOrder = db.prepare(`SELECT riderUsername, status, deliveryStatus FROM orders WHERE orderId = ?`).get(orderId);
+        if (!currentOrder) {
+            console.warn(`Sipariş (ID: ${orderId}) bulunamadı.`);
+            return res.status(404).json({ message: 'Sipariş bulunamadı.' });
+        }
+
+        if (requestingUser.role === 'rider' && currentOrder.riderUsername !== username) {
+            console.warn(`Motorcu ${username} yetkisiz sipariş güncelleme denemesi: Sipariş ${orderId} motorcu ${currentOrder.riderUsername} atanmış.`);
+            return res.status(403).json({ message: 'Bu siparişi güncellemeye yetkiniz yok.' });
+        }
+        // Admin her zaman güncelleyebilir, motorcu sadece kendisine atanmış siparişi güncelleyebilir.
+
         let updateQuery = `UPDATE orders SET deliveryStatus = ?`;
         const params = [newDeliveryStatus];
         
         if (newDeliveryStatus === 'delivered') {
             const deliveredTimestamp = new Date().toISOString();
-            updateQuery += `, deliveredTimestamp = ?, status = 'paid'`;
+            updateQuery += `, deliveredTimestamp = ?, status = 'paid'`; // Teslim edildiğinde status'u 'paid' yap
             params.push(deliveredTimestamp);
             console.log(`[${new Date().toLocaleTimeString()}] Sipariş ${orderId} 'delivered' olarak işaretlendi. deliveredTimestamp: ${deliveredTimestamp}`);
 
@@ -891,8 +910,8 @@ app.post('/api/update-order-delivery-status', isAdminOrRiderMiddleware, async (r
         } else if (newDeliveryStatus === 'cancelled') {
             updateQuery += `, riderUsername = NULL, deliveryAddress = NULL, paymentMethod = NULL, assignedTimestamp = NULL, deliveredTimestamp = NULL, status = 'cancelled'`;
             console.log(`[${new Date().toLocaleTimeString()}] Sipariş ${orderId} durumu '${newDeliveryStatus}' olarak değiştirildi ve motorcu bilgileri temizlendi.`);
-        } else {
-            updateQuery += `, deliveredTimestamp = NULL`;
+        } else { // en_route durumu için
+            updateQuery += `, deliveredTimestamp = NULL`; // Teslimat zamanını temizle
             console.log(`[${new Date().toLocaleTimeString()}] Sipariş ${orderId} durumu '${newDeliveryStatus}' olarak değiştirildi. deliveredTimestamp temizlendi.`);
         }
 
@@ -909,12 +928,19 @@ app.post('/api/update-order-delivery-status', isAdminOrRiderMiddleware, async (r
 
         console.log(`[${new Date().toLocaleTimeString()}] Sipariş ${orderId} teslimat durumu güncellendi: ${newDeliveryStatus}`);
         
+        // Web panellerine ve ilgili motorcuya Socket.IO ile bildirim gönder
         connectedClients.forEach((clientSocketId, clientInfo) => {
-            if (clientInfo.role === 'admin' || clientInfo.role === 'garson') {
+            if (clientInfo.role === 'admin' || clientInfo.role === 'garson') { 
                 io.to(clientSocketId).emit('orderDeliveryStatusUpdated', { orderId, newDeliveryStatus });
+                // Eğer sipariş teslim edildi veya iptal edildiyse, web panelinden kaldır
                 if (newDeliveryStatus === 'delivered' || newDeliveryStatus === 'cancelled') {
                      io.to(clientSocketId).emit('removeOrderFromDisplay', { orderId: orderId });
                 }
+            } else if (clientInfo.role === 'rider' && clientInfo.username === username) {
+                // Sadece ilgili motorcuya güncel siparişini gönder
+                const updatedOrderForRider = db.prepare(`SELECT * FROM orders WHERE orderId = ?`).get(orderId);
+                updatedOrderForRider.sepetItems = JSON.parse(updatedOrderForRider.sepetItems);
+                io.to(clientSocketId).emit('orderUpdatedForRider', updatedOrderForRider);
             }
         });
 
@@ -1076,8 +1102,22 @@ io.on('connection', (socket) => {
 
     socket.on('registerClient', (clientInfo) => {
         const { username, role, userId } = clientInfo;
+        // Kullanıcı zaten bağlıysa, eski bağlantısını sil
+        let existingSocketId = null;
+        for (let [sId, info] of connectedClients.entries()) {
+            if (info.username === username && info.role === role) {
+                existingSocketId = sId;
+                break;
+            }
+        }
+        if (existingSocketId && existingSocketId !== socket.id) {
+            console.log(`[Socket.IO] Mevcut client ${username} (${role}) için eski bağlantı (${existingSocketId}) kesiliyor.`);
+            io.sockets.sockets.get(existingSocketId)?.disconnect(true);
+            connectedClients.delete(existingSocketId);
+        }
+
         connectedClients.set(socket.id, { username, role, userId });
-        console.log(`[Socket.IO] Client registered: ${socket.id} -> ${username} (${role}), User ID: ${userId}`);
+        console.log(`[Socket.IO] Client registered: ${socket.id} -> ${username} (${role}), User ID: ${userId}. Toplam bağlı client: ${connectedClients.size}`);
 
         if (role === 'admin' || role === 'garson') { 
             const activeOrders = db.prepare("SELECT * FROM orders WHERE status != 'paid' AND status != 'cancelled' ORDER BY timestamp DESC").all();
@@ -1087,6 +1127,16 @@ io.on('connection', (socket) => {
 
             io.to(socket.id).emit('currentRiderLocations', Object.values(riderLocations));
             console.log(`[Socket.IO] ${username} (${role}) için ${Object.values(riderLocations).length} motorcu konumu gönderildi.`);
+        } else if (role === 'rider') {
+            // Motorcu bağlandığında atanmış siparişlerini gönder
+            const riderOrders = db.prepare(`
+                SELECT * FROM orders
+                WHERE riderUsername = ? AND (deliveryStatus = 'assigned' OR deliveryStatus = 'en_route')
+                ORDER BY assignedTimestamp DESC
+            `).all(username);
+            const parsedRiderOrders = riderOrders.map(order => ({ ...order, sepetItems: JSON.parse(order.sepetItems) }));
+            io.to(socket.id).emit('currentRiderOrders', parsedRiderOrders);
+            console.log(`[Socket.IO] Motorcu ${username} için ${parsedRiderOrders.length} atanmış sipariş gönderildi.`);
         }
     });
 
@@ -1129,23 +1179,45 @@ io.on('connection', (socket) => {
 
     socket.on('orderPaid', (data) => {
         const { orderId } = data;
-        console.log(`[${new Date().toLocaleTimeString()}] Sipariş ödendi olarak işaretlendi (Socket.IO): ${orderId}`);
+        console.log(`[${new Date().toLocaleTimeString()}] Web panelinden 'orderPaid' olayı alındı. Sipariş ID: ${orderId}`);
 
         try {
-            const info = db.prepare(`UPDATE orders SET status = 'paid' WHERE orderId = ? AND status = 'pending'`).run(orderId);
+            // Siparişin mevcut durumunu kontrol et
+            const currentOrder = db.prepare(`SELECT status, deliveryStatus FROM orders WHERE orderId = ?`).get(orderId);
+            if (!currentOrder) {
+                console.warn(`[orderPaid] Sipariş (ID: ${orderId}) bulunamadı.`);
+                return;
+            }
+
+            // Sipariş zaten ödenmiş veya iptal edilmişse işlem yapma
+            if (currentOrder.status === 'paid' || currentOrder.status === 'cancelled') {
+                console.warn(`[orderPaid] Sipariş (ID: ${orderId}) zaten ${currentOrder.status} durumunda. Güncelleme yapılmadı.`);
+                // Yine de UI'dan kaldırmak için emit edebiliriz, emin olmak için
+                connectedClients.forEach((clientSocketId, clientInfo) => {
+                    if (clientInfo.role === 'admin' || clientInfo.role === 'garson') { 
+                        io.to(clientSocketId).emit('removeOrderFromDisplay', { orderId: orderId });
+                    }
+                });
+                return;
+            }
+
+            // Siparişin durumunu 'paid' olarak güncelle
+            const info = db.prepare(`UPDATE orders SET status = 'paid' WHERE orderId = ?`).run(orderId);
+            
             if (info.changes > 0) {
-                console.log(`Sipariş (ID: ${orderId}) SQLite'ta ödendi olarak güncellendi.`);
+                console.log(`Sipariş (ID: ${orderId}) SQLite'ta başarıyla 'paid' olarak güncellendi.`);
                 connectedClients.forEach((clientSocketId, clientInfo) => {
                     if (clientInfo.role === 'admin' || clientInfo.role === 'garson') { 
                         io.to(clientSocketId).emit('orderPaidConfirmation', { orderId: orderId });
                         io.to(clientSocketId).emit('removeOrderFromDisplay', { orderId: orderId });
+                        console.log(`'orderPaidConfirmation' ve 'removeOrderFromDisplay' olayları web panellerine gönderildi.`);
                     }
                 });
             } else {
-                console.warn(`Ödendi olarak işaretlenen sipariş (ID: ${orderId}) bulunamadı veya zaten ödenmiş.`);
+                console.warn(`Sipariş (ID: ${orderId}) bulunamadı veya 'paid' olarak güncellenemedi. info.changes: ${info.changes}`);
             }
         } catch (error) {
-            console.error('Siparişin durumunu güncellerken hata:', error.message);
+            console.error(`[orderPaid] Siparişin durumunu güncellerken hata (ID: ${orderId}):`, error.message);
         }
     });
 
@@ -1154,7 +1226,7 @@ io.on('connection', (socket) => {
         const clientInfo = connectedClients.get(socket.id);
         if (clientInfo) {
             connectedClients.delete(socket.id);
-            console.log(`Client disconnected: ${clientInfo.username} (${clientInfo.role})`);
+            console.log(`Client disconnected: ${clientInfo.username} (${clientInfo.role}). Kalan bağlı client: ${connectedClients.size}`);
             if (clientInfo.role === 'rider' && riderLocations[clientInfo.username] && riderLocations[clientInfo.username].socketId === socket.id) {
                 delete riderLocations[clientInfo.username];
                 connectedClients.forEach((clientSocketId, clientInfo) => {
@@ -1162,6 +1234,7 @@ io.on('connection', (socket) => {
                         io.to(clientSocketId).emit('riderDisconnected', clientInfo.username);
                     }
                 });
+                console.log(`Motorcu ${clientInfo.username} haritadan kaldırıldı.`);
             }
         }
     });
