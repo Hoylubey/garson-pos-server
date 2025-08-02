@@ -5,26 +5,34 @@ const fs = require('fs-extra');
 const PdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const ExcelJS = require('exceljs');
+const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
+const MASTER_CSV_PATH = path.join(__dirname, 'Doküman Özet Listesi.csv');
 
-// Multer disk storage configuration
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        // file.originalname contains the full relative path from the selected folder, e.g., 'FolderA/SubFolder/File.pdf'
-        const relativePath = path.dirname(file.originalname);
-        const destinationPath = path.join(UPLOAD_DIR, relativePath);
-        fs.ensureDirSync(destinationPath); // Create folder if it doesn't exist
-        cb(null, destinationPath);
+        fs.ensureDir(UPLOAD_DIR, (err) => {
+            if (err) {
+                console.error("HATA: Yükleme klasörü oluşturulurken hata:", err);
+                return cb(err);
+            }
+            cb(null, UPLOAD_DIR);
+        });
     },
     filename: (req, file, cb) => {
-        cb(null, path.basename(file.originalname)); // Use original file name
+        try {
+            const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
+            console.log(`LOG: Yeni dosya adı oluşturuldu: ${uniqueName}`);
+            cb(null, uniqueName);
+        } catch (e) {
+            console.error("HATA: Dosya adı oluşturulurken hata:", e);
+            cb(e);
+        }
     }
 });
-
 const upload = multer({ storage: storage });
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -33,156 +41,251 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Information extraction function
+function parseCsvData(csvContent) {
+    try {
+        const lines = csvContent.split('\n').filter(line => line.trim() !== '');
+        if (lines.length <= 1) {
+            console.error("HATA: CSV dosyası boş veya sadece bir başlık satırı içeriyor.");
+            return {};
+        }
+
+        let headerLine = lines.find(line => line.includes('Doküman Kodu'));
+        
+        if (!headerLine) {
+            console.error("HATA: CSV dosyasında 'Doküman Kodu' başlığı bulunamadı. Dosya içeriğini kontrol edin.");
+            return {};
+        }
+
+        // DELIMITER: Virgül (',') yerine noktalı virgül (';') kullanıldı
+        const headers = headerLine.split(';').map(h => h.trim().replace(/"/g, ''));
+        
+        const docCodeIndex = headers.indexOf('Doküman Kodu');
+        const preparationDateIndex = headers.indexOf('Hazırlama Tarihi');
+        const revisionNoIndex = headers.indexOf('Revizyon No');
+        const revisionDateIndex = headers.indexOf('Revizyon Tarihi');
+        const responsibleDeptIndex = headers.indexOf('Sorumlu Kısım');
+        const docNameIndex = headers.indexOf('Doküman Adı');
+
+        if (docCodeIndex === -1) {
+            console.error("HATA: 'Doküman Kodu' sütunu bulunamadı. Lütfen başlığı kontrol edin.");
+            return {};
+        }
+
+        const masterList = {};
+        const dataLinesStartIndex = lines.indexOf(headerLine) + 1;
+        const dataLines = lines.slice(dataLinesStartIndex);
+
+        dataLines.forEach((line, index) => {
+            try {
+                // DELIMITER: Virgül (',') yerine noktalı virgül (';') kullanıldı
+                const columns = line.split(';').map(c => c.trim().replace(/"/g, ''));
+                if (columns.length > docCodeIndex) {
+                    const docCode = columns[docCodeIndex];
+                    if (docCode) {
+                        masterList[docCode] = {
+                            'Döküman No': docCode,
+                            'Tarih': columns[preparationDateIndex] || '',
+                            'Revizyon Sayısı': columns[revisionNoIndex] || '0',
+                            'Revizyon Tarihi': columns[revisionDateIndex] || '',
+                            'Sorumlu Departman': columns[responsibleDeptIndex] || '',
+                            'Dosya İsmi': columns[docNameIndex] || ''
+                        };
+                    }
+                }
+            } catch (e) {
+                console.error(`HATA: CSV satırı işlenirken hata oluştu (satır ${index + 1}):`, e);
+            }
+        });
+
+        console.log(`LOG: Ana listede ${Object.keys(masterList).length} adet belge bilgisi başarıyla yüklendi.`);
+        return masterList;
+    } catch (e) {
+        console.error("KRİTİK HATA: CSV dosyasını ayrıştırma sırasında genel hata oluştu:", e);
+        return {};
+    }
+}
+
+
 async function extractInfo(filePath, originalRelativePath) {
     const docInfo = {
         'Döküman No': '',
         'Tarih': '',
         'Revizyon Tarihi': '',
-        'Revizyon Sayısı': '',
+        'Revizyon Sayısı': '0',
         'Dosya İsmi': '',
         'Sorumlu Departman': ''
     };
 
-    // --- Dosya İsmi Mantığı (En Son Güncelleme) ---
-    const fullFileNameWithExt = path.basename(originalRelativePath); // E.g., 'FR.01-BS.TL.02_0-SMS ve Maling Cevap Şablonu.pdf'
-    const fileNameWithoutExt = path.parse(fullFileNameWithExt).name; // E.g., 'FR.01-BS.TL.02_0-SMS ve Maling Cevap Şablonu'
+    const fullFileNameWithExt = path.basename(originalRelativePath);
+    const fileNameWithoutExt = path.parse(fullFileNameWithExt).name;
 
-    // Split by the first hyphen and take the second part (index 1)
-     const firstHyphenIndex = fileNameWithoutExt.indexOf('-');
-    if (firstHyphenIndex !== -1 && firstHyphenIndex < fileNameWithoutExt.length - 1) {
-        // substring kullanarak ilk '-' işaretinden sonraki tüm kısmı alıyoruz.
-        docInfo['Dosya İsmi'] = fileNameWithoutExt.substring(firstHyphenIndex + 1).trim();
-    } else {
-        docInfo['Dosya İsmi'] = fileNameWithoutExt.trim(); // '-' yoksa tüm uzantısız adı kullan
+    try {
+        console.log(`LOG: İşlenen dosya adı (orijinal): ${originalRelativePath}`);
+        const correctedFileName = Buffer.from(fileNameWithoutExt, 'latin1').toString('utf-8');
+        let tempFileName = correctedFileName;
+        
+        const revNumbers = [...tempFileName.matchAll(/_(\d+)/g)]
+            .map(match => parseInt(match[1]))
+            .filter(num => !isNaN(num));
+
+        if (revNumbers.length > 0) {
+            const maxRev = Math.max(...revNumbers);
+            docInfo['Revizyon Sayısı'] = maxRev.toString();
+            tempFileName = tempFileName.replace(new RegExp(`_${maxRev}`), '');
+        }
+
+        const lastHyphenIndex = tempFileName.lastIndexOf('-');
+        
+        if (lastHyphenIndex !== -1 && lastHyphenIndex > 0) {
+            docInfo['Döküman No'] = tempFileName.substring(0, lastHyphenIndex).trim();
+            docInfo['Dosya İsmi'] = tempFileName.substring(lastHyphenIndex + 1).trim();
+        } else {
+            docInfo['Döküman No'] = tempFileName.trim();
+        }
+        
+        console.log(`LOG: Ayrıştırılan bilgiler: Döküman No: ${docInfo['Döküman No']}, Revizyon Sayısı: ${docInfo['Revizyon Sayısı']}, Dosya İsmi: ${docInfo['Dosya İsmi']}`);
+
+    } catch (e) {
+        console.error("HATA: Dosya adı işlenirken hata oluştu:", e);
+        docInfo['Döküman No'] = fileNameWithoutExt.trim();
+        docInfo['Dosya İsmi'] = '';
     }
 
-    // --- Sorumlu Departman Mantığı (En Son Güncelleme) ---
-    // originalRelativePath: 'ParentFolder/ChildFolder/FileName.pdf'
-    const pathSegments = originalRelativePath.split(path.sep); // Split by OS-specific path separator
-
-    // If the file is in a subfolder (more than just filename + folder name)
-    // Example: ['ParentFolder', 'ChildFolder', 'FileName.pdf']
-    // If just: ['FileName.pdf'] or ['Folder', 'FileName.pdf']
-    if (pathSegments.length >= 2) {
-        // If the structure is 'Folder/File.pdf', the parent is 'Folder'
-        // If the structure is 'Grandparent/Parent/File.pdf', the parent is 'Parent'
-        // We want the *last folder name* in the relative path.
-        // If 'some_folder/my_doc.pdf', pathSegments = ['some_folder', 'my_doc.pdf']
-        // then pathSegments.length - 2 = 0, so pathSegments[0] = 'some_folder'
-        // This handles cases where file is in immediate subfolder.
-        const parentFolderName = pathSegments[pathSegments.length - 2];
-        if (parentFolderName && parentFolderName !== fullFileNameWithExt) { // Ensure it's an actual folder name
-            docInfo['Sorumlu Departman'] = parentFolderName;
-        } else {
-            docInfo['Sorumlu Departman'] = 'Ana Klasör'; // Fallback if direct file in root or parsing issue
-        }
+    const pathSegments = originalRelativePath.split(/[\\/]/);
+    if (pathSegments.length > 1) {
+        const folderNameIndex = pathSegments.length - 2;
+        docInfo['Sorumlu Departman'] = folderNameIndex >= 0 ? pathSegments[folderNameIndex] : 'Ana Klasör';
     } else {
-        docInfo['Sorumlu Departman'] = 'Ana Klasör'; // File is directly in the selected root folder
+        docInfo['Sorumlu Departman'] = 'Ana Klasör';
     }
 
     let textContent = '';
     const fileExtension = path.extname(filePath).toLowerCase();
-
     try {
+        console.log(`LOG: Dosya içeriği okunuyor: ${filePath}`);
         if (fileExtension === '.pdf') {
             const dataBuffer = fs.readFileSync(filePath);
             const data = await PdfParse(dataBuffer);
-            textContent = data.text;
-            console.log(`--- PDF Metin İçeriği (${path.basename(filePath)}) ---`);
-            console.log(textContent); // DEBUGGING LINE: Output the extracted text content
-            console.log('--- Metin İçeriği Sonu ---');
+            textContent = data.text.normalize('NFC');
         } else if (fileExtension === '.docx' || fileExtension === '.doc') {
             const result = await mammoth.extractRawText({ path: filePath });
-            textContent = result.value;
+            textContent = result.value.normalize('NFC');
         }
+        console.log("LOG: Dosya içeriği başarıyla okundu.");
     } catch (e) {
-        console.error(`Dosya metni okunurken hata oluştu ${filePath}:`, e);
-        return docInfo; // Return empty info on error
+        console.error(`HATA: Dosya metni okunurken hata oluştu ${filePath}:`, e);
+        return docInfo;
     }
 
-    // --- Bilgi Çekme (Revizyon Tarihi dahil, regex'ler daha da esnekleştirildi) ---
-    let match;
-
-    // Doküman No (More flexible regex: for spaces and hyphens)
-    match = textContent.match(/Doküman No\s*[:\s]*([A-Z0-9.\-\s]+)/i);
-    if (match) docInfo['Döküman No'] = match[1].trim();
-
-    // Yayın Tarihi (More flexible regex)
-    match = textContent.match(/Yayın Tarihi\s*[:\s]*(\d{2}[.\/]\d{2}[.\/]\d{4})/);
-    if (match) docInfo['Tarih'] = match[1].trim();
-
-    // Revizyon No (More flexible regex)
-    match = textContent.match(/Revizyon No\s*[:\s]*(\d+)/i);
-    if (match) docInfo['Revizyon Sayısı'] = match[1].trim();
-
-    // Revizyon Tarihi (More flexible regex: for spaces, colon, and different date formats)
-    // The previous output in the PDF content was "Revizyon Tarihi: 30.03.2020"
-    match = textContent.match(/Revizyon Tarihi\s*[:\s]*(\d{2}[.\/]\d{2}[.\/]\d{4})/i);
-    if (match) docInfo['Revizyon Tarihi'] = match[1].trim();
+    let matchFromText;
+    matchFromText = textContent.match(/Yayın Tarihi\s*[:\s]*(\d{2}[.\/]\d{2}[.\/]\d{4})/);
+    if (matchFromText) docInfo['Tarih'] = matchFromText[1].trim();
+    matchFromText = textContent.match(/Revizyon Tarihi\s*[:\s]*(\d{2}[.\/]\d{2}[.\/]\d{4})/i);
+    if (matchFromText) docInfo['Revizyon Tarihi'] = matchFromText[1].trim();
 
     return docInfo;
 }
 
 app.post('/upload', upload.array('files'), async (req, res) => {
-    const uploadedFiles = req.files;
-    if (!uploadedFiles || uploadedFiles.length === 0) {
-        return res.status(400).send('No files uploaded or no folder selected.');
-    }
-
-    const extractedData = [];
-
-    for (const file of uploadedFiles) {
-        const originalRelativePath = file.originalname;
-        
-        const data = await extractInfo(file.path, originalRelativePath);
-        if (data) {
-            extractedData.push(data);
-        }
-
-        // Delete temporary file
-        try {
-            await fs.remove(file.path);
-        } catch (e) {
-            console.error(`Dosya silinirken hata oluştu ${file.path}:`, e);
-        }
-    }
-
-    // Clean up all temporary folders created by multer
     try {
-        await fs.emptyDir(UPLOAD_DIR); // Empties the 'uploads' folder completely
-    } catch (e) {
-        console.error(`Geçici yükleme klasörü temizlenirken hata oluştu ${UPLOAD_DIR}:`, e);
+        const uploadedFiles = req.files;
+        if (!uploadedFiles || uploadedFiles.length === 0) {
+            return res.status(400).send('Dosya yüklenmedi veya klasör seçilmedi.');
+        }
+
+        console.log("LOG: Ana doküman listesi okunuyor...");
+        let masterDocumentList = {};
+        try {
+            const masterCsvContent = fs.readFileSync(MASTER_CSV_PATH, 'utf-8');
+            masterDocumentList = parseCsvData(masterCsvContent);
+            console.log(`LOG: Ana listede ${Object.keys(masterDocumentList).length} adet belge bilgisi yüklendi.`);
+        } catch (e) {
+            console.error(`KRİTİK HATA: Ana doküman listesi dosyası (${MASTER_CSV_PATH}) okunamadı. Dosyanın mevcut ve doğru yerde olduğundan emin olun.`, e);
+            return res.status(500).send('Sunucu hatası: Ana doküman listesi dosyası bulunamıyor veya okunamıyor. Lütfen Render loglarını kontrol edin.');
+        }
+        
+        const extractedData = [];
+        const extractedDocumentNumbers = new Set();
+        const mismatchedData = [];
+
+        for (const file of uploadedFiles) {
+            const originalRelativePath = file.originalname;
+            const data = await extractInfo(file.path, originalRelativePath);
+            
+            if (data && data['Döküman No'] && !extractedDocumentNumbers.has(data['Döküman No'])) {
+                extractedData.push(data);
+                extractedDocumentNumbers.add(data['Döküman No']);
+
+                const masterDoc = masterDocumentList[data['Döküman No']];
+                if (masterDoc) {
+                    const mismatches = [];
+                    if (masterDoc['Revizyon Sayısı'] !== data['Revizyon Sayısı']) {
+                        mismatches.push(`Revizyon Sayısı: Ana Liste '${masterDoc['Revizyon Sayısı']}' vs. Belge '${data['Revizyon Sayısı']}'`);
+                    }
+                    if (masterDoc['Revizyon Tarihi'] !== data['Revizyon Tarihi']) {
+                        mismatches.push(`Revizyon Tarihi: Ana Liste '${masterDoc['Revizyon Tarihi']}' vs. Belge '${data['Revizyon Tarihi']}'`);
+                    }
+                    if (masterDoc['Tarih'] !== data['Tarih']) {
+                        mismatches.push(`Hazırlama/Yayın Tarihi: Ana Liste '${masterDoc['Tarih']}' vs. Belge '${data['Tarih']}'`);
+                    }
+
+                    if (mismatches.length > 0) {
+                        mismatchedData.push({
+                            'Döküman No': data['Döküman No'],
+                            'Hata': mismatches.join('; ')
+                        });
+                    }
+                } else {
+                    mismatchedData.push({
+                        'Döküman No': data['Döküman No'],
+                        'Hata': 'Ana listede bulunmuyor.'
+                    });
+                }
+            }
+            try {
+                fs.unlinkSync(file.path);
+                console.log(`LOG: Dosya başarıyla silindi: ${file.path}`);
+            } catch (e) {
+                console.error(`HATA: Dosya silinirken hata oluştu: ${file.path}`, e);
+            }
+        }
+        
+        if (extractedData.length === 0) {
+            return res.status(400).send('Hiçbir geçerli belge işlenemedi veya hepsi mükerrerdi.');
+        }
+
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Belge Bilgileri');
+        const headers = ['Döküman No', 'Tarih', 'Revizyon Tarihi', 'Revizyon Sayısı', 'Sorumlu Departman', 'Dosya İsmi'];
+        worksheet.addRow(headers);
+        extractedData.forEach(rowData => {
+            const rowValues = headers.map(header => rowData[header] || '');
+            worksheet.addRow(rowValues);
+        });
+
+        if (mismatchedData.length > 0) {
+            const mismatchWorksheet = workbook.addWorksheet('Eşleşmeyen Bilgiler');
+            const mismatchHeaders = ['Döküman No', 'Hata'];
+            mismatchWorksheet.addRow(mismatchHeaders);
+            mismatchedData.forEach(rowData => {
+                const rowValues = mismatchHeaders.map(header => rowData[header] || '');
+                mismatchWorksheet.addRow(rowValues);
+            });
+        }
+        
+        const buffer = await workbook.xlsx.writeBuffer();
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', 'attachment; filename=Belge_Bilgileri.xlsx');
+        res.send(buffer);
+        console.log("LOG: Excel dosyası başarıyla oluşturuldu ve gönderildi.");
+
+    } catch (error) {
+        console.error("KRİTİK HATA: Yükleme rotası işlenirken genel bir hata oluştu:", error);
+        res.status(500).send('Sunucu tarafında bir hata oluştu.');
     }
-
-    if (extractedData.length === 0) {
-        return res.status(400).send('No PDF or Word documents found or processed.');
-    }
-
-    // Create Excel
-    const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Belge Bilgileri');
-
-    // Add headers - Adjusted order for 'Sorumlu Departman' and 'Dosya İsmi'
-    const headers = ['Döküman No', 'Tarih', 'Revizyon Tarihi', 'Revizyon Sayısı', 'Sorumlu Departman', 'Dosya İsmi'];
-    worksheet.addRow(headers);
-
-    // Add data
-    extractedData.forEach(rowData => {
-        const rowValues = headers.map(header => rowData[header] || '');
-        worksheet.addRow(rowValues);
-    });
-
-    // Save Excel file to buffer
-    const buffer = await workbook.xlsx.writeBuffer();
-
-    // Send Excel file to the user
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename=Belge_Bilgileri.xlsx');
-    res.send(buffer);
 });
 
 app.listen(PORT, () => {
     console.log(`Sunucu http://localhost:${PORT} adresinde çalışıyor`);
-    fs.ensureDirSync(UPLOAD_DIR); // Create uploads folder on app start
+    fs.ensureDirSync(UPLOAD_DIR);
 });
