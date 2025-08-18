@@ -1,4 +1,4 @@
-<!-- index.html (Düzeltilmiş hali - Socket.IO bağlantısı ve olay dinleyicileri güçlendirildi, kayıt otomatik yapıldı) -->
+<!-- index.html (Güncellenmiş) -->
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -24,7 +24,7 @@
             display: flex;
             flex-direction: column;
             gap: 20px;
-            min-height: 100vh; /* Sayfanın en az viewport yüksekliği kadar olmasını sağlar */
+            min-height: 100vh;
         }
         .container {
             max-width: 1200px;
@@ -33,7 +33,7 @@
             background-color: #ffffff;
             border-radius: 12px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-            flex-grow: 1; /* Konteynerin kalan alanı doldurmasını sağlar */
+            flex-grow: 1;
         }
         .header {
             background-color: #2c3e50;
@@ -79,29 +79,29 @@
             transition: background-color 0.3s ease;
         }
         .status-pending {
-            background-color: #f39c12; /* Turuncu */
+            background-color: #f39c12;
             color: white;
         }
         .status-paid {
-            background-color: #27ae60; /* Yeşil */
+            background-color: #27ae60;
             color: white;
         }
         .status-assigned {
-            background-color: #3498db; /* Mavi */
+            background-color: #3498db;
             color: white;
         }
         .status-en_route {
-            background-color: #e67e22; /* Koyu Turuncu */
+            background-color: #e67e22;
             color: white;
         }
         .status-delivered {
-            background-color: #2ecc71; /* Açık Yeşil */
+            background-color: #2ecc71;
             color: white;
         }
         .status-cancelled {
-            background-color: #e74c3c; /* Kırmızı */
+            background-color: #e74c3c;
             color: white;
-            opacity: 0.6; /* Soluk */
+            opacity: 0.6;
         }
         .rider-card {
             background-color: #ecf0f1;
@@ -111,15 +111,15 @@
             box-shadow: 0 1px 5px rgba(0, 0, 0, 0.03);
         }
         .modal {
-            display: none; /* Hidden by default */
-            position: fixed; /* Stay in place */
-            z-index: 1000; /* Sit on top */
+            display: none;
+            position: fixed;
+            z-index: 1000;
             left: 0;
             top: 0;
-            width: 100%; /* Full width */
-            height: 100%; /* Full height */
-            overflow: auto; /* Enable scroll if needed */
-            background-color: rgba(0,0,0,0.6); /* Black w/ opacity */
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.6);
             justify-content: center;
             align-items: center;
         }
@@ -207,8 +207,6 @@
         #notificationSound {
             display: none;
         }
-
-        /* Mevcut stilinizden kopyalanan ve adapte edilenler */
         #main-layout-container {
             display: flex;
             flex-direction: row;
@@ -217,13 +215,11 @@
             max-width: 100vw;
             justify-content: space-between;
         }
-
         #main-content {
             flex: 2;
             display: flex;
             flex-direction: column;
         }
-
         #map-container {
             flex: 1;
             background-color: #fff;
@@ -276,7 +272,6 @@
             border-top: 1px dashed #ccc;
             padding-top: 10px;
         }
-
         .notification-bell {
             position: fixed;
             top: 20px;
@@ -306,13 +301,12 @@
         .ringing {
             animation: ring 0.5s ease-in-out 3;
         }
-
         .order-actions {
             display: flex;
             gap: 10px;
             margin-top: 15px;
         }
-        .pay-button, .print-button, .assign-rider-btn { /* assign-rider-btn eklendi */
+        .pay-button, .print-button, .assign-rider-btn {
             flex: 1;
             color: white;
             border: none;
@@ -327,10 +321,8 @@
         .pay-button:hover { background-color: #218838; }
         .print-button { background-color: #007bff; }
         .print-button:hover { background-color: #0056b3; }
-        .assign-rider-btn { background-color: #f39c12; } /* Turuncu */
-        .assign-rider-btn:hover { background-color: #e67e22; } /* Koyu Turuncu */
-
-
+        .assign-rider-btn { background-color: #f39c12; }
+        .assign-rider-btn:hover { background-color: #e67e22; }
         #order-status-box {
             position: absolute;
             top: 20px;
@@ -374,7 +366,6 @@
             transform: translateY(0);
             box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
         }
-
         @media print {
             body * {
                 visibility: hidden;
@@ -391,7 +382,6 @@
             .order-actions, #map-container, #order-status-box, #notificationBell, h1 {
                 display: none;
             }
-
             @page {
                 size: 58mm auto;
                 margin: 0;
@@ -429,7 +419,6 @@
                 margin: 5px 0;
             }
         }
-
         body.map-only {
             display: flex;
             flex-direction: column;
@@ -477,8 +466,6 @@
             font-size: 1.2em;
             color: #333;
         }
-
-        /* Login Ekranı Stillleri */
         #loginContainer {
             display: flex;
             justify-content: center;
@@ -487,7 +474,6 @@
             background-color: #f0f2f5;
             width: 100%;
         }
-
         .login-box {
             background-color: #fff;
             padding: 40px;
@@ -497,13 +483,11 @@
             width: 100%;
             max-width: 400px;
         }
-
         .login-box h2 {
             margin-bottom: 30px;
             color: #333;
             font-size: 28px;
         }
-
         .login-box label {
             display: block;
             text-align: left;
@@ -511,17 +495,15 @@
             font-weight: bold;
             color: #555;
         }
-
         .login-box input[type="text"],
         .login-box input[type="password"] {
-            width: calc(100% - 24px); /* Padding ve border için */
+            width: calc(100% - 24px);
             padding: 12px;
             margin-bottom: 20px;
             border: 1px solid #ddd;
             border-radius: 8px;
             font-size: 16px;
         }
-
         .login-box button {
             width: 100%;
             padding: 15px;
@@ -534,18 +516,15 @@
             cursor: pointer;
             transition: background-color 0.3s ease;
         }
-
         .login-box button:hover {
             background-color: #0056b3;
         }
-
         .login-box .error-message {
             color: #dc3545;
             margin-top: 15px;
             font-size: 14px;
             font-weight: bold;
         }
-
         .header-buttons-top {
             display: flex;
             justify-content: space-between;
@@ -555,18 +534,15 @@
             color: #ffffff;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
-
         .header-buttons-top h1 {
             margin: 0;
             font-size: 1.5rem;
             color: #ffffff;
         }
-
         .header-buttons-top .right-buttons {
             display: flex;
             gap: 10px;
         }
-
         .header-buttons-top button {
             padding: 8px 15px;
             border: none;
@@ -576,14 +552,12 @@
             color: white;
             transition: background-color 0.3s ease;
         }
-
         .header-buttons-top #order-status-toggle {
-            background-color: #28a745; /* Varsayılan yeşil */
+            background-color: #28a745;
         }
         .header-buttons-top #order-status-toggle.disabled {
-            background-color: #dc3545; /* Kırmızı */
+            background-color: #dc3545;
         }
-
         .header-buttons-top #logoutButton {
             background-color: #dc3545;
         }
@@ -688,13 +662,7 @@
         // Global Değişkenler
         const SOCKET_SERVER_URL = 'https://garson-pos-server.onrender.com';
         const API_BASE_URL = 'https://garson-pos-server.onrender.com';
-        const deliveryMarkers = {};
 
-        // io'nun tanımlı olup olmadığı kontrolü
-        if (typeof io === 'undefined') {
-            console.error("Socket.IO kütüphanesi yüklenemedi. 'io' tanımlı değil.");
-            alert("Uygulama başlatılamadı: Socket.IO kütüphanesi yüklenemedi. Lütfen internet bağlantınızı kontrol edin veya sunucu yöneticinize başvurun.");
-        }
         const socket = io(SOCKET_SERVER_URL, {
             reconnection: true,
             reconnectionAttempts: 10,
@@ -721,6 +689,7 @@
         const modalMasaAdi = document.getElementById('modalMasaAdi');
         const deliveryAddressInput = document.getElementById('deliveryAddress');
         const paymentMethodSelect = document.getElementById('paymentMethod');
+        const customerPhoneInput = document.getElementById('customerPhone');
         const selectRider = document.getElementById('selectRider');
         const cancelAssignButton = assignOrderModal.querySelector('.btn-secondary');
         const sendAssignButton = assignOrderModal.querySelector('.btn-primary');
@@ -728,10 +697,9 @@
 
         let map;
         const riderMarkers = {};
-        const orders = {}; // Siparişleri saklamak için obje
-        let currentOrderToAssign = null; // Atanacak mevcut sipariş
-
-        // --- Fonksiyon Tanımlamaları (Yukarıya taşındı) ---
+        const deliveryMarkers = {};
+        const orders = {};
+        let currentOrderToAssign = null;
 
         // AUTHENTICATION FONKSİYONLARI
         function getAuthToken() {
@@ -788,6 +756,12 @@
                 }
                 delete riderMarkers[key];
             });
+            Object.keys(deliveryMarkers).forEach(key => {
+                if (deliveryMarkers[key]) {
+                    deliveryMarkers[key].remove();
+                }
+                delete deliveryMarkers[key];
+            });
             socket.disconnect();
         }
 
@@ -842,7 +816,7 @@
 
                 // Teslimat işaretleyicileri için özel ikon
                 window.deliveryIcon = L.icon({
-                    iconUrl: 'https://cdn-icons-png.flaticon.com/512/1170/1170679.png', // Paket ikonu
+                    iconUrl: 'https://cdn-icons-png.flaticon.com/512/1170/1170679.png',
                     iconSize: [32, 32],
                     iconAnchor: [16, 16],
                     popupAnchor: [0, -16]
@@ -854,34 +828,6 @@
             }
         }
 
-        // Teslimat adresi ekleme fonksiyonu
-        function addDeliveryMarker(order) {
-            if (!order.deliveryAddress || !order.deliveryLocation) return;
-            
-            if (deliveryMarkers[order.orderId]) {
-                deliveryMarkers[order.orderId].remove();
-            }
-            
-            const latLng = [order.deliveryLocation.latitude, order.deliveryLocation.longitude];
-            deliveryMarkers[order.orderId] = L.marker(latLng, {
-                icon: window.deliveryIcon,
-                zIndexOffset: 1000
-            }).addTo(map)
-            .bindPopup(`
-                <div><strong>Sipariş ID:</strong> ${order.orderId.substring(0, 8)}</div>
-                <div><strong>Masa:</strong> ${order.masaAdi}</div>
-                <div><strong>Adres:</strong> ${order.deliveryAddress}</div>
-                ${order.customerPhone ? `<div><strong>Telefon:</strong> ${order.customerPhone}</div>` : ''}
-            `);
-        }
-        
-        // Teslimat işaretini kaldırma fonksiyonu
-        function removeDeliveryMarker(orderId) {
-            if (deliveryMarkers[orderId]) {
-                deliveryMarkers[orderId].remove();
-                delete deliveryMarkers[orderId];
-            }
-        }
         function updateRiderLocationOnMap(locationData) {
             const { username, latitude, longitude, fullName } = locationData;
             const latLng = [latitude, longitude];
@@ -924,6 +870,33 @@
                     );
             }
             updateActiveRiderCount();
+        }
+
+        function addDeliveryMarker(order) {
+            if (!order.deliveryAddress || !order.deliveryLocation) return;
+            
+            if (deliveryMarkers[order.orderId]) {
+                deliveryMarkers[order.orderId].remove();
+            }
+
+            const latLng = [order.deliveryLocation.latitude, order.deliveryLocation.longitude];
+            deliveryMarkers[order.orderId] = L.marker(latLng, {
+                icon: window.deliveryIcon,
+                zIndexOffset: 1000
+            }).addTo(map)
+            .bindPopup(`
+                <div><strong>Sipariş ID:</strong> ${order.orderId.substring(0, 8)}</div>
+                <div><strong>Masa:</strong> ${order.masaAdi}</div>
+                <div><strong>Adres:</strong> ${order.deliveryAddress}</div>
+                ${order.customerPhone ? `<div><strong>Telefon:</strong> ${order.customerPhone}</div>` : ''}
+            `);
+        }
+
+        function removeDeliveryMarker(orderId) {
+            if (deliveryMarkers[orderId]) {
+                deliveryMarkers[orderId].remove();
+                delete deliveryMarkers[orderId];
+            }
         }
 
         function updateActiveRiderCount() {
@@ -1024,7 +997,7 @@
                         <div class="rider-info">
                             <p class="text-xs text-gray-600 mt-1">Atanan Motorcu: ${order.riderUsername}</p>
                             <p class="text-xs text-gray-600">Teslimat Adresi: ${order.deliveryAddress}</p>
-                            <p class="text-xs text-gray-600">Telefon: ${order.customerPhone}</p>
+                            ${order.customerPhone ? `<p class="text-xs text-gray-600">Telefon: ${order.customerPhone}</p>` : ''}
                             <p class="text-xs text-gray-600">Ödeme Yöntemi: ${order.paymentMethod}</p>
                         </div>
                     `;
@@ -1121,6 +1094,7 @@
                     <p class="receipt-info">Sipariş ID: ${order.orderId.substring(0, 8)}...</p>
                     <p class="receipt-info">Zaman: ${new Date(order.timestamp).toLocaleString()}</p>
                     ${order.deliveryAddress ? `<p class="receipt-info">Adres: ${order.deliveryAddress}</p>` : ''}
+                    ${order.customerPhone ? `<p class="receipt-info">Telefon: ${order.customerPhone}</p>` : ''}
                     ${order.paymentMethod ? `<p class="receipt-info">Ödeme: ${order.paymentMethod}</p>` : ''}
                     <hr>
                     <div class="receipt-items">
@@ -1145,7 +1119,6 @@
             printWindow.document.write('<!DOCTYPE html><html><head><title>Fiş - ' + order.masaAdi + '</title>');
             printWindow.document.write('<style>');
             printWindow.document.write(`
-                /* POS Fişi Stilleri - YAZDIRMA PENCERESİ İÇİN */
                 @page {
                     size: 58mm auto;
                     margin: 0;
@@ -1203,6 +1176,7 @@
             modalOrderId.value = currentOrderToAssign.orderId.substring(0, 8);
             modalMasaAdi.value = currentOrderToAssign.masaAdi;
             deliveryAddressInput.value = '';
+            customerPhoneInput.value = '';
             paymentMethodSelect.value = '';
 
             await fetchAndPopulateRiders();
@@ -1258,34 +1232,28 @@
             const deliveryAddress = deliveryAddressInput.value.trim();
             const paymentMethod = paymentMethodSelect.value;
             const selectedRider = selectRider.value;
-            const customerPhone = document.getElementById('customerPhone').value.trim();
+            const customerPhone = customerPhoneInput.value.trim();
 
             if (!deliveryAddress || !paymentMethod || !selectedRider) {
-                alert('Lütfen tüm alanları doldurun ve bir motorcu seçin.');
-                return;
-            }
-
-            // Adres koordinatlarını almak için geocoding API'si kullanımı
-        try {
-            const geocodeResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(deliveryAddress)}`);
-            const geocodeData = await geocodeResponse.json();
-            
-            if (!geocodeData || geocodeData.length === 0) {
-                throw new Error('Adres bulunamadı');
-            }
-    
-            const location = {
-                latitude: parseFloat(geocodeData[0].lat),
-                longitude: parseFloat(geocodeData[0].lon)
-            };
-            
-            const authToken = getAuthToken();
-            if (!authToken) {
-                alert('Yetkilendirme hatası. Lütfen tekrar giriş yapın.');
+                alert('Lütfen zorunlu alanları doldurun ve bir motorcu seçin.');
                 return;
             }
 
             try {
+                // Adres koordinatlarını almak için geocoding API'si kullanımı
+                const geocodeResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(deliveryAddress)}`);
+                const geocodeData = await geocodeResponse.json();
+                
+                if (!geocodeData || geocodeData.length === 0) {
+                    throw new Error('Adres bulunamadı');
+                }
+
+                const location = {
+                    latitude: parseFloat(geocodeData[0].lat),
+                    longitude: parseFloat(geocodeData[0].lon)
+                };
+
+                const authToken = getAuthToken();
                 const response = await fetch(`${API_BASE_URL}/api/assign-order`, {
                     method: 'POST',
                     headers: {
@@ -1296,6 +1264,7 @@
                         orderId: currentOrderToAssign.orderId,
                         riderUsername: selectedRider,
                         deliveryAddress: deliveryAddress,
+                        deliveryLocation: location,
                         paymentMethod: paymentMethod,
                         customerPhone: customerPhone || null
                     })
@@ -1310,16 +1279,9 @@
                     alert(`Sipariş atama hatası: ${data.message || response.statusText}`);
                 }
             } catch (error) {
-                console.error('Sipariş atanırken ağ hatası:', error);
-                alert('Sipariş atanamadı: Ağ bağlantı hatası.');
-                }
+                console.error('Sipariş atanırken hata:', error);
+                alert(`Sipariş atanamadı: ${error.message}`);
             }
-                
-         
-        } catch (error) {
-        console.error('Adres koordinatları alınırken hata:', error);
-        alert('Adres bulunamadı. Lütfen daha spesifik bir adres girin.');  
-          }
         }
 
         // API İSTEKLERİ
@@ -1345,6 +1307,9 @@
                 Object.keys(orders).forEach(key => delete orders[key]);
                 fetchedOrders.forEach(order => {
                     orders[order.orderId] = order;
+                    if (order.deliveryLocation) {
+                        addDeliveryMarker(order);
+                    }
                 });
                 renderOrders();
             } catch (error) {
@@ -1498,6 +1463,7 @@
         socket.on('removeOrderFromDisplay', (data) => {
             console.log('Sipariş ekrandan kaldırılıyor:', JSON.stringify(data, null, 2));
             removeOrderFromDisplay(data.orderId);
+            removeDeliveryMarker(data.orderId);
         });
 
         socket.on('orderTakingStatusChanged', (data) => {
@@ -1508,9 +1474,19 @@
         socket.on('currentActiveOrders', (currentOrders) => {
             console.log('Mevcut aktif siparişler alındı:', currentOrders.length);
             Object.keys(orders).forEach(key => delete orders[key]);
+            Object.keys(deliveryMarkers).forEach(key => {
+                if (deliveryMarkers[key]) {
+                    deliveryMarkers[key].remove();
+                }
+                delete deliveryMarkers[key];
+            });
+            
             currentOrders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             currentOrders.forEach(order => {
                 orders[order.orderId] = order;
+                if (order.deliveryLocation) {
+                    addDeliveryMarker(order);
+                }
             });
             renderOrders();
         });
@@ -1571,8 +1547,6 @@
             if (orders[order.orderId]) {
                 orders[order.orderId] = order;
                 renderOrders();
-
-                // Teslimat adresini haritaya ekle
                 if (order.deliveryLocation) {
                     addDeliveryMarker(order);
                 }
@@ -1584,17 +1558,10 @@
             if (orders[data.orderId]) {
                 orders[data.orderId].deliveryStatus = data.newDeliveryStatus;
                 renderOrders();
-
-                // Teslimat tamamlandıysa işareti kaldır
                 if (data.newDeliveryStatus === 'delivered') {
                     removeDeliveryMarker(data.orderId);
                 }
             }
-        });
-
-        socket.on('removeOrderFromDisplay', (data) => {
-            removeOrderFromDisplay(data.orderId);
-            removeDeliveryMarker(data.orderId); // Sipariş kaldırıldığında teslimat işaretini de kaldır
         });
 
         socket.on('riderDayEnded', (data) => {
