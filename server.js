@@ -545,7 +545,7 @@ app.get('/api/fcm-tokens', isAdminMiddleware, (req, res) => {
 });
 
 // 📦 ORDER ENDPOINTS
-app.post('/api/order', async (req, res) => {
+app.post('/api/order', authenticateToken, async (req, res) => {
     console.log(`[${new Date().toLocaleTimeString()}] /api/order endpoint'ine istek geldi.`);
     try {
         const orderStatus = db.prepare("SELECT value FROM settings WHERE key = 'isOrderTakingEnabled'").get();
@@ -608,25 +608,15 @@ app.post('/api/order', async (req, res) => {
             deliveryStatus: 'pending'
         };
 
-        console.log(`[${new Date().toLocaleTimeString()}] Socket.IO üzerinden 'newOrder' olayını tetikliyor. Bağlı client sayısı: ${connectedClients.size}`);
-        let emittedToClients = 0;
-        connectedClients.forEach((clientSocketId, clientInfo) => {
-            if (clientInfo.role === 'admin' || clientInfo.role === 'garson') {
-                io.to(clientSocketId).emit('newOrder', newOrderToSend);
-                console.log(`[${new Date().toLocaleTimeString()}] 'newOrder' olayı ${clientInfo.username} (${clientInfo.role}) kullanıcısına (Socket ID: ${clientSocketId}) gönderildi.`);
-                emittedToClients++;
-            }
-        });
-        if (emittedToClients === 0) {
-            console.warn(`[${new Date().toLocaleTimeString()}] 'newOrder' olayı hiçbir admin/garson istemcisine gönderilemedi. Hiçbiri bağlı olmayabilir.`);
-        }
+        // Bu kısım, tüm bağlı istemcilere anında bildirim göndermek için güncellendi.
+        console.log(`[${new Date().toLocaleTimeString()}] Socket.IO üzerinden 'newOrder' olayını tüm bağlı client'lara yayınlıyor.`);
+        io.emit('newOrder', newOrderToSend);
         io.emit('notificationSound', { play: true });
 
-        console.log(`[${new Date().toLocaleTimeString()}] FCM Bildirimleri gönderilmeye başlanıyor. Kayıtlı token sayısı: ${Object.keys(fcmTokens).length}`);
+        console.log(`[${new Date().toLocaleTimeString()}] FCM Bildirimleri gönderilmeye başlanıyor.`);
         for (const username in fcmTokens) {
             const userData = fcmTokens[username];
             if (userData.role === 'admin') {
-                console.log(`[${new Date().toLocaleTimeString()}] Admin rolündeki kullanıcı (${username}) için FCM bildirimi hazırlanıyor. Token: ${userData.token.substring(0, 10)}...`);
                 const message = {
                     notification: {
                         title: 'Yeni Sipariş!',
@@ -643,8 +633,8 @@ app.post('/api/order', async (req, res) => {
                 };
 
                 try {
-                    const response = await admin.messaging().send(message);
-                    console.log(`🔥 FCM bildirimi başarıyla gönderildi (${username}):`, response);
+                    await admin.messaging().send(message);
+                    console.log(`🔥 FCM bildirimi başarıyla gönderildi (${username}).`);
                 } catch (error) {
                     console.error(`❌ FCM bildirimi gönderilirken hata oluştu (${username}):`, error);
                     if (error.code === 'messaging/invalid-registration-token' ||
@@ -653,8 +643,6 @@ app.post('/api/order', async (req, res) => {
                         delete fcmTokens[username];
                     }
                 }
-            } else {
-                console.log(`[${new Date().toLocaleTimeString()}] Kullanıcı ${username} admin rolünde değil, bildirim gönderilmiyor. Rol: ${userData.role}`);
             }
         }
 
@@ -856,6 +844,33 @@ app.get('/api/riders', isAdminOrGarsonOrRiderMiddleware, (req, res) => {
     } catch (error) {
         console.error('Motorcu kullanıcıları çekilirken hata:', error);
         res.status(500).json({ message: 'Motorcu kullanıcıları alınırken bir hata oluştu.' });
+    }
+});
+
+app.put('/api/order-status-update', isAdminOrGarsonOrRiderMiddleware, (req, res) => {
+    const { orderId, newStatus } = req.body;
+
+    if (!orderId || !newStatus) {
+        return res.status(400).json({ error: 'Sipariş ID veya yeni durum eksik.' });
+    }
+
+    try {
+        const stmt = db.prepare("UPDATE orders SET status = ? WHERE orderId = ?");
+        const info = stmt.run(newStatus, orderId);
+
+        if (info.changes === 0) {
+            return res.status(404).json({ error: 'Sipariş bulunamadı.' });
+        }
+
+        console.log(`[${new Date().toLocaleTimeString()}] Sipariş ID ${orderId} durumu ${newStatus} olarak güncellendi.`);
+        
+        // Durum değişikliğini tüm bağlı istemcilere anında yayınlıyoruz.
+        io.emit('orderStatusUpdated', { orderId, newStatus });
+
+        res.status(200).json({ message: 'Sipariş durumu başarıyla güncellendi.', orderId, newStatus });
+    } catch (error) {
+        console.error(`[${new Date().toLocaleTimeString()}] Sipariş durumu güncellenirken hata:`, error.message);
+        res.status(500).json({ error: 'Sipariş durumu güncellenirken bir hata oluştu.' });
     }
 });
 
@@ -1275,3 +1290,4 @@ process.on('exit', () => {
 process.on('SIGHUP', () => process.exit(1));
 process.on('SIGINT', () => process.exit(1));
 process.on('SIGTERM', () => process.exit(1));
+
