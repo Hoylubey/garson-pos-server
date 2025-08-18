@@ -24,304 +24,716 @@
             display: flex;
             flex-direction: column;
             gap: 20px;
-            min-height: 100vh;
+            min-height: 100vh; /* Sayfanın en az viewport yüksekliği kadar olmasını sağlar */
         }
-
         .container {
-            max-width: 1400px;
-            margin: auto;
-            padding: 1rem;
-            width: 100%;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            flex-grow: 1; /* Konteynerin kalan alanı doldurmasını sağlar */
         }
-
-        /* Navigasyon menüsü için esneklik */
-        .nav-buttons {
+        .header {
+            background-color: #2c3e50;
+            color: #ffffff;
+            padding: 20px;
+            border-radius: 12px 12px 0 0;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .section-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .card {
+            background-color: #fcfcfc;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: transform 0.2s ease-in-out;
+        }
+        .card:hover {
+            transform: translateY(-3px);
+        }
+        .order-item {
             display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            padding-bottom: 5px;
+            border-bottom: 1px dashed #eee;
         }
-
-        /* Tüm ekranlar için içerik görünürlüğünü varsayılan olarak gizle */
-        .content-section {
+        .order-item:last-child {
+            border-bottom: none;
+        }
+        .order-status-btn {
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .status-pending {
+            background-color: #f39c12; /* Turuncu */
+            color: white;
+        }
+        .status-paid {
+            background-color: #27ae60; /* Yeşil */
+            color: white;
+        }
+        .status-assigned {
+            background-color: #3498db; /* Mavi */
+            color: white;
+        }
+        .status-en_route {
+            background-color: #e67e22; /* Koyu Turuncu */
+            color: white;
+        }
+        .status-delivered {
+            background-color: #2ecc71; /* Açık Yeşil */
+            color: white;
+        }
+        .status-cancelled {
+            background-color: #e74c3c; /* Kırmızı */
+            color: white;
+            opacity: 0.6; /* Soluk */
+        }
+        .rider-card {
+            background-color: #ecf0f1;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 5px rgba(0, 0, 0, 0.03);
+        }
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.6); /* Black w/ opacity */
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            width: 90%;
+            max-width: 500px;
+            animation-name: animatetop;
+            animation-duration: 0.4s
+        }
+        @keyframes animatetop {
+            from {top: -300px; opacity: 0}
+            to {top: 0; opacity: 1}
+        }
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 1rem;
+        }
+        .btn-primary {
+            background-color: #3498db;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border: none;
+            transition: background-color 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
+        .btn-secondary {
+            background-color: #95a5a6;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border: none;
+            transition: background-color 0.3s ease;
+        }
+        .btn-secondary:hover {
+            background-color: #7f8c8d;
+        }
+        .map-container {
+            height: 400px;
+            width: 100%;
+            border-radius: 10px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+        #notificationSound {
             display: none;
         }
 
-        /* Mobil ekranlar için dikey düzen */
-        @media (max-width: 768px) {
-            .container {
-                flex-direction: column;
-            }
-            .sidebar {
-                width: 100%;
-                margin-right: 0;
-            }
-            .main-content {
-                width: 100%;
-            }
-        }
-
-        /* Modal stil ve animasyonu */
-        .modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.6);
+        /* Mevcut stilinizden kopyalanan ve adapte edilenler */
+        #main-layout-container {
             display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-
-        .modal-content {
-            background-color: white;
-            padding: 2rem;
-            border-radius: 12px;
-            width: 90%;
-            max-width: 500px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            animation: fadeIn 0.3s ease-out;
-            position: relative;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
-        }
-
-        /* Harita için özel boyut */
-        #map {
-            height: 600px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        /* Yükleniyor ekranı */
-        #loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
+            flex-direction: row;
+            gap: 20px;
             width: 100%;
-            height: 100%;
-            background-color: rgba(255, 255, 255, 0.8);
+            max-width: 100vw;
+            justify-content: space-between;
+        }
+
+        #main-content {
+            flex: 2;
             display: flex;
             flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 2000;
         }
 
-        /* Mesaj kutusu */
-        .message-box {
+        #map-container {
+            flex: 1;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 15px;
+            height: 80vh;
+            position: sticky;
+            top: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        #map {
+            width: 100%;
+            flex-grow: 1;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        #orders-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .order-card {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            padding: 15px;
+            border-left: 5px solid #4CAF50;
+            display: flex;
+            flex-direction: column;
+        }
+        .order-card .order-header {
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+            color: #2196F3;
+        }
+        .order-card .order-item {
+            margin-left: 10px;
+            margin-bottom: 5px;
+        }
+        .order-card .order-total {
+            font-weight: bold;
+            margin-top: 10px;
+            text-align: right;
+            font-size: 1.2em;
+            color: #333;
+            border-top: 1px dashed #ccc;
+            padding-top: 10px;
+        }
+
+        .notification-bell {
             position: fixed;
             top: 20px;
             right: 20px;
-            background-color: #333;
-            color: white;
-            padding: 1rem 2rem;
-            border-radius: 8px;
-            z-index: 2000;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s ease, visibility 0.3s ease;
+            width: 50px;
+            height: 50px;
+            background-color: #FFC107;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            color: #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            animation: none;
+            z-index: 1000;
+        }
+        @keyframes ring {
+            0% { transform: rotate(0deg); }
+            10% { transform: rotate(15deg); }
+            20% { transform: rotate(-15deg); }
+            30% { transform: rotate(15deg); }
+            40% { transform: rotate(-15deg); }
+            50% { transform: rotate(0deg); }
+            100% { transform: rotate(0deg); }
+        }
+        .ringing {
+            animation: ring 0.5s ease-in-out 3;
         }
 
-        .message-box.show {
-            opacity: 1;
-            visibility: visible;
+        .order-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .pay-button, .print-button, .assign-rider-btn { /* assign-rider-btn eklendi */
+            flex: 1;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            box-sizing: border-box;
+            transition: background-color 0.2s ease;
+        }
+        .pay-button { background-color: #28a745; }
+        .pay-button:hover { background-color: #218838; }
+        .print-button { background-color: #007bff; }
+        .print-button:hover { background-color: #0056b3; }
+        .assign-rider-btn { background-color: #f39c12; } /* Turuncu */
+        .assign-rider-btn:hover { background-color: #e67e22; } /* Koyu Turuncu */
+
+
+        #order-status-box {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            z-index: 1001;
+            transition: all 0.3s ease;
+            box-sizing: border-box;
+        }
+        #order-status-text {
+            font-weight: 700;
+            font-size: 1.1em;
+            color: #333;
+            white-space: nowrap;
+        }
+        #order-status-toggle {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            color: white;
+            font-weight: 600;
+            font-size: 1em;
+            min-width: 80px;
+            text-align: center;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+        }
+        #order-status-toggle:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        #order-status-toggle:active {
+            transform: translateY(0);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            .printable-content, .printable-content * {
+                visibility: visible;
+            }
+            .printable-content {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+            .order-actions, #map-container, #order-status-box, #notificationBell, h1 {
+                display: none;
+            }
+
+            @page {
+                size: 58mm auto;
+                margin: 0;
+            }
+            body {
+                width: 58mm;
+                margin: 0;
+                font-family: 'Consolas', 'Courier New', monospace;
+                font-size: 10px;
+                line-height: 1.2;
+                color: #000;
+            }
+            .receipt-container {
+                padding: 5mm;
+                box-sizing: border-box;
+            }
+            .receipt-header, .receipt-footer {
+                text-align: center;
+                margin-bottom: 5px;
+                font-size: 12px;
+            }
+            .receipt-info p, .receipt-item {
+                margin: 2px 0;
+                white-space: pre-wrap;
+            }
+            .receipt-total {
+                font-weight: bold;
+                text-align: right;
+                margin-top: 10px;
+                font-size: 11px;
+            }
+            hr {
+                border: 0;
+                border-top: 1px dashed #888;
+                margin: 5px 0;
+            }
+        }
+
+        body.map-only {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+            padding: 0;
+        }
+        body.map-only #main-layout-container {
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            gap: 0;
+        }
+        body.map-only #main-content {
+            display: none;
+        }
+        body.map-only #map-container {
+            width: 95%;
+            height: 95%;
+            position: relative;
+            top: auto;
+            margin-top: 0;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+        body.map-only #map {
+            flex-grow: 1;
+            width: 100%;
+            height: 100%;
+            margin-top: 0;
+        }
+        body.map-only h1,
+        body.map-only #order-status-box,
+        body.map-only #notificationBell {
+            display: none;
+        }
+        body.map-only #map-container h2 {
+            display: block;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+            color: #333;
+        }
+
+        /* Login Ekranı Stillleri */
+        #loginContainer {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f2f5;
+            width: 100%;
+        }
+
+        .login-box {
+            background-color: #fff;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+            text-align: center;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .login-box h2 {
+            margin-bottom: 30px;
+            color: #333;
+            font-size: 28px;
+        }
+
+        .login-box label {
+            display: block;
+            text-align: left;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .login-box input[type="text"],
+        .login-box input[type="password"] {
+            width: calc(100% - 24px); /* Padding ve border için */
+            padding: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .login-box button {
+            width: 100%;
+            padding: 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .login-box button:hover {
+            background-color: #0056b3;
+        }
+
+        .login-box .error-message {
+            color: #dc3545;
+            margin-top: 15px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .header-buttons-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background-color: #2c3e50;
+            color: #ffffff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .header-buttons-top h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: #ffffff;
+        }
+
+        .header-buttons-top .right-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .header-buttons-top button {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            color: white;
+            transition: background-color 0.3s ease;
+        }
+
+        .header-buttons-top #order-status-toggle {
+            background-color: #28a745; /* Varsayılan yeşil */
+        }
+        .header-buttons-top #order-status-toggle.disabled {
+            background-color: #dc3545; /* Kırmızı */
+        }
+
+        .header-buttons-top #logoutButton {
+            background-color: #dc3545;
+        }
+        .header-buttons-top #logoutButton:hover {
+            background-color: #c82333;
         }
     </style>
 </head>
-
-<body class="bg-gray-100 text-gray-800">
-
-    <!-- Mesaj Kutusu -->
-    <div id="messageBox" class="message-box"></div>
-
-    <!-- Yükleniyor Ekranı -->
-    <div id="loading-overlay" class="hidden">
-        <div class="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-orange-500"></div>
-        <p class="mt-4 text-xl text-orange-500">Yükleniyor...</p>
+<body>
+    <!-- Giriş Ekranı -->
+    <div id="loginContainer">
+        <div class="login-box">
+            <h2>Yönetici Girişi</h2>
+            <form id="loginForm">
+                <label for="username">Kullanıcı Adı:</label>
+                <input type="text" id="username" name="username" required>
+                <label for="password">Parola:</label>
+                <input type="password" id="password" name="password" required>
+                <button type="submit">Giriş Yap</button>
+                <div id="loginError" class="error-message"></div>
+            </form>
+        </div>
     </div>
 
-    <!-- Ana Başlık -->
-    <header class="bg-white shadow-md p-4 text-center rounded-b-xl">
-        <h1 class="text-4xl font-bold text-orange-500">Olimpiyat Kokoreç</h1>
-        <p id="tvLoginTitle" class="mt-2 text-xl text-gray-600"></p>
-    </header>
+    <!-- Admin Paneli İçeriği (Girişten Sonra Görünür) -->
+    <div id="adminPanelContent" style="display: none; flex-direction: column; flex-grow: 1;">
+        <audio id="notificationSound" src="notification.mp3" preload="auto"></audio>
+        <span id="notificationBell" class="notification-bell">🔔</span>
 
-    <!-- Navigasyon Butonları -->
-    <nav id="dashboard-nav" class="nav-buttons container hidden">
-        <button id="btnGarson" class="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg shadow-md transition-transform transform hover:scale-105">Garson Ekranı</button>
-        <button id="btnYonetici" class="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg shadow-md transition-transform transform hover:scale-105">Yönetici Paneli</button>
-        <button id="btnHarita" class="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg shadow-md transition-transform transform hover:scale-105">Canlı Takip</button>
-        <button id="btnLogout" class="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg shadow-md transition-transform transform hover:scale-105">Çıkış Yap</button>
-    </nav>
-    
-    <!-- Uygulama Bölümleri -->
-    <main class="container">
-        
-        <!-- Giriş Ekranı -->
-        <div id="login-screen" class="flex flex-col items-center justify-center h-screen hidden">
-            <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-sm">
-                <h2 class="text-3xl font-bold text-center text-orange-500 mb-6">Giriş Yap</h2>
-                <input type="text" id="etUsername" placeholder="Kullanıcı Adı" class="w-full p-3 rounded-lg border border-gray-300 mb-4 focus:outline-none focus:ring-2 focus:ring-orange-500">
-                <input type="password" id="etPassword" placeholder="Şifre" class="w-full p-3 rounded-lg border border-gray-300 mb-6 focus:outline-none focus:ring-2 focus:ring-orange-500">
-                <button id="btnLogin" class="w-full p-3 bg-orange-500 text-white rounded-lg font-semibold shadow-md transition-transform transform hover:scale-105">Giriş</button>
-                <div id="login-message" class="mt-4 text-red-500 text-center"></div>
+        <div class="header-buttons-top">
+            <h1>Mutfak / Kasa Ekranı</h1>
+            <div class="right-buttons">
+                <button id="order-status-toggle">Sipariş Alımı: Yükleniyor...</button>
+                <button id="logoutButton">Çıkış Yap</button>
             </div>
         </div>
 
-        <!-- Garson Ekranı -->
-        <div id="garson-screen" class="content-section flex flex-col gap-4">
-            <h2 class="text-3xl font-bold text-gray-700">Masalar</h2>
-            <div id="tables-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                <!-- Masalar buraya dinamik olarak eklenecek -->
+        <div class="container" id="main-layout-container">
+            <div id="main-content">
+                <h2 class="section-title">Aktif Siparişler</h2>
+                <div id="orders-container">
+                    <!-- Sipariş kartları buraya JavaScript ile eklenecek -->
+                    <p>Aktif sipariş bulunamadı.</p>
+                </div>
             </div>
-            <button id="btnRegisterEmployee" class="mt-4 px-6 py-3 bg-green-500 text-white rounded-lg shadow-md font-semibold transition-transform transform hover:scale-105">Yeni Çalışan Kaydet</button>
-        </div>
 
-        <!-- Yönetici Paneli -->
-        <div id="yonetici-panel-screen" class="content-section flex flex-col gap-4">
-            <h2 class="text-3xl font-bold text-gray-700">Yeni Siparişler</h2>
-            <div id="orders-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <!-- Sipariş kartları buraya dinamik olarak eklenecek -->
-            </div>
-        </div>
-        
-        <!-- Canlı Harita Takip Ekranı -->
-        <div id="harita-screen" class="content-section">
-            <h2 class="text-3xl font-bold text-gray-700 mb-4">Canlı Motorcu Takibi</h2>
-            <div id="map"></div>
-            <div id="rider-status-container" class="mt-4 flex flex-wrap gap-2">
-                <!-- Motorcu durumu kartları buraya dinamik olarak eklenecek -->
-            </div>
-        </div>
-
-    </main>
-
-    <!-- Modal Yapısı -->
-    <div id="modal-container" class="modal hidden">
-        <!-- Sipariş Atama Modalı -->
-        <div id="assignOrderModal" class="modal-content">
-            <h3 class="text-xl font-bold mb-4">Sipariş Atama</h3>
-            <div class="mb-4">
-                <p class="text-sm text-gray-500">Sipariş ID: <span id="modal-order-id" class="font-semibold text-gray-700"></span></p>
-                <p class="text-sm text-gray-500">Masa Adı: <span id="modal-table-name" class="font-semibold text-gray-700"></span></p>
-            </div>
-            <div class="flex flex-col gap-4">
-                <!-- Adres -->
-                <div>
-                    <label for="etDeliveryAddress" class="block text-sm font-medium text-gray-700">Teslimat Adresi:</label>
-                    <textarea id="etDeliveryAddress" rows="3" placeholder="Müşteri adresi girin" class="w-full p-3 rounded-lg border border-gray-300 mt-1 focus:outline-none focus:ring-2 focus:ring-orange-500"></textarea>
-                </div>
-                <!-- Ödeme Yöntemi -->
-                <div>
-                    <label for="spinnerPaymentMethod" class="block text-sm font-medium text-gray-700">Ödeme Yöntemi:</label>
-                    <select id="spinnerPaymentMethod" class="w-full p-3 rounded-lg border border-gray-300 mt-1 focus:outline-none focus:ring-2 focus:ring-orange-500">
-                        <option value="cash">Nakit</option>
-                        <option value="credit_card">Kredi Kartı</option>
-                        <option value="online">Online</option>
-                    </select>
-                </div>
-                <!-- YENİ: İsteğe bağlı Telefon Numarası alanı eklendi -->
-                <div>
-                    <label for="etPhoneNumber" class="block text-sm font-medium text-gray-700">Telefon Numarası (isteğe bağlı):</label>
-                    <input type="tel" id="etPhoneNumber" placeholder="Müşteri telefon numarası girin" class="w-full p-3 rounded-lg border border-gray-300 mt-1 focus:outline-none focus:ring-2 focus:ring-orange-500">
-                </div>
-                <!-- Motorcu Seçimi -->
-                <div>
-                    <label for="spinnerRider" class="block text-sm font-medium text-gray-700">Motorcu Seç:</label>
-                    <select id="spinnerRider" class="w-full p-3 rounded-lg border border-gray-300 mt-1 focus:outline-none focus:ring-2 focus:ring-orange-500"></select>
-                </div>
-            </div>
-            <div class="flex justify-end gap-2 mt-6">
-                <button id="btnAssignConfirm" class="px-6 py-2 bg-green-500 text-white rounded-lg font-semibold shadow-md transition-transform transform hover:scale-105">Atamayı Onayla</button>
-                <button id="btnAssignCancel" class="px-6 py-2 bg-gray-300 text-gray-700 rounded-lg font-semibold shadow-md transition-transform transform hover:scale-105">İptal</button>
+            <div id="map-container">
+                <h2>Motorcu Konumları <span id="activeRiderCount" style="font-size: 0.8em; color: #666;">(0 Aktif)</span></h2>
+                <div id="map"></div>
             </div>
         </div>
     </div>
-    
-    <!-- JavaScript Kodları -->
+
+    <!-- Motorcuya Sipariş Gönder Modalı -->
+    <div id="assignOrderModal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeAssignOrderModal()">&times;</span>
+            <h3 class="text-xl font-bold mb-4">Siparişi Motorcuya Ata</h3>
+            <div class="form-group">
+                <label for="modalOrderId">Sipariş ID:</label>
+                <input type="text" id="modalOrderId" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+                <label for="modalMasaAdi">Masa Adı:</label>
+                <input type="text" id="modalMasaAdi" class="form-control" readonly>
+            </div>
+            <div class="form-group">
+                <label for="deliveryAddress">Teslimat Adresi:</label>
+                <textarea id="deliveryAddress" rows="3" class="form-control" placeholder="Müşteri adresi girin" required></textarea>
+            </div>
+            <div class="form-group">
+                <label for="customerPhone">Müşteri Telefonu (Opsiyonel):</label>
+                <input type="text" id="customerPhone" class="form-control" placeholder="Müşteri telefon numarası">
+            </div>
+            <div class="form-group">
+                <label for="paymentMethod">Ödeme Yöntemi:</label>
+                <select id="paymentMethod" class="form-control" required>
+                    <option value="">Seçiniz</option>
+                    <option value="Nakit">Nakit</option>
+                    <option value="Kredi/Banka Kartı">Kredi/Banka Kartı</option>
+                    <option value="Ticket">Ticket</option>
+                    <option value="Sodexo">Sodexo</option>
+                    <option value="Multinet">Multinet</option>
+                    <option value="Metropol">Metropol</option>
+                    <option value="Setcard">Setcard</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="selectRider">Motorcu Seç:</label>
+                <select id="selectRider" class="form-control" required>
+                    <option value="">Aktif Motorcu Yok</option>
+                </select>
+            </div>
+            <div class="flex justify-end space-x-4 mt-6">
+                <button class="btn-secondary" onclick="closeAssignOrderModal()">İptal</button>
+                <button class="btn-primary" onclick="assignOrder()">Gönder</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        const API_URL = window.location.origin;
-        const socket = io(API_URL);
+        // Global Değişkenler
+        const SOCKET_SERVER_URL = 'https://garson-pos-server.onrender.com';
+        const API_BASE_URL = 'https://garson-pos-server.onrender.com';
+        const deliveryMarkers = {};
 
-        // UI Elemanları
-        const loadingOverlay = document.getElementById('loading-overlay');
-        const loginScreen = document.getElementById('login-screen');
-        const dashboardNav = document.getElementById('dashboard-nav');
-        const btnLogin = document.getElementById('btnLogin');
-        const etUsername = document.getElementById('etUsername');
-        const etPassword = document.getElementById('etPassword');
-        const loginMessage = document.getElementById('login-message');
-        const btnLogout = document.getElementById('btnLogout');
-        const btnGarson = document.getElementById('btnGarson');
-        const btnYonetici = document.getElementById('btnYonetici');
-        const btnHarita = document.getElementById('btnHarita');
-        const garsonScreen = document.getElementById('garson-screen');
-        const yoneticiPanelScreen = document.getElementById('yonetici-panel-screen');
-        const haritaScreen = document.getElementById('harita-screen');
-        const ordersContainer = document.getElementById('orders-container');
-        const spinnerRider = document.getElementById('spinnerRider');
-        const assignOrderModal = document.getElementById('assignOrderModal');
-        const modalContainer = document.getElementById('modal-container');
-        const btnAssignConfirm = document.getElementById('btnAssignConfirm');
-        const btnAssignCancel = document.getElementById('btnAssignCancel');
-        const etDeliveryAddress = document.getElementById('etDeliveryAddress');
-        const spinnerPaymentMethod = document.getElementById('spinnerPaymentMethod');
-        
-        // YENİ: Telefon numarası input elementini seçiyoruz
-        const etPhoneNumber = document.getElementById('etPhoneNumber');
-
-        let map;
-        let riderMarkers = {};
-        let currentUserRole;
-        let currentUsername;
-        let activeModalOrderId = null;
-        let riderAvailability = {};
-        
-        // YENİ: Siparişler için marker'ları tutacak nesne
-        let orderMarkers = {};
-        
-        // YENİ: Paket ikonu için SVG içeriği
-        const packageIconSvg = `
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#3B82F6" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6">
-                <path d="M12 2l-8 4v8l8 4 8-4v-8l-8-4z" />
-                <path d="M12 2v8M4 6l8 4M20 6l-8 4M12 10v8" />
-            </svg>
-        `;
-
-        // YENİ: Özel Paket İkonu oluşturma (L.divIcon kullanarak)
-        const packageIcon = L.divIcon({
-            className: 'custom-package-icon',
-            html: `<div style="background-color:#3B82F6; padding: 4px; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"><div style="color:white; font-weight:bold; width: 24px; height: 24px;">${packageIconSvg}</div></div>`,
-            iconSize: [32, 32],
-            iconAnchor: [16, 32],
-            popupAnchor: [0, -28]
+        // io'nun tanımlı olup olmadığı kontrolü
+        if (typeof io === 'undefined') {
+            console.error("Socket.IO kütüphanesi yüklenemedi. 'io' tanımlı değil.");
+            alert("Uygulama başlatılamadı: Socket.IO kütüphanesi yüklenemedi. Lütfen internet bağlantınızı kontrol edin veya sunucu yöneticinize başvurun.");
+        }
+        const socket = io(SOCKET_SERVER_URL, {
+            reconnection: true,
+            reconnectionAttempts: 10,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            transports: ['websocket', 'polling']
         });
 
-        // YENİ: Mock Geocoding Fonksiyonu (Adresten koordinat döndürmek için)
-        async function geocodeAddress(address) {
-            console.log(`Mock Geocoding: Adres için koordinat aranıyor: "${address}"`);
-            const mockLat = 39.925533 + (Math.random() - 0.5) * 0.05;
-            const mockLng = 32.866287 + (Math.random() - 0.5) * 0.05;
-            return { lat: mockLat, lng: mockLng };
-        }
+        // DOM Referansları
+        const loginContainer = document.getElementById('loginContainer');
+        const loginForm = document.getElementById('loginForm');
+        const loginError = document.getElementById('loginError');
+        const adminPanelContent = document.getElementById('adminPanelContent');
+        const logoutButton = document.getElementById('logoutButton');
 
-        // --- AUTH & KULLANICI ARAYÜZÜ YÖNETİMİ ---
+        const ordersContainer = document.getElementById('orders-container');
+        const notificationSound = document.getElementById('notificationSound');
+        const notificationBell = document.getElementById('notificationBell');
+        const activeRiderCountEl = document.getElementById('activeRiderCount');
+        const orderStatusToggleButton = document.getElementById('order-status-toggle');
 
-        function showMessage(text, duration = 3000) {
-            const msgBox = document.getElementById('messageBox');
-            msgBox.textContent = text;
-            msgBox.classList.add('show');
-            setTimeout(() => {
-                msgBox.classList.remove('show');
-            }, duration);
-        }
+        const assignOrderModal = document.getElementById('assignOrderModal');
+        const modalOrderId = document.getElementById('modalOrderId');
+        const modalMasaAdi = document.getElementById('modalMasaAdi');
+        const deliveryAddressInput = document.getElementById('deliveryAddress');
+        const paymentMethodSelect = document.getElementById('paymentMethod');
+        const selectRider = document.getElementById('selectRider');
+        const cancelAssignButton = assignOrderModal.querySelector('.btn-secondary');
+        const sendAssignButton = assignOrderModal.querySelector('.btn-primary');
+        const closeModalButton = assignOrderModal.querySelector('.close-button');
 
+        let map;
+        const riderMarkers = {};
+        const orders = {}; // Siparişleri saklamak için obje
+        let currentOrderToAssign = null; // Atanacak mevcut sipariş
+
+        // --- Fonksiyon Tanımlamaları (Yukarıya taşındı) ---
+
+        // AUTHENTICATION FONKSİYONLARI
         function getAuthToken() {
             return localStorage.getItem('authToken');
         }
@@ -330,384 +742,865 @@
             return localStorage.getItem('userRole');
         }
 
-        function getLoggedInUsername() {
-            return localStorage.getItem('username');
-        }
+        async function handleLogin(event) {
+            event.preventDefault();
+            const username = loginForm.username.value;
+            const password = loginForm.password.value;
+            loginError.textContent = '';
 
-        function showDashboard() {
-            loginScreen.classList.add('hidden');
-            dashboardNav.classList.remove('hidden');
-            document.getElementById('tvLoginTitle').textContent = `Hoş Geldin, ${currentUsername}! (${currentUserRole === 'admin' ? 'Yönetici' : currentUserRole === 'garson' ? 'Garson' : 'Motorcu'})`;
-            switch (currentUserRole) {
-                case 'admin':
-                    showYoneticiPanel();
-                    break;
-                case 'garson':
-                    showGarsonScreen();
-                    break;
-                case 'rider':
-                    showMapScreen();
-                    break;
-                default:
-                    showLoginScreen();
-            }
-        }
-
-        function showLoginScreen() {
-            loginScreen.classList.remove('hidden');
-            dashboardNav.classList.add('hidden');
-            garsonScreen.classList.add('hidden');
-            yoneticiPanelScreen.classList.add('hidden');
-            haritaScreen.classList.add('hidden');
-            localStorage.clear();
-        }
-
-        function switchScreen(screenId) {
-            document.querySelectorAll('.content-section').forEach(section => {
-                section.classList.add('hidden');
-            });
-            document.getElementById(screenId).classList.remove('hidden');
-            if (screenId === 'harita-screen') {
-                initMap();
-            }
-        }
-        
-        function showGarsonScreen() {
-            switchScreen('garson-screen');
-        }
-        
-        function showYoneticiPanel() {
-            switchScreen('yonetici-panel-screen');
-        }
-
-        function showMapScreen() {
-            switchScreen('harita-screen');
-        }
-
-        // --- MODAL YÖNETİMİ ---
-        function showModal(modalId) {
-            modalContainer.classList.remove('hidden');
-            document.getElementById(modalId).classList.remove('hidden');
-        }
-
-        function hideModal(modalId) {
-            modalContainer.classList.add('hidden');
-            document.getElementById(modalId).classList.add('hidden');
-        }
-
-        // Sipariş Atama Modalını Açma
-        async function openAssignOrderModal(orderId, masaAdi) {
-            showModal('assignOrderModal');
-            document.getElementById('modal-order-id').textContent = orderId;
-            document.getElementById('modal-table-name').textContent = masaAdi;
-            activeModalOrderId = orderId;
-            etDeliveryAddress.value = '';
-            etPhoneNumber.value = ''; // YENİ: Telefon numarası inputunu temizle
-
-            // Motorcuları yükle
-            spinnerRider.innerHTML = '';
-            const availableRiders = Object.keys(riderAvailability);
-            if (availableRiders.length > 0) {
-                availableRiders.forEach(rider => {
-                    const option = document.createElement('option');
-                    option.value = rider;
-                    option.textContent = rider;
-                    spinnerRider.appendChild(option);
-                });
-            } else {
-                const option = document.createElement('option');
-                option.textContent = 'Motorcu Yok';
-                spinnerRider.appendChild(option);
-                btnAssignConfirm.disabled = true;
-            }
-        }
-
-        // Sipariş Atama Modalını Kapatma
-        function closeAssignOrderModal() {
-            hideModal('assignOrderModal');
-            activeModalOrderId = null;
-            btnAssignConfirm.disabled = false;
-        }
-
-        // --- HARİTA YÖNETİMİ ---
-
-        function initMap() {
-            if (map) {
-                map.remove();
-            }
-            map = L.map('map').setView([39.925533, 32.866287], 13);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            }).addTo(map);
-
-            // Harita boyutunun doğru ayarlandığından emin ol
-            setTimeout(() => {
-                map.invalidateSize();
-            }, 100);
-        }
-
-        function updateRiderMarker(username, lat, lng) {
-            const latLng = [lat, lng];
-            if (riderMarkers[username]) {
-                riderMarkers[username].setLatLng(latLng);
-            } else {
-                const marker = L.marker(latLng).addTo(map)
-                    .bindPopup(`<b>${username}</b><br>Konum: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
-                riderMarkers[username] = marker;
-            }
-        }
-
-        function removeRiderMarker(username) {
-            if (riderMarkers[username]) {
-                map.removeLayer(riderMarkers[username]);
-                delete riderMarkers[username];
-            }
-        }
-
-        // --- YENİ: SİPARİŞ MARKER YÖNETİMİ ---
-
-        async function addOrderMarker(order) {
-            // Eğer sipariş zaten haritada varsa, tekrar ekleme
-            if (orderMarkers[order.orderId]) {
-                console.log(`Sipariş ${order.orderId} zaten haritada.`);
-                return;
-            }
-
-            // Adresten koordinatları al (mock)
             try {
-                const coords = await geocodeAddress(order.deliveryAddress);
-                const latLng = [coords.lat, coords.lng];
-                
-                // Marker oluştur
-                const marker = L.marker(latLng, { icon: packageIcon }).addTo(map)
-                    .bindPopup(`
-                        <div class="p-2">
-                            <b>Sipariş: ${order.orderId.substring(0, 8)}...</b><br>
-                            Masa: ${order.masaAdi}<br>
-                            Motorcu: ${order.riderUsername || 'Yok'}<br>
-                            Adres: ${order.deliveryAddress}<br>
-                            Durum: <span class="text-blue-500">${order.deliveryStatus || 'Atandı'}</span>
-                        </div>
-                    `);
-                
-                // Marker'ı siparişler nesnesine ekle
-                orderMarkers[order.orderId] = marker;
-                console.log(`Sipariş ${order.orderId} için haritaya marker eklendi.`);
-            } catch (error) {
-                console.error(`Sipariş ${order.orderId} için geocoding hatası:`, error);
-            }
-        }
-
-        function removeOrderMarker(orderId) {
-            if (orderMarkers[orderId]) {
-                map.removeLayer(orderMarkers[orderId]);
-                delete orderMarkers[orderId];
-                console.log(`Sipariş ${orderId} marker'ı haritadan kaldırıldı.`);
-            }
-        }
-        
-        // --- DİNAMİK İÇERİK OLUŞTURMA ---
-        
-        function renderOrders() {
-            if (!ordersContainer) return;
-            ordersContainer.innerHTML = '';
-            Object.values(orders).forEach(order => {
-                // Sadece yönetici panelinde gösterilecek siparişler
-                if (order.status !== 'paid') {
-                    const orderCard = createOrderCard(order);
-                    ordersContainer.appendChild(orderCard);
-                }
-                
-                // YENİ: Atanmış ve teslim edilmemiş siparişler için marker ekle
-                if (currentUserRole === 'admin' && order.status === 'assigned' && order.deliveryStatus !== 'delivered') {
-                    addOrderMarker(order);
-                }
-            });
-        }
-        
-        function createOrderCard(order) {
-            const card = document.createElement('div');
-            card.className = 'bg-white p-6 rounded-xl shadow-md';
-            card.innerHTML = `
-                <p class="text-sm text-gray-500">Sipariş ID: <span class="font-semibold text-gray-700">${order.orderId.substring(0, 8)}...</span></p>
-                <h3 class="text-xl font-bold text-gray-800 mb-2">Masa: ${order.masaAdi}</h3>
-                <p class="text-gray-600 mb-2">Toplam Fiyat: <span class="font-bold">${order.toplamFiyat.toFixed(2)} TL</span></p>
-                <div class="mt-4 flex gap-2">
-                    <button class="btn-mark-paid px-4 py-2 bg-green-500 text-white rounded-lg transition-transform transform hover:scale-105" data-order-id="${order.orderId}">Ödendi</button>
-                    <button class="btn-assign-rider px-4 py-2 bg-orange-500 text-white rounded-lg transition-transform transform hover:scale-105" data-order-id="${order.orderId}" data-masa-adi="${order.masaAdi}">Motorcuya Gönder</button>
-                </div>
-            `;
-            
-            card.querySelector('.btn-mark-paid').addEventListener('click', () => {
-                socket.emit('markOrderAsPaid', { orderId: order.orderId });
-            });
-            
-            card.querySelector('.btn-assign-rider').addEventListener('click', (e) => {
-                const id = e.target.dataset.orderId;
-                const masaAdi = e.target.dataset.masaAdi;
-                openAssignOrderModal(id, masaAdi);
-            });
-
-            return card;
-        }
-
-
-        // --- EKRAN GEÇİŞİ İŞLEMLERİ ---
-
-        btnGarson.addEventListener('click', () => showGarsonScreen());
-        btnYonetici.addEventListener('click', () => showYoneticiPanel());
-        btnHarita.addEventListener('click', () => showMapScreen());
-        btnLogout.addEventListener('click', () => {
-            showLoginScreen();
-            showMessage('Başarıyla çıkış yapıldı.');
-        });
-
-        // --- GİRİŞ İŞLEMLERİ ---
-        btnLogin.addEventListener('click', async () => {
-            const username = etUsername.value;
-            const password = etPassword.value;
-            if (!username || !password) {
-                showMessage('Kullanıcı adı ve şifre boş bırakılamaz.', 5000);
-                return;
-            }
-            loadingOverlay.classList.remove('hidden');
-            try {
-                const response = await fetch(`${API_URL}/api/login`, {
+                const response = await fetch(`${API_BASE_URL}/api/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
                 });
+
                 const data = await response.json();
-                if (data.success) {
+
+                if (response.ok) {
                     localStorage.setItem('authToken', data.token);
                     localStorage.setItem('userRole', data.role);
-                    localStorage.setItem('username', data.username);
-                    currentUserRole = data.role;
-                    currentUsername = data.username;
-                    showDashboard();
+                    localStorage.setItem('username', data.user.username);
+                    console.log(`Giriş başarılı: ${data.user.username} (${data.role})`);
+                    showAdminPanel();
                 } else {
-                    showMessage(data.message, 5000);
+                    loginError.textContent = data.message || 'Giriş başarısız oldu.';
                 }
             } catch (error) {
-                console.error('Giriş hatası:', error);
-                showMessage('Sunucuya bağlanılamadı. Lütfen tekrar deneyin.', 5000);
-            } finally {
-                loadingOverlay.classList.add('hidden');
+                console.error('Giriş sırasında ağ hatası:', error);
+                loginError.textContent = 'Sunucuya bağlanılamadı. Lütfen internet bağlantınızı kontrol edin.';
             }
-        });
+        }
 
-        // --- SİPARİŞ ATAMA İŞLEMLERİ ---
-        btnAssignConfirm.addEventListener('click', () => {
-            const orderId = activeModalOrderId;
-            const riderUsername = spinnerRider.value;
-            const deliveryAddress = etDeliveryAddress.value;
-            const paymentMethod = spinnerPaymentMethod.value;
-            const phoneNumber = etPhoneNumber.value; // YENİ: Telefon numarasını al
+        function performLogout() {
+            localStorage.clear();
+            showLogin();
+            if (map) {
+                map.remove();
+                map = null;
+            }
+            ordersContainer.innerHTML = '<p>Aktif sipariş bulunamadı.</p>';
+            activeRiderCountEl.textContent = '(0 Aktif)';
+            Object.keys(orders).forEach(key => delete orders[key]);
+            Object.keys(riderMarkers).forEach(key => {
+                if (riderMarkers[key]) {
+                    riderMarkers[key].remove();
+                }
+                delete riderMarkers[key];
+            });
+            socket.disconnect();
+        }
 
-            if (!riderUsername || !deliveryAddress) {
-                showMessage('Lütfen tüm zorunlu alanları doldurun.', 5000);
+        function showLogin() {
+            loginContainer.style.display = 'flex';
+            adminPanelContent.style.display = 'none';
+        }
+
+        async function showAdminPanel() {
+            loginContainer.style.display = 'none';
+            adminPanelContent.style.display = 'flex';
+
+            const userRole = getUserRole();
+            if (userRole === 'admin' || userRole === 'garson') {
+                orderStatusToggleButton.style.display = 'block';
+                await fetchOrderReceptionStatus();
+            } else {
+                orderStatusToggleButton.style.display = 'none';
+            }
+
+            if (!map) {
+                initMap();
+            } else {
+                map.invalidateSize();
+            }
+            
+            await fetchCurrentActiveOrders();
+        }
+
+        function checkLoginStatus() {
+            if (getAuthToken() && (getUserRole() === 'admin' || getUserRole() === 'garson')) {
+                showAdminPanel();
+            } else {
+                showLogin();
+            }
+        }
+
+        // HARİTA VE KONUM İŞLEMLERİ
+        function initMap() {
+            const initialLat = 41.0082;
+            const initialLng = 28.9784;
+
+            if (document.getElementById('map')) {
+                if (map) {
+                    map.remove();
+                }
+                map = L.map('map').setView([initialLat, initialLng], 12);
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(map);
+
+                // Teslimat işaretleyicileri için özel ikon
+                window.deliveryIcon = L.icon({
+                    iconUrl: 'https://cdn-icons-png.flaticon.com/512/1170/1170679.png', // Paket ikonu
+                    iconSize: [32, 32],
+                    iconAnchor: [16, 16],
+                    popupAnchor: [0, -16]
+                });
+
+                fetchRiderLocations();
+            } else {
+                console.error("Harita için 'map' ID'sine sahip element bulunamadı!");
+            }
+        }
+
+        // Teslimat adresi ekleme fonksiyonu
+        function addDeliveryMarker(order) {
+            if (!order.deliveryAddress || !order.deliveryLocation) return;
+            
+            if (deliveryMarkers[order.orderId]) {
+                deliveryMarkers[order.orderId].remove();
+            }
+            
+            const latLng = [order.deliveryLocation.latitude, order.deliveryLocation.longitude];
+            deliveryMarkers[order.orderId] = L.marker(latLng, {
+                icon: window.deliveryIcon,
+                zIndexOffset: 1000
+            }).addTo(map)
+            .bindPopup(`
+                <div><strong>Sipariş ID:</strong> ${order.orderId.substring(0, 8)}</div>
+                <div><strong>Masa:</strong> ${order.masaAdi}</div>
+                <div><strong>Adres:</strong> ${order.deliveryAddress}</div>
+                ${order.customerPhone ? `<div><strong>Telefon:</strong> ${order.customerPhone}</div>` : ''}
+            `);
+        }
+        
+        // Teslimat işaretini kaldırma fonksiyonu
+        function removeDeliveryMarker(orderId) {
+            if (deliveryMarkers[orderId]) {
+                deliveryMarkers[orderId].remove();
+                delete deliveryMarkers[orderId];
+            }
+        }
+        function updateRiderLocationOnMap(locationData) {
+            const { username, latitude, longitude, fullName } = locationData;
+            const latLng = [latitude, longitude];
+
+            if (!map) {
+                console.warn('Harita henüz başlatılmadı veya bulunamadı. Konum güncellenemiyor.');
                 return;
             }
 
-            // YENİ: Telefon numarasını da sunucuya gönderiyoruz
-            socket.emit('assignOrder', { orderId, riderUsername, deliveryAddress, paymentMethod, phoneNumber });
-            closeAssignOrderModal();
-        });
+            const customIcon = L.icon({
+                iconUrl: 'images/motorcu_icon.png',
+                iconSize: [32, 32],
+                iconAnchor: [16, 16],
+                popupAnchor: [0, -16]
+            });
 
-        btnAssignCancel.addEventListener('click', closeAssignOrderModal);
-
-        // --- SOCKET.IO OLAYLARI ---
-        let orders = {};
-
-        socket.on('connect', () => {
-            console.log("Sunucuya bağlandı.");
-            const token = getAuthToken();
-            if (token) {
-                const role = getUserRole();
-                const username = getLoggedInUsername();
-                socket.emit('join', { username, role });
+            if (riderMarkers[username]) {
+                riderMarkers[username].setLatLng(latLng);
+                if (riderMarkers[username].getPopup()) {
+                    riderMarkers[username].getPopup().setContent(
+                        `<div><strong>Motorcu Adı:</strong> ${fullName || username}</div>` +
+                        `<div><strong>Kullanıcı Adı (Sistem):</strong> ${username}</div>` +
+                        `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
+                        `<div><strong>Hız:</strong> ${locationData.speed ? (locationData.speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Yön:</strong> ${locationData.bearing !== undefined ? locationData.bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Hassasiyet:</strong> ${locationData.accuracy !== undefined ? locationData.accuracy.toFixed(2) + ' m' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Güncellenme:</strong> ${new Date(locationData.timestamp).toLocaleTimeString()}</div>`
+                    );
+                }
+            } else {
+                riderMarkers[username] = L.marker(latLng, { icon: customIcon }).addTo(map)
+                    .bindPopup(
+                        `<div><strong>Motorcu Adı:</strong> ${fullName || username}</div>` +
+                        `<div><strong>Kullanıcı Adı (Sistem):</strong> ${username}</div>` +
+                        `<div><strong>Konum:</strong> ${latitude.toFixed(4)}, ${longitude.toFixed(4)}</div>` +
+                        `<div><strong>Hız:</strong> ${locationData.speed ? (locationData.speed * 3.6).toFixed(2) + ' km/s' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Yön:</strong> ${locationData.bearing !== undefined ? locationData.bearing.toFixed(0) + '°' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Hassasiyet:</strong> ${locationData.accuracy !== undefined ? locationData.accuracy.toFixed(2) + ' m' : 'Bilinmiyor'}</div>` +
+                        `<div><strong>Güncellenme:</strong> ${new Date(locationData.timestamp).toLocaleTimeString()}</div>`
+                    );
             }
-        });
+            updateActiveRiderCount();
+        }
 
-        socket.on('initialData', (data) => {
-            orders = data.orders.reduce((acc, order) => {
-                acc[order.orderId] = order;
-                return acc;
-            }, {});
-            riderAvailability = data.riders;
-            console.log('Başlangıç verileri alındı:', orders);
-            renderOrders();
-        });
+        function updateActiveRiderCount() {
+            const count = Object.keys(riderMarkers).length;
+            activeRiderCountEl.textContent = `(${count} Aktif)`;
+        }
 
-        socket.on('riderConnected', (username) => {
-            console.log(`Yeni motorcu bağlandı: ${username}`);
-            riderAvailability[username] = true;
-        });
+        // SİPARİŞ ALIM DURUMU YÖNETİMİ
+        async function fetchOrderReceptionStatus() {
+            const authToken = getAuthToken();
+            if (!authToken) {
+                console.error("fetchOrderReceptionStatus: Yetkilendirme token'ı bulunamadı.");
+                return;
+            }
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/order-status`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                updateOrderReceptionButtonUI(data.enabled);
+            } catch (error) {
+                console.error('Sipariş durumu çekilirken hata oluştu:', error);
+                alert('Sipariş durumu alınamadı.');
+            }
+        }
 
-        socket.on('riderDisconnected', (username) => {
-            console.log(`Motorcu ayrıldı: ${username}`);
-            delete riderAvailability[username];
-            removeRiderMarker(username);
-        });
+        async function toggleOrderReceptionStatus() {
+            const authToken = getAuthToken();
+            if (!authToken) {
+                console.error("toggleOrderReceptionStatus: Yetkilendirme token'ı bulunamadı.");
+                alert("İşlem başarısız: Lütfen tekrar giriş yapın.");
+                return;
+            }
 
-        socket.on('newOrderReceived', (order) => {
-            console.log('Yeni sipariş alındı:', order);
-            orders[order.orderId] = order;
-            renderOrders();
-            showMessage(`Yeni sipariş geldi: Masa ${order.masaAdi}`);
-        });
+            const isCurrentlyEnabled = orderStatusToggleButton.classList.contains('enabled');
+            const newStatus = !isCurrentlyEnabled;
 
-        socket.on('orderAssigned', (order) => {
-            console.log('Sipariş atandı:', order);
-            orders[order.orderId] = order;
-            renderOrders();
-            showMessage(`Sipariş, motorcu ${order.riderUsername} kişisine atandı.`);
-        });
+            orderStatusToggleButton.textContent = 'Güncelleniyor...';
+            orderStatusToggleButton.disabled = true;
 
-        socket.on('orderDeliveryStatusUpdated', (data) => {
-            console.log('Sipariş teslimat durumu güncellendi:', data.orderId, 'Yeni Durum:', data.newDeliveryStatus);
-            if (orders[data.orderId]) {
-                orders[data.orderId].deliveryStatus = data.newDeliveryStatus;
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/set-order-status`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                    body: JSON.stringify({ enabled: newStatus })
+                });
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                updateOrderReceptionButtonUI(data.newStatus);
+                alert(`Sipariş alımı durumu başarıyla güncellendi: ${data.newStatus ? 'AÇIK' : 'KAPALI'}`);
+            } catch (error) {
+                console.error('Sipariş durumu güncellenirken hata oluştu:', error);
+                alert(`Sipariş durumu güncellenemedi: ${error.message}`);
+            } finally {
+                orderStatusToggleButton.disabled = false;
+            }
+        }
+
+        function updateOrderReceptionButtonUI(isEnabled) {
+            if (isEnabled) {
+                orderStatusToggleButton.textContent = 'Sipariş Alımı: AÇIK';
+                orderStatusToggleButton.classList.remove('disabled');
+                orderStatusToggleButton.classList.add('enabled');
+                orderStatusToggleButton.style.backgroundColor = '#28a745';
+            } else {
+                orderStatusToggleButton.textContent = 'Sipariş Alımı: KAPALI';
+                orderStatusToggleButton.classList.remove('enabled');
+                orderStatusToggleButton.classList.add('disabled');
+                orderStatusToggleButton.style.backgroundColor = '#dc3545';
+            }
+        }
+
+        // SİPARİŞLERİ RENDER ETME
+        function renderOrders() {
+            const sortedOrders = Object.values(orders).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            ordersContainer.innerHTML = '';
+
+            if (sortedOrders.length === 0) {
+                ordersContainer.innerHTML = '<p>Aktif sipariş bulunamadı.</p>';
+                return;
+            }
+
+            sortedOrders.forEach(order => {
+                const orderCard = document.createElement('div');
+                orderCard.id = `order-${order.orderId}`;
+                orderCard.className = `card ${getStatusClass(order.deliveryStatus || order.status)}`;
+                orderCard.dataset.orderId = order.orderId;
+
+                let riderInfoHtml = '';
+                if (order.riderUsername && order.deliveryAddress && order.paymentMethod) {
+                    riderInfoHtml = `
+                        <div class="rider-info">
+                            <p class="text-xs text-gray-600 mt-1">Atanan Motorcu: ${order.riderUsername}</p>
+                            <p class="text-xs text-gray-600">Teslimat Adresi: ${order.deliveryAddress}</p>
+                            <p class="text-xs text-gray-600">Telefon: ${order.customerPhone}</p>
+                            <p class="text-xs text-gray-600">Ödeme Yöntemi: ${order.paymentMethod}</p>
+                        </div>
+                    `;
+                }
+
+                const showAssignButton = (order.deliveryStatus === 'pending' && order.status !== 'paid');
+
+                orderCard.innerHTML = `
+                    <h3 class="text-lg font-bold mb-2">Masa: ${order.masaAdi} (ID: ${order.masaId})</h3>
+                    <p class="text-gray-700 text-sm mb-1">Sipariş ID: ${order.orderId.substring(0, 8)}...</p>
+                    <p class="text-gray-700 text-sm mb-1">Zaman: ${new Date(order.timestamp).toLocaleString()}</p>
+                    <div class="mt-3 mb-2">
+                        <p class="font-semibold text-gray-800">Ürünler:</p>
+                        ${order.sepetItems.map(item => `
+                            <div class="order-item">
+                                <span>${item.urunAdi} x ${item.adet}</span>
+                                <span>${formatPrice(item.fiyat * item.adet)}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <p class="text-lg font-bold text-right mt-3">Toplam: ${formatPrice(order.toplamFiyat)}</p>
+                    <p class="order-status-text text-sm font-semibold mt-2 ${getStatusClass(order.deliveryStatus || order.status)}">Durum: ${getOrderStatusText(order.status, order.deliveryStatus)}</p>
+                    ${riderInfoHtml}
+
+                    <div class="flex justify-end mt-4 space-x-2">
+                        <button class="pay-button" onclick="markOrderAsPaid('${order.orderId}')" ${order.status === 'paid' ? 'disabled' : ''}>Ödendi Olarak İşaretle</button>
+                        <button class="print-button" onclick="printOrderReceipt('${order.orderId}')">Yazdır</button>
+                        ${showAssignButton ? `<button class="assign-rider-btn" onclick="openAssignOrderModal('${order.orderId}')">Motorcuya Gönder</button>` : ''}
+                    </div>
+                `;
+                ordersContainer.prepend(orderCard);
+            });
+        }
+
+        function formatPrice(price) {
+            return price.toFixed(2).replace('.', ',') + ' TL';
+        }
+
+        function getStatusClass(status) {
+            switch (status) {
+                case 'pending': return 'status-pending';
+                case 'paid': return 'status-paid';
+                case 'assigned': return 'status-assigned';
+                case 'en_route': return 'status-en_route';
+                case 'delivered': return 'status-delivered';
+                case 'cancelled': return 'status-cancelled';
+                default: return '';
+            }
+        }
+
+        function getOrderStatusText(status, deliveryStatus) {
+            if (deliveryStatus && deliveryStatus !== 'pending') {
+                switch (deliveryStatus) {
+                    case 'assigned': return 'Motorcuya Atandı';
+                    case 'en_route': return 'Yolda';
+                    case 'delivered': return 'Teslim Edildi';
+                    case 'cancelled': return 'İptal Edildi';
+                    default: return deliveryStatus;
+                }
+            }
+            switch (status) {
+                case 'pending': return 'Beklemede';
+                case 'paid': return 'Ödendi';
+                case 'cancelled': return 'İptal Edildi';
+                default: return status;
+            }
+        }
+
+        function removeOrderFromDisplay(orderId) {
+            console.log(`removeOrderFromDisplay çağrıldı: ${orderId}`);
+            if (orders[orderId]) {
+                delete orders[orderId];
                 renderOrders();
+            } else {
+                console.warn(`Sipariş ${orderId} orders objesinde bulunamadı.`);
             }
-            // YENİ: Eğer durum 'delivered' ise marker'ı kaldır
-            if (data.newDeliveryStatus === 'delivered') {
-                removeOrderMarker(data.orderId);
-                showMessage(`Sipariş ${data.orderId.substring(0, 8)}... teslim edildi.`);
+        }
+
+        function markOrderAsPaid(orderId) {
+            console.log(`markOrderAsPaid çağrıldı: ${orderId}`);
+            socket.emit('orderPaid', { orderId: orderId });
+        }
+
+        function printOrderReceipt(orderId) {
+            const order = orders[orderId];
+            if (!order) {
+                alert('Yazdırılacak sipariş bulunamadı!');
+                return;
             }
+            let printContent = `
+                <div class="receipt-container">
+                    <div class="receipt-header">--- Olimpiyat Kokoreç ---</div>
+                    <p class="receipt-info">Masa: ${order.masaAdi}</p>
+                    <p class="receipt-info">Sipariş ID: ${order.orderId.substring(0, 8)}...</p>
+                    <p class="receipt-info">Zaman: ${new Date(order.timestamp).toLocaleString()}</p>
+                    ${order.deliveryAddress ? `<p class="receipt-info">Adres: ${order.deliveryAddress}</p>` : ''}
+                    ${order.paymentMethod ? `<p class="receipt-info">Ödeme: ${order.paymentMethod}</p>` : ''}
+                    <hr>
+                    <div class="receipt-items">
+            `;
+
+            order.sepetItems.forEach(item => {
+                const itemName = item.urunAdi;
+                const itemQuantity = item.adet;
+                const itemPrice = item.fiyat;
+                printContent += `<p class="receipt-item">${itemName} (${itemQuantity} adet) - ${(itemPrice * itemQuantity).toFixed(2)} TL</p>`;
+            });
+
+            printContent += `
+                    </div>
+                    <hr>
+                    <div class="receipt-total">TOPLAM: ${order.toplamFiyat.toFixed(2)} TL</div>
+                    <div class="receipt-footer">Afiyet Olsun! Teşekkürler!</div>
+                </div>
+            `;
+
+            let printWindow = window.open('', '_blank');
+            printWindow.document.write('<!DOCTYPE html><html><head><title>Fiş - ' + order.masaAdi + '</title>');
+            printWindow.document.write('<style>');
+            printWindow.document.write(`
+                /* POS Fişi Stilleri - YAZDIRMA PENCERESİ İÇİN */
+                @page {
+                    size: 58mm auto;
+                    margin: 0;
+                }
+                body {
+                    width: 58mm;
+                    margin: 0;
+                    font-family: 'Consolas', 'Courier New', monospace;
+                    font-size: 10px;
+                    line-height: 1.2;
+                    color: #000;
+                }
+                .receipt-container {
+                    padding: 5mm;
+                    box-sizing: border-box;
+                }
+                .receipt-header, .receipt-footer {
+                    text-align: center;
+                    margin-bottom: 5px;
+                    font-size: 12px;
+                }
+                .receipt-info p, .receipt-item {
+                    margin: 2px 0;
+                    white-space: pre-wrap;
+                }
+                .receipt-total {
+                    font-weight: bold;
+                    text-align: right;
+                    margin-top: 10px;
+                    font-size: 11px;
+                }
+                hr {
+                    border: 0;
+                    border-top: 1px dashed #888;
+                    margin: 5px 0;
+                }
+            `);
+            printWindow.document.write('</style>');
+            printWindow.document.write('</head><body>');
+            printWindow.document.write(printContent);
+            printWindow.document.write('</body></html>');
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+        }
+
+        // MOTORCUYA SİPARİŞ ATAMA MODALI FONKSİYONLARI
+        async function openAssignOrderModal(orderId) {
+            currentOrderToAssign = orders[orderId];
+            if (!currentOrderToAssign) {
+                alert('Sipariş bulunamadı!');
+                return;
+            }
+
+            modalOrderId.value = currentOrderToAssign.orderId.substring(0, 8);
+            modalMasaAdi.value = currentOrderToAssign.masaAdi;
+            deliveryAddressInput.value = '';
+            paymentMethodSelect.value = '';
+
+            await fetchAndPopulateRiders();
+
+            assignOrderModal.style.display = 'flex';
+        }
+
+        function closeAssignOrderModal() {
+            assignOrderModal.style.display = 'none';
+            currentOrderToAssign = null;
+        }
+
+        async function fetchAndPopulateRiders() {
+            selectRider.innerHTML = '<option value="">Yükleniyor...</option>';
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/riders-locations`, {
+                    headers: {
+                        'Authorization': `Bearer ${getAuthToken()}`
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                }
+                
+                const riders = await response.json();
+                
+                selectRider.innerHTML = '';
+                if (!Array.isArray(riders) || riders.length === 0) {
+                    selectRider.innerHTML = '<option value="">Aktif Motorcu Yok</option>';
+                    selectRider.disabled = true;
+                } else {
+                    selectRider.disabled = false;
+                    selectRider.innerHTML = '<option value="">Motorcu Seçiniz</option>';
+                    riders.forEach(rider => {
+                        const option = document.createElement('option');
+                        option.value = rider.username;
+                        option.textContent = rider.full_name || rider.username;
+                        selectRider.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Motorcular çekilirken hata:', error);
+                selectRider.innerHTML = '<option value="">Motorcular yüklenemedi</option>';
+                selectRider.disabled = true;
+            }
+        }
+
+        async function assignOrder() {
+            if (!currentOrderToAssign) return;
+
+            const deliveryAddress = deliveryAddressInput.value.trim();
+            const paymentMethod = paymentMethodSelect.value;
+            const selectedRider = selectRider.value;
+            const customerPhone = document.getElementById('customerPhone').value.trim();
+
+            if (!deliveryAddress || !paymentMethod || !selectedRider) {
+                alert('Lütfen tüm alanları doldurun ve bir motorcu seçin.');
+                return;
+            }
+
+            // Adres koordinatlarını almak için geocoding API'si kullanımı
+        try {
+            const geocodeResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(deliveryAddress)}`);
+            const geocodeData = await geocodeResponse.json();
+            
+            if (!geocodeData || geocodeData.length === 0) {
+                throw new Error('Adres bulunamadı');
+            }
+    
+            const location = {
+                latitude: parseFloat(geocodeData[0].lat),
+                longitude: parseFloat(geocodeData[0].lon)
+            };
+            
+            const authToken = getAuthToken();
+            if (!authToken) {
+                alert('Yetkilendirme hatası. Lütfen tekrar giriş yapın.');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/assign-order`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        orderId: currentOrderToAssign.orderId,
+                        riderUsername: selectedRider,
+                        deliveryAddress: deliveryAddress,
+                        paymentMethod: paymentMethod,
+                        customerPhone: customerPhone || null
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert('Sipariş başarıyla motorcuya atandı!');
+                    closeAssignOrderModal();
+                } else {
+                    alert(`Sipariş atama hatası: ${data.message || response.statusText}`);
+                }
+            } catch (error) {
+                console.error('Sipariş atanırken ağ hatası:', error);
+                alert('Sipariş atanamadı: Ağ bağlantı hatası.');
+                }
+            }
+                
+         
+        } catch (error) {
+        console.error('Adres koordinatları alınırken hata:', error);
+        alert('Adres bulunamadı. Lütfen daha spesifik bir adres girin.');  
+          }
+        }
+
+        // API İSTEKLERİ
+        async function fetchCurrentActiveOrders() {
+            const authToken = getAuthToken();
+            if (!authToken) {
+                console.error("fetchCurrentActiveOrders: Yetkilendirme token'ı bulunamadı.");
+                ordersContainer.innerHTML = '<p>Siparişler yüklenemedi: Yetkilendirme hatası.</p>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/orders/active`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                }
+
+                const fetchedOrders = await response.json();
+                Object.keys(orders).forEach(key => delete orders[key]);
+                fetchedOrders.forEach(order => {
+                    orders[order.orderId] = order;
+                });
+                renderOrders();
+            } catch (error) {
+                console.error('Aktif siparişler çekilirken hata:', error);
+                ordersContainer.innerHTML = `<p>Siparişler yüklenemedi: ${error.message}</p>`;
+            }
+        }
+
+        async function fetchRiderLocations() {
+            const authToken = getAuthToken();
+            if (!authToken) {
+                console.error("fetchRiderLocations: Yetkilendirme token'ı bulunamadı.");
+                activeRiderCountEl.textContent = 'Motorcu konumları yüklenemedi: Yetkilendirme hatası.';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/riders-locations`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                }
+
+                const locations = await response.json();
+                console.log("Motorcu konumları:", locations);
+
+                if (!Array.isArray(locations)) {
+                    console.error("API'den beklenen motorcu konum listesi bir dizi değil:", locations);
+                    alert("Motorcu konumları yüklenemedi: Sunucudan hatalı veri formatı alındı.");
+                    activeRiderCountEl.textContent = 'Motorcu konumları yüklenemedi: Hatalı veri.';
+                    return;
+                }
+
+                Object.values(riderMarkers).forEach(marker => marker.remove());
+                Object.keys(riderMarkers).forEach(key => delete riderMarkers[key]);
+
+                locations.forEach(locationData => {
+                    updateRiderLocationOnMap(locationData);
+                });
+                updateActiveRiderCount();
+            } catch (error) {
+                console.error('Motorcu konumları çekilirken hata:', error);
+                activeRiderCountEl.textContent = `Motorcu konumları yüklenemedi: ${error.message}`;
+            }
+        }
+
+        function removeRiderFromDisplay(username) {
+            if (riderMarkers[username]) {
+                riderMarkers[username].remove();
+                delete riderMarkers[username];
+                updateActiveRiderCount();
+            }
+        }
+
+        // Olay Dinleyicileri ve Başlangıç Kodları
+        document.addEventListener('DOMContentLoaded', () => {
+            loginForm.addEventListener('submit', handleLogin);
+            logoutButton.addEventListener('click', performLogout);
+            orderStatusToggleButton.addEventListener('click', toggleOrderReceptionStatus);
+
+            closeModalButton.addEventListener('click', closeAssignOrderModal);
+            cancelAssignButton.addEventListener('click', closeAssignOrderModal);
+            sendAssignButton.addEventListener('click', assignOrder);
+
+            window.addEventListener('click', (event) => {
+                if (event.target == assignOrderModal) {
+                    closeAssignOrderModal();
+                }
+            });
+
+            notificationBell.addEventListener('click', () => {
+                notificationBell.classList.remove('ringing');
+            });
+
+            checkLoginStatus();
         });
 
-        socket.on('orderPaidConfirmation', (data) => {
-            console.log('Sipariş ödendi olarak işaretlendi:', data.orderId);
-            delete orders[data.orderId];
-            renderOrders();
-            showMessage(`Sipariş ${data.orderId.substring(0, 8)}... ödendi olarak işaretlendi.`);
-        });
-
-        socket.on('riderLocationUpdate', (data) => {
-            updateRiderMarker(data.username, data.latitude, data.longitude);
-        });
-
-        // Pencere yeniden boyutlandırıldığında haritayı yeniden boyutlandır
         window.addEventListener('resize', () => {
             if (map) {
                 map.invalidateSize();
             }
         });
-        
-        // --- SAYFA YÜKLEME VE BAŞLANGIÇ KONTROLÜ ---
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log("DOMContentLoaded: Sayfa yüklendi.");
-            const token = getAuthToken();
-            if (token) {
-                console.log("DOMContentLoaded: Token bulundu, dashboard gösteriliyor.");
-                currentUserRole = getUserRole();
-                currentUsername = getLoggedInUsername();
-                showDashboard();
-            } else {
-                console.log("DOMContentLoaded: Token bulunamadı, login ekranı gösteriliyor.");
-                showLoginScreen();
+
+        // Socket.IO Olay Dinleyicileri
+        socket.on('connect', () => {
+            console.log('Socket.IO Bağlandı:', socket.id);
+            const username = localStorage.getItem('username');
+            const role = getUserRole();
+            if (username && role) {
+                socket.emit('registerClient', { username, role });
+                console.log(`Socket.IO ile kayıt gönderildi: ${username} (${role})`);
             }
+            if (getAuthToken()) {
+                fetchCurrentActiveOrders();
+                fetchRiderLocations();
+                fetchOrderReceptionStatus();
+            }
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('Socket.IO Bağlantı Hatası:', error);
+        });
+
+        socket.on('disconnect', (reason) => {
+            console.log('Socket.IO Bağlantısı Kesildi. Neden:', reason);
+        });
+
+        socket.on('reconnect', (attemptNumber) => {
+            console.log('Socket.IO Yeniden Bağlandı. Deneme:', attemptNumber);
+            const username = localStorage.getItem('username');
+            const role = getUserRole();
+            if (username && role) {
+                socket.emit('registerClient', { username, role });
+                console.log(`Socket.IO ile yeniden kayıt gönderildi: ${username} (${role})`);
+            }
+            if (getAuthToken()) {
+                fetchCurrentActiveOrders();
+                fetchRiderLocations();
+                fetchOrderReceptionStatus();
+            }
+        });
+
+        socket.on('newOrder', (order) => {
+            console.log('Yeni sipariş alındı:', JSON.stringify(order, null, 2));
+            if (order && order.orderId) {
+                orders[order.orderId] = order;
+                renderOrders();
+                notificationSound.play().catch(err => console.error('Bildirim sesi oynatılamadı:', err));
+                notificationBell.classList.add('ringing');
+                setTimeout(() => {
+                    notificationBell.classList.remove('ringing');
+                }, 1500);
+            } else {
+                console.error('Geçersiz sipariş verisi:', order);
+            }
+        });
+
+        socket.on('orderPaidConfirmation', (data) => {
+            console.log('Sipariş ödendi onayı alındı:', JSON.stringify(data, null, 2));
+            if (orders[data.orderId]) {
+                orders[data.orderId].status = 'paid';
+                renderOrders();
+            } else {
+                console.warn(`Sipariş ${data.orderId} orders objesinde bulunamadı.`);
+            }
+        });
+
+        socket.on('removeOrderFromDisplay', (data) => {
+            console.log('Sipariş ekrandan kaldırılıyor:', JSON.stringify(data, null, 2));
+            removeOrderFromDisplay(data.orderId);
+        });
+
+        socket.on('orderTakingStatusChanged', (data) => {
+            console.log('Sipariş alım durumu değişti:', data.enabled);
+            updateOrderReceptionButtonUI(data.enabled);
+        });
+
+        socket.on('currentActiveOrders', (currentOrders) => {
+            console.log('Mevcut aktif siparişler alındı:', currentOrders.length);
+            Object.keys(orders).forEach(key => delete orders[key]);
+            currentOrders.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+            currentOrders.forEach(order => {
+                orders[order.orderId] = order;
+            });
+            renderOrders();
+        });
+
+        socket.on('newRiderLocation', (rider) => {
+            console.log('Yeni motorcu konumu alındı:', rider.username, rider.latitude, rider.longitude);
+            updateRiderLocationOnMap(rider);
+            updateActiveRiderCount();
+        });
+
+        socket.on('currentRiderLocations', (currentRiders) => {
+            console.log('Mevcut motorcu konumları Socket.IO üzerinden alındı:', currentRiders.length);
+            const activeUsernames = new Set();
+            const bounds = new L.LatLngBounds();
+
+            if (Array.isArray(currentRiders)) {
+                currentRiders.forEach(rider => {
+                    updateRiderLocationOnMap(rider);
+                    activeUsernames.add(rider.username);
+                    bounds.extend([rider.latitude, rider.longitude]);
+                });
+            } else if (typeof currentRiders === 'object' && currentRiders !== null) {
+                Object.values(currentRiders).forEach(rider => {
+                    updateRiderLocationOnMap(rider);
+                    activeUsernames.add(rider.username);
+                    bounds.extend([rider.latitude, rider.longitude]);
+                });
+            } else {
+                console.warn('currentRiderLocations olayı geçersiz veri formatı aldı:', currentRiders);
+            }
+
+            for (const username in riderMarkers) {
+                if (!activeUsernames.has(username)) {
+                    console.log(`Motorcu ${username} artık aktif değil. Haritadan kaldırılıyor.`);
+                    removeRiderFromDisplay(username);
+                }
+            }
+
+            updateActiveRiderCount();
+
+            if (map && Object.keys(riderMarkers).length > 0) {
+                if (Object.keys(riderMarkers).length > 1) {
+                    map.fitBounds(bounds.pad(0.1));
+                } else {
+                    const singleMarker = Object.values(riderMarkers)[0];
+                    map.setView(singleMarker.getLatLng(), 14);
+                }
+            }
+        });
+
+        socket.on('riderDisconnected', (username) => {
+            console.log(`riderDisconnected olayı alındı: ${username}`);
+            removeRiderFromDisplay(username);
+        });
+
+        socket.on('orderAssigned', (order) => {
+            console.log('Sipariş atandı (Socket.IO):', order.orderId, 'Motorcu:', order.riderUsername);
+            if (orders[order.orderId]) {
+                orders[order.orderId] = order;
+                renderOrders();
+
+                // Teslimat adresini haritaya ekle
+                if (order.deliveryLocation) {
+                    addDeliveryMarker(order);
+                }
+            }
+        });
+
+        socket.on('orderDeliveryStatusUpdated', (data) => {
+            console.log('Sipariş teslimat durumu güncellendi (Socket.IO):', data.orderId, 'Yeni Durum:', data.newDeliveryStatus);
+            if (orders[data.orderId]) {
+                orders[data.orderId].deliveryStatus = data.newDeliveryStatus;
+                renderOrders();
+
+                // Teslimat tamamlandıysa işareti kaldır
+                if (data.newDeliveryStatus === 'delivered') {
+                    removeDeliveryMarker(data.orderId);
+                }
+            }
+        });
+
+        socket.on('removeOrderFromDisplay', (data) => {
+            removeOrderFromDisplay(data.orderId);
+            removeDeliveryMarker(data.orderId); // Sipariş kaldırıldığında teslimat işaretini de kaldır
+        });
+
+        socket.on('riderDayEnded', (data) => {
+            console.log('Motorcu günü sonlandırdı (Socket.IO):', data.username, 'Teslim Edilen Paket:', data.deliveredCount);
+            removeRiderFromDisplay(data.username);
+            alert(`${data.username} adlı motorcu gününü sonlandırdı. Bugün ${data.deliveredCount} paket teslim etti.`);
         });
     </script>
 </body>
