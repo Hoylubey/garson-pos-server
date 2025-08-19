@@ -659,6 +659,36 @@
     </div>
 
     <script>
+
+        // Sayfa yüklendiğinde URL parametresini kontrol et ve görünümü ayarla
+        document.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('view') === 'map_only') {
+                console.log('Sadece harita görünümü etkinleştirildi.');
+                const mainContainer = document.querySelector('.flex.h-screen');
+                if (mainContainer) {
+                    mainContainer.style.flexDirection = 'column';
+                    mainContainer.style.height = '100vh';
+                }
+        
+                const mapContainer = document.getElementById('map');
+                if (mapContainer) {
+                    mapContainer.style.flexGrow = '1';
+                }
+        
+                const sidebar = document.getElementById('sidebar');
+                if (sidebar) {
+                    sidebar.style.display = 'none';
+                }
+        
+                const controls = document.getElementById('controls');
+                if (controls) {
+                    controls.style.display = 'none';
+                }
+        
+                // Dilersen başka gizlemek istediğin elementler varsa buraya ekleyebilirsin.
+            }
+        });
         // Global Değişkenler
         const SOCKET_SERVER_URL = 'https://garson-pos-server.onrender.com';
         const API_BASE_URL = 'https://garson-pos-server.onrender.com';
@@ -1572,3 +1602,4 @@
     </script>
 </body>
 </html>
+
