@@ -1206,6 +1206,7 @@ io.on('connection', (socket) => {
     socket.on('assignOrderToRider', async (data) => {
         const { orderId, riderId, riderUsername } = data;
         console.log(`[${new Date().toLocaleTimeString()}] 'assignOrderToRider' olayı alındı. Sipariş ID: ${orderId}, Motorcu ID: ${riderId}`);
+        console.log(`[TEST] 'assignOrderToRider' olayı alındı, data:`, data);
         try {
             const assignedTimestamp = new Date().toISOString();
             const updateStmt = db.prepare('UPDATE orders SET riderId = ?, riderUsername = ?, deliveryStatus = ?, assignedTimestamp = ? WHERE orderId = ?');
@@ -1284,4 +1285,5 @@ process.on('exit', () => {
 process.on('SIGHUP', () => process.exit(1));
 process.on('SIGINT', () => process.exit(1));
 process.on('SIGTERM', () => process.exit(1));
+
 
