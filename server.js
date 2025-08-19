@@ -1202,6 +1202,57 @@ io.on('connection', (socket) => {
         }
     });
 
+    // Eklenecek Kod Başlangıcı
+    socket.on('assignOrderToRider', async (data) => {
+        const { orderId, riderId, riderUsername } = data;
+        console.log(`[${new Date().toLocaleTimeString()}] 'assignOrderToRider' olayı alındı. Sipariş ID: ${orderId}, Motorcu ID: ${riderId}`);
+        try {
+            const assignedTimestamp = new Date().toISOString();
+            const updateStmt = db.prepare('UPDATE orders SET riderId = ?, riderUsername = ?, deliveryStatus = ?, assignedTimestamp = ? WHERE orderId = ?');
+            updateStmt.run(riderId, riderUsername, 'assigned', assignedTimestamp, orderId);
+
+            const updatedOrder = db.prepare('SELECT * FROM orders WHERE orderId = ?').get(orderId);
+            if (updatedOrder) {
+                updatedOrder.sepetItems = JSON.parse(updatedOrder.sepetItems);
+
+                // Admin ve Garson istemcilerine siparişin atandığını bildir
+                connectedClients.forEach((clientInfo, clientId) => {
+                    if (clientInfo.role === 'admin' || clientInfo.role === 'garson') {
+                        io.to(clientId).emit('orderAssigned', updatedOrder);
+                    }
+                });
+
+                // Atanan motorcuya siparişi gönder
+                const riderSocketId = Array.from(connectedClients.keys()).find(key => connectedClients.get(key).userId === riderId);
+                if (riderSocketId) {
+                    io.to(riderSocketId).emit('orderAssigned', updatedOrder);
+                    console.log(`[${new Date().toLocaleTimeString()}] Sipariş ${orderId} motorcu ${riderUsername} 'a başarıyla atandı ve olay gönderildi.`);
+                } else {
+                    console.error(`[${new Date().toLocaleTimeString()}] Motorcu ${riderUsername} (${riderId}) çevrimiçi değil, sipariş Socket.IO ile gönderilemedi.`);
+                }
+            } else {
+                console.error(`[${new Date().toLocaleTimeString()}] Sipariş ${orderId} veritabanında bulunamadı.`);
+            }
+        } catch (error) {
+            console.error(`[${new Date().toLocaleTimeString()}] Sipariş atama hatası (ID: ${orderId}):`, error.message);
+        }
+    });
+
+    socket.on('updateDeliveryStatus', async (data) => {
+        const { orderId, deliveryStatus } = data;
+        console.log(`[${new Date().toLocaleTimeString()}] 'updateDeliveryStatus' olayı alındı. Sipariş ID: ${orderId}, Yeni Durum: ${deliveryStatus}`);
+        try {
+            const updateStmt = db.prepare('UPDATE orders SET deliveryStatus = ? WHERE orderId = ?');
+            updateStmt.run(deliveryStatus, orderId);
+
+            io.emit('orderDeliveryStatusUpdated', { orderId, newDeliveryStatus: deliveryStatus });
+            console.log(`[${new Date().toLocaleTimeString()}] Sipariş ${orderId} için teslimat durumu başarıyla güncellendi ve tüm client'lara bildirildi.`);
+        } catch (error) {
+            console.error(`[${new Date().toLocaleTimeString()}] Sipariş durumu güncelleme hatası (ID: ${orderId}):`, error.message);
+        }
+    });
+    // Eklenecek Kod Sonu
+
     socket.on('disconnect', () => {
         console.log(`[${new Date().toLocaleTimeString()}] Bağlantı koptu: ${socket.id}`);
         const clientInfo = connectedClients.get(socket.id);
@@ -1233,3 +1284,4 @@ process.on('exit', () => {
 process.on('SIGHUP', () => process.exit(1));
 process.on('SIGINT', () => process.exit(1));
 process.on('SIGTERM', () => process.exit(1));
+
