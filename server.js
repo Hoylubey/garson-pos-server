@@ -1202,40 +1202,35 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('assignOrderToRider', async (data) => {
-        const { orderId, riderId, riderUsername } = data;
-        console.log(`[${new Date().toLocaleTimeString()}] 'assignOrderToRider' olayı alındı. Sipariş ID: ${orderId}, Motorcu ID: ${riderId}`);
-        try {
-            const assignedTimestamp = new Date().toISOString();
-            const updateStmt = db.prepare('UPDATE orders SET riderId = ?, riderUsername = ?, deliveryStatus = ?, assignedTimestamp = ? WHERE orderId = ?');
-            updateStmt.run(riderId, riderUsername, 'assigned', assignedTimestamp, orderId);
+    socket.on('assignOrderToRider', (data) => {
+    const { orderId, riderUsername } = data; // 'riderId' yerine 'riderUsername' kullanalım
+    const assignedTimestamp = new Date().toISOString();
+    console.log(`[${new Date().toLocaleTimeString()}] Sipariş atama talebi alındı: Sipariş ID ${orderId}, Motorcu: ${riderUsername}`);
 
-            const updatedOrder = db.prepare('SELECT * FROM orders WHERE orderId = ?').get(orderId);
-            if (updatedOrder) {
-                updatedOrder.sepetItems = JSON.parse(updatedOrder.sepetItems);
+    try {
+        // 1. Veritabanını güncelle
+        db.prepare('UPDATE siparisler SET riderUsername = ?, deliveryStatus = ?, assignedTimestamp = ? WHERE orderId = ?').run(riderUsername, 'assigned', assignedTimestamp, orderId);
 
-                // Admin ve Garson istemcilerine siparişin atandığını bildir
-                connectedClients.forEach((clientInfo, clientId) => {
-                    if (clientInfo.role === 'admin' || clientInfo.role === 'garson') {
-                        io.to(clientId).emit('orderAssigned', updatedOrder);
-                    }
-                });
+        // 2. Güncellenmiş siparişi veritabanından çek
+        const updatedOrder = db.prepare('SELECT * FROM siparisler WHERE orderId = ?').get(orderId);
+        updatedOrder.sepetItems = JSON.parse(updatedOrder.sepetItems);
 
-                // Atanan motorcuya siparişi gönder
-                const riderSocketId = Array.from(connectedClients.keys()).find(key => connectedClients.get(key).userId === riderId);
-                if (riderSocketId) {
-                    io.to(riderSocketId).emit('orderAssigned', updatedOrder);
-                    console.log(`[${new Date().toLocaleTimeString()}] Sipariş ${orderId} motorcu ${riderUsername} 'a başarıyla atandı ve olay gönderildi.`);
-                } else {
-                    console.error(`[${new Date().toLocaleTimeString()}] Motorcu ${riderUsername} (${riderId}) çevrimiçi değil, sipariş Socket.IO ile gönderilemedi.`);
-                }
-            } else {
-                console.error(`[${new Date().toLocaleTimeString()}] Sipariş ${orderId} veritabanında bulunamadı.`);
-            }
-        } catch (error) {
-            console.error(`[${new Date().toLocaleTimeString()}] Sipariş atama hatası (ID: ${orderId}):`, error.message);
+        // 3. Tüm ilgili kullanıcılara (garson, admin, web arayüzü) siparişin atandığını bildir.
+        // Bu sinyal garson uygulamasının listeyi güncellemesini sağlar.
+        io.emit('orderAssigned', updatedOrder);
+        
+        // 4. SADECE İLGİLİ MOTORCUYA yeni siparişin atandığını bildir.
+        // Bu, motorcu uygulamasının listesine yeni siparişi eklemesini sağlar.
+        const riderSocket = Array.from(connectedClients.values()).find(client => client.username === riderUsername);
+        if (riderSocket) {
+            console.log(`[${new Date().toLocaleTimeString()}] Motorcuya ${riderUsername} yeni sipariş bildirimi gönderiliyor...`);
+            io.to(riderSocket.id).emit('newOrderAssigned', updatedOrder);
         }
-    });
+
+    } catch (error) {
+        console.error(`[${new Date().toLocaleTimeString()}] Sipariş atama hatası (ID: ${orderId}):`, error.message);
+    }
+});
 
     socket.on('updateDeliveryStatus', async (data) => {
         const { orderId, deliveryStatus } = data;
@@ -1282,6 +1277,7 @@ process.on('exit', () => {
 process.on('SIGHUP', () => process.exit(1));
 process.on('SIGINT', () => process.exit(1));
 process.on('SIGTERM', () => process.exit(1));
+
 
 
 
