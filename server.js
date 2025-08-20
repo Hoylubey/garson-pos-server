@@ -1,4 +1,3 @@
-// server.js (Düzeltilmiş hali - Kayıt ve olay gönderme mantığı güçlendirildi)
 const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
@@ -595,7 +594,7 @@ app.post('/api/order', async (req, res) => {
 
         console.log(`[${new Date().toLocaleTimeString()}] Socket.IO üzerinden 'newOrder' olayını tetikliyor. Bağlı client sayısı: ${connectedClients.size}`);
         let emittedToClients = 0;
-        connectedClients.forEach((clientInfo, clientSocketId) => {
+        connectedClients.forEach((clientSocketId, clientInfo) => {
             if (clientInfo.role === 'admin' || clientInfo.role === 'garson') {
                 io.to(clientSocketId).emit('newOrder', newOrderToSend);
                 console.log(`[${new Date().toLocaleTimeString()}] 'newOrder' olayı ${clientInfo.username} (${clientInfo.role}) kullanıcısına (Socket ID: ${clientSocketId}) gönderildi.`);
@@ -694,7 +693,7 @@ app.post('/api/assign-order', isAdminMiddleware, async (req, res) => {
 
         console.log(`Sipariş ${orderId} motorcu ${riderUsername} adresine (${deliveryAddress}) atandı. Delivery Status: ${assignedOrder.deliveryStatus}`);
         
-        connectedClients.forEach((clientInfo, clientSocketId) => {
+        connectedClients.forEach((clientSocketId, clientInfo) => {
             if (clientInfo.role === 'rider' && clientInfo.username === riderUsername) {
                 io.to(clientSocketId).emit('orderAssignedToRider', assignedOrder);
                 console.log(`[Socket.IO] 'orderAssignedToRider' olayı motorcu ${riderUsername} (${clientSocketId}) kullanıcısına gönderildi.`);
@@ -813,7 +812,7 @@ app.delete('/api/users/:id', isAdminMiddleware, (req, res) => {
             db.prepare("DELETE FROM riders WHERE username = ?").run(user.username);
             if (riderLocations[user.username]) {
                 delete riderLocations[user.username];
-                connectedClients.forEach((clientInfo, clientSocketId) => {
+                connectedClients.forEach((clientSocketId, clientInfo) => {
                     if (clientInfo.role === 'admin' || clientInfo.role === 'garson') {
                         io.to(clientSocketId).emit('riderDisconnected', user.username);
                     }
@@ -909,7 +908,7 @@ app.post('/api/update-order-delivery-status', isAdminOrRiderMiddleware, async (r
         const updatedOrder = db.prepare(`SELECT * FROM orders WHERE orderId = ?`).get(orderId);
         updatedOrder.sepetItems = JSON.parse(updatedOrder.sepetItems);
 
-        connectedClients.forEach((clientInfo, clientSocketId) => {
+        connectedClients.forEach((clientSocketId, clientInfo) => {
             if (clientInfo.role === 'admin' || clientInfo.role === 'garson') {
                 io.to(clientSocketId).emit('orderDeliveryStatusUpdated', { orderId: updatedOrder.orderId, newDeliveryStatus: updatedOrder.deliveryStatus });
                 if (updatedOrder.deliveryStatus === 'delivered' || updatedOrder.deliveryStatus === 'cancelled') {
@@ -1035,7 +1034,7 @@ app.post('/api/rider/end-day', isAdminOrRiderMiddleware, async (req, res) => {
         db.prepare("UPDATE riders SET delivered_count = 0 WHERE username = ?").run(username);
         console.log(`[${new Date().toLocaleTimeString()}] Motorcu ${username} için teslimat sayacı veritabanında sıfırlandı.`);
 
-        connectedClients.forEach((clientInfo, clientSocketId) => {
+        connectedClients.forEach((clientSocketId, clientInfo) => {
             if (clientInfo.role === 'admin' || clientInfo.role === 'garson') {
                 io.to(clientSocketId).emit('riderDayEnded', { username, deliveredCount: deliveredCount });
                 io.to(clientSocketId).emit('riderDisconnected', username);
@@ -1154,7 +1153,7 @@ io.on('connection', (socket) => {
             socketId: socket.id
         };
 
-        connectedClients.forEach((clientInfo, clientSocketId) => {
+        connectedClients.forEach((clientSocketId, clientInfo) => {
             if (clientInfo.role === 'admin' || clientInfo.role === 'garson') {
                 io.to(clientSocketId).emit('newRiderLocation', riderLocations[username]);
             }
@@ -1175,7 +1174,7 @@ io.on('connection', (socket) => {
 
             if (currentOrder.status === 'paid' || currentOrder.status === 'cancelled') {
                 console.warn(`[orderPaid] Sipariş (ID: ${orderId}) zaten ${currentOrder.status} durumunda. Güncelleme yapılmadı.`);
-                connectedClients.forEach((clientInfo, clientSocketId) => {
+                connectedClients.forEach((clientSocketId, clientInfo) => {
                     if (clientInfo.role === 'admin' || clientInfo.role === 'garson') {
                         io.to(clientSocketId).emit('removeOrderFromDisplay', { orderId: orderId });
                     }
@@ -1187,7 +1186,7 @@ io.on('connection', (socket) => {
             
             if (info.changes > 0) {
                 console.log(`Sipariş (ID: ${orderId}) SQLite'ta başarıyla 'paid' olarak güncellendi.`);
-                connectedClients.forEach((clientInfo, clientSocketId) => {
+                connectedClients.forEach((clientSocketId, clientInfo) => {
                     if (clientInfo.role === 'admin' || clientInfo.role === 'garson') {
                         io.to(clientSocketId).emit('orderPaidConfirmation', { orderId: orderId });
                         io.to(clientSocketId).emit('removeOrderFromDisplay', { orderId: orderId });
@@ -1202,50 +1201,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('assignOrderToRider', (data) => {
-    const { orderId, riderUsername } = data; // 'riderId' yerine 'riderUsername' kullanalım
-    const assignedTimestamp = new Date().toISOString();
-    console.log(`[${new Date().toLocaleTimeString()}] Sipariş atama talebi alındı: Sipariş ID ${orderId}, Motorcu: ${riderUsername}`);
-
-    try {
-        // 1. Veritabanını güncelle
-        db.prepare('UPDATE siparisler SET riderUsername = ?, deliveryStatus = ?, assignedTimestamp = ? WHERE orderId = ?').run(riderUsername, 'assigned', assignedTimestamp, orderId);
-
-        // 2. Güncellenmiş siparişi veritabanından çek
-        const updatedOrder = db.prepare('SELECT * FROM siparisler WHERE orderId = ?').get(orderId);
-        updatedOrder.sepetItems = JSON.parse(updatedOrder.sepetItems);
-
-        // 3. Tüm ilgili kullanıcılara (garson, admin, web arayüzü) siparişin atandığını bildir.
-        // Bu sinyal garson uygulamasının listeyi güncellemesini sağlar.
-        io.emit('orderAssigned', updatedOrder);
-        
-        // 4. SADECE İLGİLİ MOTORCUYA yeni siparişin atandığını bildir.
-        // Bu, motorcu uygulamasının listesine yeni siparişi eklemesini sağlar.
-        const riderSocket = Array.from(connectedClients.values()).find(client => client.username === riderUsername);
-        if (riderSocket) {
-            console.log(`[${new Date().toLocaleTimeString()}] Motorcuya ${riderUsername} yeni sipariş bildirimi gönderiliyor...`);
-            io.to(riderSocket.id).emit('newOrderAssigned', updatedOrder);
-        }
-
-    } catch (error) {
-        console.error(`[${new Date().toLocaleTimeString()}] Sipariş atama hatası (ID: ${orderId}):`, error.message);
-    }
-});
-
-    socket.on('updateDeliveryStatus', async (data) => {
-        const { orderId, deliveryStatus } = data;
-        console.log(`[${new Date().toLocaleTimeString()}] 'updateDeliveryStatus' olayı alındı. Sipariş ID: ${orderId}, Yeni Durum: ${deliveryStatus}`);
-        try {
-            const updateStmt = db.prepare('UPDATE orders SET deliveryStatus = ? WHERE orderId = ?');
-            updateStmt.run(deliveryStatus, orderId);
-
-            io.emit('orderDeliveryStatusUpdated', { orderId, newDeliveryStatus: deliveryStatus });
-            console.log(`[${new Date().toLocaleTimeString()}] Sipariş ${orderId} için teslimat durumu başarıyla güncellendi ve tüm client'lara bildirildi.`);
-        } catch (error) {
-            console.error(`[${new Date().toLocaleTimeString()}] Sipariş durumu güncelleme hatası (ID: ${orderId}):`, error.message);
-        }
-    });
-
     socket.on('disconnect', () => {
         console.log(`[${new Date().toLocaleTimeString()}] Bağlantı koptu: ${socket.id}`);
         const clientInfo = connectedClients.get(socket.id);
@@ -1254,7 +1209,7 @@ io.on('connection', (socket) => {
             console.log(`Client disconnected: ${clientInfo.username} (${clientInfo.role}). Kalan bağlı client: ${connectedClients.size}`);
             if (clientInfo.role === 'rider' && riderLocations[clientInfo.username] && riderLocations[clientInfo.username].socketId === socket.id) {
                 delete riderLocations[clientInfo.username];
-                connectedClients.forEach((clientInfo, clientSocketId) => {
+                connectedClients.forEach((clientSocketId, clientInfo) => {
                     if (clientInfo.role === 'admin' || clientInfo.role === 'garson') {
                         io.to(clientSocketId).emit('riderDisconnected', clientInfo.username);
                     }
@@ -1277,7 +1232,3 @@ process.on('exit', () => {
 process.on('SIGHUP', () => process.exit(1));
 process.on('SIGINT', () => process.exit(1));
 process.on('SIGTERM', () => process.exit(1));
-
-
-
-
