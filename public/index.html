@@ -1155,45 +1155,45 @@
             printWindow.document.write('<style>');
             printWindow.document.write(`
             
-            @page {
-            size: 58mm auto;
-            margin: 0;
-            }
-            body {
-                width: 58mm;
+                @page {
+                size: 58mm auto;
                 margin: 0;
-                font-family: 'Roboto Mono', monospace; /* 👈 Değişiklik burada */
-                font-size: 12px;       /* biraz büyüttüm */
-                font-weight: 700;      /* kalın yazdırma */
-                line-height: 1.1;      /* satırlar sıkı → daha tok görünür */
-                color: #000;
-            }
-            .receipt-container {
-                padding: 5mm;
-                box-sizing: border-box;
-            }
-            .receipt-header, .receipt-footer {
-                text-align: center;
-                margin-bottom: 5px;
-                font-size: 13px;
-                font-weight: 700;
-            }
-            .receipt-info p, .receipt-item {
-                margin: 2px 0;
-                white-space: pre-wrap;
-            }
-            .receipt-total {
-                font-weight: bold;
-                text-align: right;
-                margin-top: 10px;
-                font-size: 12px;
-            }
-            hr {
-                border: 0;
-                border-top: 1px dashed #000;
-                margin: 5px 0;
-            }
-        );
+                }
+                body {
+                    width: 58mm;
+                    margin: 0;
+                    font-family: 'Roboto Mono', monospace; /* 👈 Değişiklik burada */
+                    font-size: 12px;       /* biraz büyüttüm */
+                    font-weight: 700;      /* kalın yazdırma */
+                    line-height: 1.1;      /* satırlar sıkı → daha tok görünür */
+                    color: #000;
+                }
+                .receipt-container {
+                    padding: 5mm;
+                    box-sizing: border-box;
+                }
+                .receipt-header, .receipt-footer {
+                    text-align: center;
+                    margin-bottom: 5px;
+                    font-size: 13px;
+                    font-weight: 700;
+                }
+                .receipt-info p, .receipt-item {
+                    margin: 2px 0;
+                    white-space: pre-wrap;
+                }
+                .receipt-total {
+                    font-weight: bold;
+                    text-align: right;
+                    margin-top: 10px;
+                    font-size: 12px;
+                }
+                hr {
+                    border: 0;
+                    border-top: 1px dashed #000;
+                    margin: 5px 0;
+                }
+            );
             printWindow.document.write('</style>');
             printWindow.document.write('</head><body>');
             printWindow.document.write(printContent);
@@ -1610,6 +1610,7 @@
     </script>
 </body>
 </html>
+
 
 
 
