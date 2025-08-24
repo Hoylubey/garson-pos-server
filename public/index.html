@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
         crossorigin=""/>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
         crossorigin=""></script>
@@ -367,58 +368,62 @@
             box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
         }
         @media print {
-            body * {
-                visibility: hidden;
-            }
-            .printable-content, .printable-content * {
-                visibility: visible;
-            }
-            .printable-content {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-            }
-            .order-actions, #map-container, #order-status-box, #notificationBell, h1 {
-                display: none;
-            }
-            @page {
-                size: 58mm auto;
-                margin: 0;
-            }
-            body {
-                width: 58mm;
-                margin: 0;
-                font-family: 'Consolas', 'Courier New', monospace;
-                font-size: 10px;
-                line-height: 1.2;
-                color: #000;
-            }
-            .receipt-container {
-                padding: 5mm;
-                box-sizing: border-box;
-            }
-            .receipt-header, .receipt-footer {
-                text-align: center;
-                margin-bottom: 5px;
-                font-size: 12px;
-            }
-            .receipt-info p, .receipt-item {
-                margin: 2px 0;
-                white-space: pre-wrap;
-            }
-            .receipt-total {
-                font-weight: bold;
-                text-align: right;
-                margin-top: 10px;
-                font-size: 11px;
-            }
-            hr {
-                border: 0;
-                border-top: 1px dashed #888;
-                margin: 5px 0;
-            }
-        }
+    body * {
+        visibility: hidden;
+    }
+    .printable-content, .printable-content * {
+        visibility: visible;
+    }
+    .printable-content {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+    }
+    .order-actions, #map-container, #order-status-box, #notificationBell, h1 {
+        display: none;
+    }
+    @page {
+        size: 58mm auto;
+        margin: 0;
+    }
+    body {
+        width: 58mm;
+        margin: 0;
+        font-family: 'Roboto Mono', monospace; /* 👈 Değişiklik burada */
+        font-size: 12px;       /* biraz büyüttüm */
+        font-weight: 700;      /* kalın yazdırma */
+        line-height: 1.1;      /* satırlar sıkı → daha tok görünür */
+        color: #000;
+    }
+    .receipt-container {
+        padding: 5mm;
+        box-sizing: border-box;
+    }
+    .receipt-header, .receipt-footer {
+        text-align: center;
+        margin-bottom: 5px;
+        font-size: 13px;
+        font-weight: 700;
+    }
+    .receipt-info p, .receipt-item {
+        margin: 2px 0;
+        white-space: pre-wrap;
+    }
+    .receipt-total {
+        font-weight: bold;
+        text-align: right;
+        margin-top: 10px;
+        font-size: 12px;
+    }
+    hr {
+        border: 0;
+        border-top: 1px dashed #000;
+        margin: 5px 0;
+    }
+}
+
+         
         body.map-only {
             display: flex;
             flex-direction: column;
@@ -1602,4 +1607,5 @@
     </script>
 </body>
 </html>
+
 
