@@ -1,4 +1,4 @@
-// server.js (Düzeltilmiş hali - riderLocationUpdate'teki hatalı kontrol kaldırıldı)
+// server.js (Düzeltilmiş hali - riderLocationUpdate'teki hatalı 'users' kontrolü kaldırıldı)
 const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
@@ -1151,8 +1151,8 @@ console.log(`[Socket.IO] Motorcu ${username} (${socket.id}) için ${parsedRiderO
 }
 });
 
+// YENİ: DÜZELTİLMİŞ KOD
 socket.on('riderLocationUpdate', (locationData) => {
-    // YENİ: Düzeltilmiş 'riderLocationUpdate' dinleyicisi
     
     // 1. Veriyi güvenle ayrıştır
     const username = locationData.username;
@@ -1168,32 +1168,22 @@ socket.on('riderLocationUpdate', (locationData) => {
         return;
     }
 
-    // 2. YENİ: Hatalı olan 'users' tablosu kontrolü kaldırıldı.
-    // Motorcunun varlığını 'riders' tablosundan kontrol etmeliyiz
-    // (veya 'users' tablosunda 'role = rider' olduğundan emin olmalıyız)
-    // Şimdilik, Android'den (LocationService) gelen 'role=rider' bilgisine güveniyoruz.
-    // ESKİ KOD (Hatalıydı):
-    // const user = db.prepare("SELECT id, full_name, role FROM users WHERE username = ?").get(username);
-    // if (!user || user.role !== 'rider') {
-    //    console.warn(`Kullanıcı ${username} bulunamadı veya rolü 'rider' değil. Konum güncellenmiyor.`);
-    //    return;
-    // }
-    
-    // YENİ: Motorcunun 'full_name' ve 'id' bilgilerini al
-    // (Not: 'riders' tablosunda 'full_name' zaten var)
+    // 2. YENİ: Motorcunun 'users' tablosundaki 'role' yerine 'riders' tablosunda
+    // var olup olmadığını kontrol et. Bu, 'k' kullanıcısı 'admin' rolüne sahip olsa bile
+    // 'riders' tablosunda kayıtlıysa konumunun kabul edilmesini sağlar.
     const riderInfo = db.prepare("SELECT id, full_name FROM riders WHERE username = ?").get(username);
     
     if (!riderInfo) {
         console.warn(`Kullanıcı ${username}, 'riders' tablosunda bulunamadı. Konum güncellenmiyor.`);
         return;
     }
-
+    
     // 3. Konumu kaydet
     riderLocations[username] = {
         id: riderInfo.id,
         username: username,
         full_name: riderInfo.full_name, // Veritabanından doğru adı al
-        role: 'rider', // Rolün 'rider' olduğunu biliyoruz
+        role: 'rider', 
         latitude,
         longitude,
         timestamp,
