@@ -1,4 +1,4 @@
-// server.js (Düzeltilmiş hali - Kayıt ve olay gönderme mantığı güçlendirildi)
+// server.js (Düzeltilmiş hali - riderLocationUpdate'teki hatalı kontrol kaldırıldı)
 const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
@@ -1085,7 +1085,7 @@ const activeRiders = Object.values(riderLocations).map(rider => ({
 id: rider.id,
 username: rider.username,
 name: rider.full_name,
-fullName: rider.fullName, // YENİ: Web panelinin beklediği 'fullName' (camelCase) olarak düzeltildi
+fullName: rider.full_name,
 latitude: rider.latitude,
 longitude: rider.longitude,
 timestamp: rider.timestamp,
@@ -1152,50 +1152,68 @@ console.log(`[Socket.IO] Motorcu ${username} (${socket.id}) için ${parsedRiderO
 });
 
 socket.on('riderLocationUpdate', (locationData) => {
-// YENİ: Android'den gelen JSONObject'i daha güvenli ayrıştırma
-const username = locationData.username;
-const latitude = locationData.latitude;
-const longitude = locationData.longitude;
-const timestamp = locationData.timestamp;
-const speed = locationData.speed;
-const bearing = locationData.bearing;
-const accuracy = locationData.accuracy;
+    // YENİ: Düzeltilmiş 'riderLocationUpdate' dinleyicisi
+    
+    // 1. Veriyi güvenle ayrıştır
+    const username = locationData.username;
+    const latitude = locationData.latitude;
+    const longitude = locationData.longitude;
+    const timestamp = locationData.timestamp;
+    const speed = locationData.speed;
+    const bearing = locationData.bearing;
+    const accuracy = locationData.accuracy;
 
+    if (!username) {
+        console.warn('Rider konum güncellemesi için kullanıcı adı (username) bulunamadı.');
+        return;
+    }
 
-if (!username) {
-console.warn('Rider konum güncellemesi için kullanıcı adı (username) bulunamadı.');
-return;
-}
+    // 2. YENİ: Hatalı olan 'users' tablosu kontrolü kaldırıldı.
+    // Motorcunun varlığını 'riders' tablosundan kontrol etmeliyiz
+    // (veya 'users' tablosunda 'role = rider' olduğundan emin olmalıyız)
+    // Şimdilik, Android'den (LocationService) gelen 'role=rider' bilgisine güveniyoruz.
+    // ESKİ KOD (Hatalıydı):
+    // const user = db.prepare("SELECT id, full_name, role FROM users WHERE username = ?").get(username);
+    // if (!user || user.role !== 'rider') {
+    //    console.warn(`Kullanıcı ${username} bulunamadı veya rolü 'rider' değil. Konum güncellenmiyor.`);
+    //    return;
+    // }
+    
+    // YENİ: Motorcunun 'full_name' ve 'id' bilgilerini al
+    // (Not: 'riders' tablosunda 'full_name' zaten var)
+    const riderInfo = db.prepare("SELECT id, full_name FROM riders WHERE username = ?").get(username);
+    
+    if (!riderInfo) {
+        console.warn(`Kullanıcı ${username}, 'riders' tablosunda bulunamadı. Konum güncellenmiyor.`);
+        return;
+    }
 
-const user = db.prepare("SELECT id, full_name, role FROM users WHERE username = ?").get(username);
+    // 3. Konumu kaydet
+    riderLocations[username] = {
+        id: riderInfo.id,
+        username: username,
+        full_name: riderInfo.full_name, // Veritabanından doğru adı al
+        role: 'rider', // Rolün 'rider' olduğunu biliyoruz
+        latitude,
+        longitude,
+        timestamp,
+        speed,
+        bearing,
+        accuracy,
+        socketId: socket.id
+    };
 
-if (!user || user.role !== 'rider') {
-console.warn(`Kullanıcı ${username} bulunamadı veya rolü 'rider' değil. Konum güncellenmiyor.`);
-return;
-}
-
-riderLocations[username] = {
-id: user.id,
-username: username,
-// YENİ: Web panelinin beklediği 'fullName' (camelCase) olarak düzeltildi
-fullName: user.full_name, 
-role: user.role,
-latitude,
-longitude,
-timestamp,
-speed,
-bearing,
-accuracy,
-socketId: socket.id
-};
-
-connectedClients.forEach((clientInfo, clientSocketId) => {
-if (clientInfo.role === 'admin' || clientInfo.role === 'garson') {
-io.to(clientSocketId).emit('newRiderLocation', riderLocations[username]);
-}
+    // 4. Admin/Garson panellerine yayınla
+    connectedClients.forEach((clientInfo, clientSocketId) => {
+        if (clientInfo.role === 'admin' || clientInfo.role === 'garson') {
+            io.to(clientSocketId).emit('newRiderLocation', riderLocations[username]);
+        }
+    });
+    
+    // 5. YENİ: Terminale log bas (Artık bu log görünmeli)
+    console.log(`>>> KONUM GELDİ: Motorcu ${username} (${riderInfo.full_name}) konum güncelledi: ${latitude}, ${longitude}`);
 });
-console.log(`Motorcu ${username} konum güncelledi: ${latitude}, ${longitude}`);
-});
+
 
 socket.on('orderPaid', (data) => {
 const { orderId } = data;
