@@ -1,4 +1,3 @@
-<!-- index.html (Güncellenmiş) -->
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -420,6 +419,7 @@ border-top: 1px dashed #888;
 margin: 5px 0;
 }
 }
+/* YENİ: Bu CSS kuralı zaten vardı ve şimdi kullanılacak */
 body.map-only {
 display: flex;
 flex-direction: column;
@@ -457,7 +457,8 @@ margin-top: 0;
 }
 body.map-only h1,
 body.map-only #order-status-box,
-body.map-only #notificationBell {
+body.map-only #notificationBell,
+body.map-only .header-buttons-top { /* YENİ: Header'ı da gizle */
 display: none;
 }
 body.map-only #map-container h2 {
@@ -568,7 +569,6 @@ background-color: #c82333;
 </style>
 </head>
 <body>
-<!-- Giriş Ekranı -->
 <div id="loginContainer">
 <div class="login-box">
 <h2>Yönetici Girişi</h2>
@@ -583,7 +583,6 @@ background-color: #c82333;
 </div>
 </div>
 
-<!-- Admin Paneli İçeriği (Girişten Sonra Görünür) -->
 <div id="adminPanelContent" style="display: none; flex-direction: column; flex-grow: 1;">
 <audio id="notificationSound" src="notification.mp3" preload="auto"></audio>
 <span id="notificationBell" class="notification-bell">🔔</span>
@@ -600,7 +599,6 @@ background-color: #c82333;
 <div id="main-content">
 <h2 class="section-title">Aktif Siparişler</h2>
 <div id="orders-container">
-<!-- Sipariş kartları buraya JavaScript ile eklenecek -->
 <p>Aktif sipariş bulunamadı.</p>
 </div>
 </div>
@@ -612,7 +610,6 @@ background-color: #c82333;
 </div>
 </div>
 
-<!-- Motorcuya Sipariş Gönder Modalı -->
 <div id="assignOrderModal" class="modal">
 <div class="modal-content">
 <span class="close-button" onclick="closeAssignOrderModal()">&times;</span>
@@ -661,35 +658,16 @@ background-color: #c82333;
 
 <script>
 
-        // Sayfa yüklendiğinde URL parametresini kontrol et ve görünümü ayarla
-        document.addEventListener('DOMContentLoaded', () => {
-            const params = new URLSearchParams(window.location.search);
-            if (params.get('view') === 'map_only') {
-                console.log('Sadece harita görünümü etkinleştirildi.');
-                const mainContainer = document.querySelector('.flex.h-screen');
-                if (mainContainer) {
-                    mainContainer.style.flexDirection = 'column';
-                    mainContainer.style.height = '100vh';
-                }
-        
-                const mapContainer = document.getElementById('map');
-                if (mapContainer) {
-                    mapContainer.style.flexGrow = '1';
-                }
-        
-                const sidebar = document.getElementById('sidebar');
-                if (sidebar) {
-                    sidebar.style.display = 'none';
-                }
-        
-                const controls = document.getElementById('controls');
-                if (controls) {
-                    controls.style.display = 'none';
-                }
-        
-                // Dilersen başka gizlemek istediğin elementler varsa buraya ekleyebilirsin.
-            }
-        });
+// YENİ: Hatalı olan ilk 'DOMContentLoaded' dinleyicisi bu dosyadan SİLİNDİ.
+// ESKİ KOD:
+// document.addEventListener('DOMContentLoaded', () => {
+//     const params = new URLSearchParams(window.location.search);
+//     if (params.get('view') === 'map_only') {
+//         console.log('Sadece harita görünümü etkinleştirildi.');
+//         ... (hatalı gizleme kodları) ...
+//     }
+// });
+
 // Global Değişkenler
 const SOCKET_SERVER_URL = 'https://garson-pos-server.onrender.com';
 const API_BASE_URL = 'https://garson-pos-server.onrender.com';
@@ -1402,25 +1380,36 @@ updateActiveRiderCount();
 
 // Olay Dinleyicileri ve Başlangıç Kodları
 document.addEventListener('DOMContentLoaded', () => {
-loginForm.addEventListener('submit', handleLogin);
-logoutButton.addEventListener('click', performLogout);
-orderStatusToggleButton.addEventListener('click', toggleOrderReceptionStatus);
+    
+    // YENİ: Düzeltilmiş 'map_only' mantığı buraya eklendi.
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('view') === 'map_only') {
+        console.log('Sadece harita görünümü etkinleştirildi.');
+        // CSS dosyanızda (inline <style> tag'i içinde) zaten var olan
+        // 'map-only' sınıfını body'e ekliyoruz.
+        document.body.classList.add('map-only');
+    }
+    
+    // Mevcut dinleyicileriniz
+    loginForm.addEventListener('submit', handleLogin);
+    logoutButton.addEventListener('click', performLogout);
+    orderStatusToggleButton.addEventListener('click', toggleOrderReceptionStatus);
 
-closeModalButton.addEventListener('click', closeAssignOrderModal);
-cancelAssignButton.addEventListener('click', closeAssignOrderModal);
-sendAssignButton.addEventListener('click', assignOrder);
+    closeModalButton.addEventListener('click', closeAssignOrderModal);
+    cancelAssignButton.addEventListener('click', closeAssignOrderModal);
+    sendAssignButton.addEventListener('click', assignOrder);
 
-window.addEventListener('click', (event) => {
-if (event.target == assignOrderModal) {
-closeAssignOrderModal();
-}
-});
+    window.addEventListener('click', (event) => {
+        if (event.target == assignOrderModal) {
+            closeAssignOrderModal();
+        }
+    });
 
-notificationBell.addEventListener('click', () => {
-notificationBell.classList.remove('ringing');
-});
+    notificationBell.addEventListener('click', () => {
+        notificationBell.classList.remove('ringing');
+    });
 
-checkLoginStatus();
+    checkLoginStatus();
 });
 
 window.addEventListener('resize', () => {
@@ -1605,7 +1594,3 @@ alert(`${data.username} adlı motorcu gününü sonlandırdı. Bugün ${data.del
 </script>
 </body>
 </html>
-
-
-
-
