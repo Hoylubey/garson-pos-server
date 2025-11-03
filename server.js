@@ -1085,7 +1085,7 @@ const activeRiders = Object.values(riderLocations).map(rider => ({
 id: rider.id,
 username: rider.username,
 name: rider.full_name,
-fullName: rider.full_name,
+fullName: rider.fullName, // YENİ: Web panelinin beklediği 'fullName' (camelCase) olarak düzeltildi
 latitude: rider.latitude,
 longitude: rider.longitude,
 timestamp: rider.timestamp,
@@ -1152,7 +1152,15 @@ console.log(`[Socket.IO] Motorcu ${username} (${socket.id}) için ${parsedRiderO
 });
 
 socket.on('riderLocationUpdate', (locationData) => {
-const { username, latitude, longitude, timestamp, speed, bearing, accuracy } = locationData;
+// YENİ: Android'den gelen JSONObject'i daha güvenli ayrıştırma
+const username = locationData.username;
+const latitude = locationData.latitude;
+const longitude = locationData.longitude;
+const timestamp = locationData.timestamp;
+const speed = locationData.speed;
+const bearing = locationData.bearing;
+const accuracy = locationData.accuracy;
+
 
 if (!username) {
 console.warn('Rider konum güncellemesi için kullanıcı adı (username) bulunamadı.');
@@ -1169,7 +1177,8 @@ return;
 riderLocations[username] = {
 id: user.id,
 username: username,
-full_name: user.full_name,
+// YENİ: Web panelinin beklediği 'fullName' (camelCase) olarak düzeltildi
+fullName: user.full_name, 
 role: user.role,
 latitude,
 longitude,
@@ -1311,5 +1320,3 @@ console.log('SQLite veritabanı bağlantısı kapatıldı.');
 process.on('SIGHUP', () => process.exit(1));
 process.on('SIGINT', () => process.exit(1));
 process.on('SIGTERM', () => process.exit(1));
-
-
