@@ -419,7 +419,6 @@ border-top: 1px dashed #888;
 margin: 5px 0;
 }
 }
-/* YENİ: Bu CSS kuralı zaten vardı ve şimdi kullanılacak */
 body.map-only {
 display: flex;
 flex-direction: column;
@@ -458,7 +457,7 @@ margin-top: 0;
 body.map-only h1,
 body.map-only #order-status-box,
 body.map-only #notificationBell,
-body.map-only .header-buttons-top { /* YENİ: Header'ı da gizle */
+body.map-only .header-buttons-top { 
 display: none;
 }
 body.map-only #map-container h2 {
@@ -569,6 +568,7 @@ background-color: #c82333;
 </style>
 </head>
 <body>
+<!-- Giriş Ekranı -->
 <div id="loginContainer">
 <div class="login-box">
 <h2>Yönetici Girişi</h2>
@@ -583,6 +583,7 @@ background-color: #c82333;
 </div>
 </div>
 
+<!-- Admin Paneli İçeriği (Girişten Sonra Görünür) -->
 <div id="adminPanelContent" style="display: none; flex-direction: column; flex-grow: 1;">
 <audio id="notificationSound" src="notification.mp3" preload="auto"></audio>
 <span id="notificationBell" class="notification-bell">🔔</span>
@@ -599,6 +600,7 @@ background-color: #c82333;
 <div id="main-content">
 <h2 class="section-title">Aktif Siparişler</h2>
 <div id="orders-container">
+<!-- Sipariş kartları buraya JavaScript ile eklenecek -->
 <p>Aktif sipariş bulunamadı.</p>
 </div>
 </div>
@@ -610,6 +612,7 @@ background-color: #c82333;
 </div>
 </div>
 
+<!-- Motorcuya Sipariş Gönder Modalı -->
 <div id="assignOrderModal" class="modal">
 <div class="modal-content">
 <span class="close-button" onclick="closeAssignOrderModal()">&times;</span>
@@ -657,16 +660,6 @@ background-color: #c82333;
 </div>
 
 <script>
-
-// YENİ: Hatalı olan ilk 'DOMContentLoaded' dinleyicisi bu dosyadan SİLİNDİ.
-// ESKİ KOD:
-// document.addEventListener('DOMContentLoaded', () => {
-//     const params = new URLSearchParams(window.location.search);
-//     if (params.get('view') === 'map_only') {
-//         console.log('Sadece harita görünümü etkinleştirildi.');
-//         ... (hatalı gizleme kodları) ...
-//     }
-// });
 
 // Global Değişkenler
 const SOCKET_SERVER_URL = 'https://garson-pos-server.onrender.com';
@@ -1513,11 +1506,25 @@ addDeliveryMarker(order);
 renderOrders();
 });
 
+// YENİ: OTOMATİK TAKİP (AUTO-FOLLOW) ÖZELLİĞİ EKLENDİ
 socket.on('newRiderLocation', (rider) => {
-console.log('Yeni motorcu konumu alındı:', rider.username, rider.latitude, rider.longitude);
-updateRiderLocationOnMap(rider);
-updateActiveRiderCount();
+    console.log('Yeni motorcu konumu alındı:', rider.username, rider.latitude, rider.longitude);
+    updateRiderLocationOnMap(rider);
+    updateActiveRiderCount();
+
+    // YENİ: Harita sadece 1 motorcu gösteriyorsa, o motorcuyu takip et.
+    // Bu, birden fazla motorcu varken haritanın "zıplamasını" engeller.
+    if (map && Object.keys(riderMarkers).length === 1) {
+        // map.setView() haritayı aniden kaydırır.
+        // map.panTo() haritayı yumuşak bir şekilde kaydırır (daha iyi görünüm).
+        // Mevcut zoom seviyesini koruyarak kaydır:
+        map.panTo([rider.latitude, rider.longitude]);
+        
+        // VEYA haritayı kaydır ve zoom yap:
+        // map.setView([rider.latitude, rider.longitude], 16); // 16: Yakın bir zoom seviyesi
+    }
 });
+
 
 socket.on('currentRiderLocations', (currentRiders) => {
 console.log('Mevcut motorcu konumları Socket.IO üzerinden alındı:', currentRiders.length);
