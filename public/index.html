@@ -1526,7 +1526,7 @@ socket.on('newRiderLocation', (rider) => {
     if (map && Object.keys(riderMarkers).length === 1 || autoFollowRider === rider.username) {
         
         // Leaflet'te zoom seviyesi 17 sokak/cadde seviyesine eşittir
-        map.setView([rider.latitude, rider.longitude], 17, {
+        map.setView([rider.latitude, rider.longitude], 14, {
             animate: true,
             pan: {
                 duration: 0.5 // Yumuşak kaydırma
@@ -1612,3 +1612,4 @@ alert(`${data.username} adlı motorcu gününü sonlandırdı. Bugün ${data.del
 </script>
 </body>
 </html>
+
