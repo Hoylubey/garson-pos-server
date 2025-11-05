@@ -568,7 +568,6 @@ background-color: #c82333;
 </style>
 </head>
 <body>
-<!-- Giriş Ekranı -->
 <div id="loginContainer">
 <div class="login-box">
 <h2>Yönetici Girişi</h2>
@@ -583,7 +582,6 @@ background-color: #c82333;
 </div>
 </div>
 
-<!-- Admin Paneli İçeriği (Girişten Sonra Görünür) -->
 <div id="adminPanelContent" style="display: none; flex-direction: column; flex-grow: 1;">
 <audio id="notificationSound" src="notification.mp3" preload="auto"></audio>
 <span id="notificationBell" class="notification-bell">🔔</span>
@@ -600,7 +598,6 @@ background-color: #c82333;
 <div id="main-content">
 <h2 class="section-title">Aktif Siparişler</h2>
 <div id="orders-container">
-<!-- Sipariş kartları buraya JavaScript ile eklenecek -->
 <p>Aktif sipariş bulunamadı.</p>
 </div>
 </div>
@@ -612,7 +609,6 @@ background-color: #c82333;
 </div>
 </div>
 
-<!-- Motorcuya Sipariş Gönder Modalı -->
 <div id="assignOrderModal" class="modal">
 <div class="modal-content">
 <span class="close-button" onclick="closeAssignOrderModal()">&times;</span>
@@ -702,6 +698,7 @@ const riderMarkers = {};
 const deliveryMarkers = {};
 const orders = {};
 let currentOrderToAssign = null;
+let autoFollowRider = null; // YENİ: Otomatik takip için seçili motorcu
 
 // AUTHENTICATION FONKSİYONLARI
 function getAuthToken() {
@@ -872,6 +869,19 @@ riderMarkers[username] = L.marker(latLng, { icon: customIcon }).addTo(map)
 );
 }
 updateActiveRiderCount();
+
+// YENİ: Otomatik Takip Mantığı
+// Haritada sadece bir motorcu varsa VEYA bu motorcu takip ediliyorsa odaklan
+if (Object.keys(riderMarkers).length === 1 || autoFollowRider === username) {
+    // Zoom seviyesi 17 (sokak seviyesi) olarak ayarlandı
+    map.setView(latLng, 17, {
+        animate: true,
+        pan: {
+            duration: 0.5 // Yumuşak kaydırma
+        }
+    });
+    autoFollowRider = username; // Takip edilen motorcuyu güncelle
+}
 }
 
 function addDeliveryMarker(order) {
@@ -1043,7 +1053,7 @@ switch (status) {
 case 'pending': return 'status-pending';
 case 'paid': return 'status-paid';
 case 'assigned': return 'status-assigned';
-case 'en_route': return 'status-en_route';
+case 'en_route': return 'status-en-route';
 case 'delivered': return 'status-delivered';
 case 'cancelled': return 'status-cancelled';
 default: return '';
@@ -1512,16 +1522,17 @@ socket.on('newRiderLocation', (rider) => {
     updateRiderLocationOnMap(rider);
     updateActiveRiderCount();
 
-    // YENİ: Harita sadece 1 motorcu gösteriyorsa, o motorcuyu takip et.
-    // Bu, birden fazla motorcu varken haritanın "zıplamasını" engeller.
-    if (map && Object.keys(riderMarkers).length === 1) {
-        // map.setView() haritayı aniden kaydırır.
-        // map.panTo() haritayı yumuşak bir şekilde kaydırır (daha iyi görünüm).
-        // Mevcut zoom seviyesini koruyarak kaydır:
-        map.panTo([rider.latitude, rider.longitude]);
+    // YENİ: Otomatik Takip Mantığı (Sokak seviyesi zoom ile)
+    if (map && Object.keys(riderMarkers).length === 1 || autoFollowRider === rider.username) {
         
-        // VEYA haritayı kaydır ve zoom yap:
-        // map.setView([rider.latitude, rider.longitude], 16); // 16: Yakın bir zoom seviyesi
+        // Leaflet'te zoom seviyesi 17 sokak/cadde seviyesine eşittir
+        map.setView([rider.latitude, rider.longitude], 17, {
+            animate: true,
+            pan: {
+                duration: 0.5 // Yumuşak kaydırma
+            }
+        });
+        autoFollowRider = rider.username; // Takip edilen motorcuyu güncelle
     }
 });
 
