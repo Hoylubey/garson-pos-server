@@ -457,7 +457,7 @@ margin-top: 0;
 body.map-only h1,
 body.map-only #order-status-box,
 body.map-only #notificationBell,
-body.map-only .header-buttons-top { 
+body.map-only .header-buttons-top { 
 display: none;
 }
 body.map-only #map-container h2 {
@@ -698,7 +698,8 @@ const riderMarkers = {};
 const deliveryMarkers = {};
 const orders = {};
 let currentOrderToAssign = null;
-let autoFollowRider = null; // YENİ: Otomatik takip için seçili motorcu
+let autoFollowRider = null; // Otomatik takip için seçili motorcu
+let autoFollow = true; // YENİ: Harita kaydırılana kadar otomatik takibe izin verir.
 
 // AUTHENTICATION FONKSİYONLARI
 function getAuthToken() {
@@ -813,6 +814,14 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 }).addTo(map);
 
+// YENİ EKLE: Kullanıcı manuel olarak haritayı kaydırdığında otomatik takibi kapat
+map.on('movestart', () => {
+if (autoFollow === true) {
+console.log('Kullanıcı manuel kaydırdı. Otomatik takip kapatıldı.');
+autoFollow = false;
+}
+});
+
 // Teslimat işaretleyicileri için özel ikon
 window.deliveryIcon = L.icon({
 iconUrl: 'https://cdn-icons-png.flaticon.com/512/1170/1170679.png',
@@ -844,6 +853,7 @@ popupAnchor: [0, -16]
 });
 
 if (riderMarkers[username]) {
+// İşaretleyiciyi sadece hareket ettir.
 riderMarkers[username].setLatLng(latLng);
 if (riderMarkers[username].getPopup()) {
 riderMarkers[username].getPopup().setContent(
@@ -870,17 +880,19 @@ riderMarkers[username] = L.marker(latLng, { icon: customIcon }).addTo(map)
 }
 updateActiveRiderCount();
 
-// YENİ: Otomatik Takip Mantığı
-// Haritada sadece bir motorcu varsa VEYA bu motorcu takip ediliyorsa odaklan
-if (Object.keys(riderMarkers).length === 1 || autoFollowRider === username) {
-    // Zoom seviyesi 17 (sokak seviyesi) olarak ayarlandı
-    map.setView(latLng, 17, {
-        animate: true,
-        pan: {
-            duration: 0.5 // Yumuşak kaydırma
-        }
-    });
-    autoFollowRider = username; // Takip edilen motorcuyu güncelle
+// YENİ MANTIK: SADECE autoFollow TRUE İSE ODAKLAN (Sürekli Yenilemeyi Önlemek İçin)
+if (autoFollow) {
+    // Haritada sadece bir motorcu varsa VEYA bu motorcu takip ediliyorsa odaklan
+    if (Object.keys(riderMarkers).length === 1 || autoFollowRider === username) {
+        // Zoom seviyesi 17 (sokak seviyesi) olarak ayarlandı
+        map.setView(latLng, 17, { 
+            animate: true,
+            pan: {
+                duration: 0.5 // Yumuşak kaydırma
+            }
+        });
+        autoFollowRider = username; // Takip edilen motorcuyu güncelle
+    }
 }
 }
 
@@ -897,11 +909,11 @@ icon: window.deliveryIcon,
 zIndexOffset: 1000
 }).addTo(map)
 .bindPopup(`
-               <div><strong>Sipariş ID:</strong> ${order.orderId.substring(0, 8)}</div>
-               <div><strong>Masa:</strong> ${order.masaAdi}</div>
-               <div><strong>Adres:</strong> ${order.deliveryAddress}</div>
-               ${order.customerPhone ? `<div><strong>Telefon:</strong> ${order.customerPhone}</div>` : ''}
-           `);
+               <div><strong>Sipariş ID:</strong> ${order.orderId.substring(0, 8)}</div>
+               <div><strong>Masa:</strong> ${order.masaAdi}</div>
+               <div><strong>Adres:</strong> ${order.deliveryAddress}</div>
+               ${order.customerPhone ? `<div><strong>Telefon:</strong> ${order.customerPhone}</div>` : ''}
+           `);
 }
 
 function removeDeliveryMarker(orderId) {
@@ -1006,40 +1018,40 @@ orderCard.dataset.orderId = order.orderId;
 let riderInfoHtml = '';
 if (order.riderUsername && order.deliveryAddress && order.paymentMethod) {
 riderInfoHtml = `
-                       <div class="rider-info">
-                           <p class="text-xs text-gray-600 mt-1">Atanan Motorcu: ${order.riderUsername}</p>
-                           <p class="text-xs text-gray-600">Teslimat Adresi: ${order.deliveryAddress}</p>
-                           ${order.customerPhone ? `<p class="text-xs text-gray-600">Telefon: ${order.customerPhone}</p>` : ''}
-                           <p class="text-xs text-gray-600">Ödeme Yöntemi: ${order.paymentMethod}</p>
-                       </div>
-                   `;
+                       <div class="rider-info">
+                           <p class="text-xs text-gray-600 mt-1">Atanan Motorcu: ${order.riderUsername}</p>
+                           <p class="text-xs text-gray-600">Teslimat Adresi: ${order.deliveryAddress}</p>
+                           ${order.customerPhone ? `<p class="text-xs text-gray-600">Telefon: ${order.customerPhone}</p>` : ''}
+                           <p class="text-xs text-gray-600">Ödeme Yöntemi: ${order.paymentMethod}</p>
+                       </div>
+                   `;
 }
 
 const showAssignButton = (order.deliveryStatus === 'pending' && order.status !== 'paid');
 
 orderCard.innerHTML = `
-                   <h3 class="text-lg font-bold mb-2">Masa: ${order.masaAdi} (ID: ${order.masaId})</h3>
-                   <p class="text-gray-700 text-sm mb-1">Sipariş ID: ${order.orderId.substring(0, 8)}...</p>
-                   <p class="text-gray-700 text-sm mb-1">Zaman: ${new Date(order.timestamp).toLocaleString()}</p>
-                   <div class="mt-3 mb-2">
-                       <p class="font-semibold text-gray-800">Ürünler:</p>
-                       ${order.sepetItems.map(item => `
-                           <div class="order-item">
-                               <span>${item.urunAdi} x ${item.adet}</span>
-                               <span>${formatPrice(item.fiyat * item.adet)}</span>
-                           </div>
-                       `).join('')}
-                   </div>
-                   <p class="text-lg font-bold text-right mt-3">Toplam: ${formatPrice(order.toplamFiyat)}</p>
-                   <p class="order-status-text text-sm font-semibold mt-2 ${getStatusClass(order.deliveryStatus || order.status)}">Durum: ${getOrderStatusText(order.status, order.deliveryStatus)}</p>
-                   ${riderInfoHtml}
+                   <h3 class="text-lg font-bold mb-2">Masa: ${order.masaAdi} (ID: ${order.masaId})</h3>
+                   <p class="text-gray-700 text-sm mb-1">Sipariş ID: ${order.orderId.substring(0, 8)}...</p>
+                   <p class="text-gray-700 text-sm mb-1">Zaman: ${new Date(order.timestamp).toLocaleString()}</p>
+                   <div class="mt-3 mb-2">
+                       <p class="font-semibold text-gray-800">Ürünler:</p>
+                       ${order.sepetItems.map(item => `
+                           <div class="order-item">
+                               <span>${item.urunAdi} x ${item.adet}</span>
+                               <span>${formatPrice(item.fiyat * item.adet)}</span>
+                           </div>
+                       `).join('')}
+                   </div>
+                   <p class="text-lg font-bold text-right mt-3">Toplam: ${formatPrice(order.toplamFiyat)}</p>
+                   <p class="order-status-text text-sm font-semibold mt-2 ${getStatusClass(order.deliveryStatus || order.status)}">Durum: ${getOrderStatusText(order.status, order.deliveryStatus)}</p>
+                   ${riderInfoHtml}
 
-                   <div class="flex justify-end mt-4 space-x-2">
-                       <button class="pay-button" onclick="markOrderAsPaid('${order.orderId}')" ${order.status === 'paid' ? 'disabled' : ''}>Ödendi Olarak İşaretle</button>
-                       <button class="print-button" onclick="printOrderReceipt('${order.orderId}')">Yazdır</button>
-                       ${showAssignButton ? `<button class="assign-rider-btn" onclick="openAssignOrderModal('${order.orderId}')">Motorcuya Gönder</button>` : ''}
-                   </div>
-               `;
+                   <div class="flex justify-end mt-4 space-x-2">
+                       <button class="pay-button" onclick="markOrderAsPaid('${order.orderId}')" ${order.status === 'paid' ? 'disabled' : ''}>Ödendi Olarak İşaretle</button>
+                       <button class="print-button" onclick="printOrderReceipt('${order.orderId}')">Yazdır</button>
+                       ${showAssignButton ? `<button class="assign-rider-btn" onclick="openAssignOrderModal('${order.orderId}')">Motorcuya Gönder</button>` : ''}
+                   </div>
+               `;
 ordersContainer.prepend(orderCard);
 });
 }
@@ -1100,18 +1112,18 @@ alert('Yazdırılacak sipariş bulunamadı!');
 return;
 }
 let printContent = `
-               <div class="receipt-container">
-                   <div class="receipt-header">--- Olimpiyat Kokoreç ---</div>
-                   <p class="receipt-info">Tel No:0216 335 7920</p>
-                   <p class="receipt-info">Masa: ${order.masaAdi}</p>
-                   <p class="receipt-info">Sipariş ID: ${order.orderId.substring(0, 8)}...</p>
-                   <p class="receipt-info">Zaman: ${new Date(order.timestamp).toLocaleString()}</p>
-                   ${order.deliveryAddress ? `<p class="receipt-info">Adres: ${order.deliveryAddress}</p>` : ''}
-                   ${order.customerPhone ? `<p class="receipt-info">Telefon: ${order.customerPhone}</p>` : ''}
-                   ${order.paymentMethod ? `<p class="receipt-info">Ödeme: ${order.paymentMethod}</p>` : ''}
-                   <hr>
-                   <div class="receipt-items">
-           `;
+               <div class="receipt-container">
+                   <div class="receipt-header">--- Olimpiyat Kokoreç ---</div>
+                   <p class="receipt-info">Tel No:0216 335 7920</p>
+                   <p class="receipt-info">Masa: ${order.masaAdi}</p>
+                   <p class="receipt-info">Sipariş ID: ${order.orderId.substring(0, 8)}...</p>
+                   <p class="receipt-info">Zaman: ${new Date(order.timestamp).toLocaleString()}</p>
+                   ${order.deliveryAddress ? `<p class="receipt-info">Adres: ${order.deliveryAddress}</p>` : ''}
+                   ${order.customerPhone ? `<p class="receipt-info">Telefon: ${order.customerPhone}</p>` : ''}
+                   ${order.paymentMethod ? `<p class="receipt-info">Ödeme: ${order.paymentMethod}</p>` : ''}
+                   <hr>
+                   <div class="receipt-items">
+           `;
 
 order.sepetItems.forEach(item => {
 const itemName = item.urunAdi;
@@ -1121,55 +1133,55 @@ printContent += `<p class="receipt-item">${itemName} (${itemQuantity} adet) - ${
 });
 
 printContent += `
-                   </div>
-                   <hr>
-                   <div class="receipt-total">TOPLAM: ${order.toplamFiyat.toFixed(2)} TL</div>
-                   <div class="receipt-footer">Afiyet Olsun! Teşekkürler!</div>
-               </div>
-           `;
+                   </div>
+                   <hr>
+                   <div class="receipt-total">TOPLAM: ${order.toplamFiyat.toFixed(2)} TL</div>
+                   <div class="receipt-footer">Afiyet Olsun! Teşekkürler!</div>
+               </div>
+           `;
 
 let printWindow = window.open('', '_blank');
 printWindow.document.write('<!DOCTYPE html><html><head><title>Fiş - ' + order.masaAdi + '</title>');
 printWindow.document.write('<style>');
 printWindow.document.write(`
-               @page {
-                   size: 58mm auto;
-                   margin: 0;
-               }
-               body {
-                   width: 58mm;
-                   margin: 0;
-                   font-family: 'Roboto Mono', monospace;
-                   font-size: 15px;
-                   font-weight: 800;
-                   line-height: 1.2;
-                   color: #000;
-               }
-               .receipt-container {
-                   padding: 5mm;
-                   box-sizing: border-box;
-               }
-               .receipt-header, .receipt-footer {
-                   text-align: center;
-                   margin-bottom: 5px;
-                   font-size: 16px;
-               }
-               .receipt-info p, .receipt-item {
-                   margin: 2px 0;
-                   white-space: pre-wrap;
-               }
-               .receipt-total {
-                   font-weight: bold;
-                   text-align: right;
-                   margin-top: 10px;
-                   font-size: 14px;
-               }
-               hr {
-                   border: 0;
-                   border-top: 1px dashed #888;
-                   margin: 5px 0;
-               }
-           `);
+               @page {
+                   size: 58mm auto;
+                   margin: 0;
+               }
+               body {
+                   width: 58mm;
+                   margin: 0;
+                   font-family: 'Roboto Mono', monospace;
+                   font-size: 15px;
+                   font-weight: 800;
+                   line-height: 1.2;
+                   color: #000;
+               }
+               .receipt-container {
+                   padding: 5mm;
+                   box-sizing: border-box;
+               }
+               .receipt-header, .receipt-footer {
+                   text-align: center;
+                   margin-bottom: 5px;
+                   font-size: 16px;
+               }
+               .receipt-info p, .receipt-item {
+                   margin: 2px 0;
+                   white-space: pre-wrap;
+               }
+               .receipt-total {
+                   font-weight: bold;
+                   text-align: right;
+                   margin-top: 10px;
+                   font-size: 14px;
+               }
+               hr {
+                   border: 0;
+                   border-top: 1px dashed #888;
+                   margin: 5px 0;
+               }
+           `);
 printWindow.document.write('</style>');
 printWindow.document.write('</head><body>');
 printWindow.document.write(printContent);
@@ -1255,6 +1267,7 @@ return;
 
 try {
 // Adres koordinatlarını almak için geocoding API'si kullanımı
+// Not: Yüksek hacimli kullanımlar için daha sağlam bir API düşünülmelidir.
 const geocodeResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(deliveryAddress)}`);
 const geocodeData = await geocodeResponse.json();
 
@@ -1360,8 +1373,14 @@ activeRiderCountEl.textContent = 'Motorcu konumları yüklenemedi: Hatalı veri.
 return;
 }
 
-Object.values(riderMarkers).forEach(marker => marker.remove());
-Object.keys(riderMarkers).forEach(key => delete riderMarkers[key]);
+// Aktif olmayan motorcuları haritadan kaldır
+const activeUsernames = new Set(locations.map(l => l.username));
+for (const username in riderMarkers) {
+    if (!activeUsernames.has(username)) {
+        console.log(`Motorcu ${username} artık aktif değil. Haritadan kaldırılıyor (fetch).`);
+        removeRiderFromDisplay(username);
+    }
+}
 
 locations.forEach(locationData => {
 updateRiderLocationOnMap(locationData);
@@ -1377,42 +1396,47 @@ function removeRiderFromDisplay(username) {
 if (riderMarkers[username]) {
 riderMarkers[username].remove();
 delete riderMarkers[username];
+// Eğer otomatik takip edilen motorcu ayrıldıysa, takibi sıfırla.
+if (autoFollowRider === username) {
+    autoFollowRider = null;
+    autoFollow = true; // Diğer motorculara odaklanmaya hazır ol.
+}
 updateActiveRiderCount();
 }
 }
 
 // Olay Dinleyicileri ve Başlangıç Kodları
 document.addEventListener('DOMContentLoaded', () => {
-    
-    // YENİ: Düzeltilmiş 'map_only' mantığı buraya eklendi.
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('view') === 'map_only') {
-        console.log('Sadece harita görünümü etkinleştirildi.');
-        // CSS dosyanızda (inline <style> tag'i içinde) zaten var olan
-        // 'map-only' sınıfını body'e ekliyoruz.
-        document.body.classList.add('map-only');
-    }
-    
-    // Mevcut dinleyicileriniz
-    loginForm.addEventListener('submit', handleLogin);
-    logoutButton.addEventListener('click', performLogout);
-    orderStatusToggleButton.addEventListener('click', toggleOrderReceptionStatus);
+    
+    // YENİ: Düzeltilmiş 'map_only' mantığı buraya eklendi.
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('view') === 'map_only') {
+        console.log('Sadece harita görünümü etkinleştirildi.');
+        // CSS dosyanızda (inline <style> tag'i içinde) zaten var olan
+        // 'map-only' sınıfını body'e ekliyoruz.
+        document.body.classList.add('map-only');
+    }
+    
+    // Mevcut dinleyicileriniz
+    loginForm.addEventListener('submit', handleLogin);
+    logoutButton.addEventListener('click', performLogout);
+    orderStatusToggleButton.addEventListener('click', toggleOrderReceptionStatus);
 
-    closeModalButton.addEventListener('click', closeAssignOrderModal);
-    cancelAssignButton.addEventListener('click', closeAssignOrderModal);
-    sendAssignButton.addEventListener('click', assignOrder);
+    closeModalButton.addEventListener('click', closeAssignOrderModal);
+    cancelAssignButton.addEventListener('click', closeAssignOrderModal);
+    sendAssignButton.addEventListener('click', assignOrder);
 
-    window.addEventListener('click', (event) => {
-        if (event.target == assignOrderModal) {
-            closeAssignOrderModal();
-        }
-    });
+    window.addEventListener('click', (event) => {
+        if (event.target == assignOrderModal) {
+            closeAssignOrderModal();
+        }
+    });
 
-    notificationBell.addEventListener('click', () => {
-        notificationBell.classList.remove('ringing');
-    });
+    notificationBell.addEventListener('click', () => {
+        notificationBell.classList.remove('ringing');
+    });
 
-    checkLoginStatus();
+    checkLoginStatus();
 });
 
 window.addEventListener('resize', () => {
@@ -1516,24 +1540,11 @@ addDeliveryMarker(order);
 renderOrders();
 });
 
-// YENİ: OTOMATİK TAKİP (AUTO-FOLLOW) ÖZELLİĞİ EKLENDİ
+// GÜNCELLENDİ: Sadece işaretçiyi hareket ettirir, otomatik takip mantığı updateRiderLocationOnMap içinde autoFollow kontrolü ile yapılır.
 socket.on('newRiderLocation', (rider) => {
-    console.log('Yeni motorcu konumu alındı:', rider.username, rider.latitude, rider.longitude);
-    updateRiderLocationOnMap(rider);
-    updateActiveRiderCount();
-
-    // YENİ: Otomatik Takip Mantığı (Sokak seviyesi zoom ile)
-    if (map && Object.keys(riderMarkers).length === 1 || autoFollowRider === rider.username) {
-        
-        // Leaflet'te zoom seviyesi 17 sokak/cadde seviyesine eşittir
-        map.setView([rider.latitude, rider.longitude], 8, {
-            animate: true,
-            pan: {
-                duration: 0.5 // Yumuşak kaydırma
-            }
-        });
-        autoFollowRider = rider.username; // Takip edilen motorcuyu güncelle
-    }
+    console.log('Yeni motorcu konumu alındı:', rider.username, rider.latitude, rider.longitude);
+    updateRiderLocationOnMap(rider);
+    updateActiveRiderCount();
 });
 
 
@@ -1558,6 +1569,7 @@ bounds.extend([rider.latitude, rider.longitude]);
 console.warn('currentRiderLocations olayı geçersiz veri formatı aldı:', currentRiders);
 }
 
+// Aktif olmayan motorcuları kaldır
 for (const username in riderMarkers) {
 if (!activeUsernames.has(username)) {
 console.log(`Motorcu ${username} artık aktif değil. Haritadan kaldırılıyor.`);
@@ -1567,12 +1579,13 @@ removeRiderFromDisplay(username);
 
 updateActiveRiderCount();
 
-if (map && Object.keys(riderMarkers).length > 0) {
+// Eğer otomatik takip açıksa (kullanıcı kaydırma yapmadıysa) ve birden fazla motorcu varsa haritayı ortala.
+if (map && Object.keys(riderMarkers).length > 0 && autoFollow) {
 if (Object.keys(riderMarkers).length > 1) {
-map.fitBounds(bounds.pad(0.1));
-} else {
-const singleMarker = Object.values(riderMarkers)[0];
-map.setView(singleMarker.getLatLng(), 14);
+    map.fitBounds(bounds.pad(0.1));
+} else if (Object.keys(riderMarkers).length === 1) {
+    const singleMarker = Object.values(riderMarkers)[0];
+    map.setView(singleMarker.getLatLng(), 17); // Tek motorcu varsa sokak seviyesinde odakla
 }
 }
 });
@@ -1612,6 +1625,3 @@ alert(`${data.username} adlı motorcu gününü sonlandırdı. Bugün ${data.del
 </script>
 </body>
 </html>
-
-
-
