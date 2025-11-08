@@ -184,26 +184,20 @@ const fcmTokens = {}; // username -> { token, role }
 
 // Middleware: Token doğrulama ve rol kontrolü için yardımcı fonksiyonlar
 const parseToken = (token) => {
-    // Gelen token'ın içeriğini her zaman logla
-    console.log(`[parseToken Gelen] Token: ${token.substring(0, 50)}...`); 
-    
     const parts = token.split('.');
-    
     if (parts.length === 3) {
         const username = parts[0];
         const role = parts[1];
         const timestamp = parseInt(parts[2], 10);
 
-        // Başarılı ayrıştırmayı logla
-        console.log(`[parseToken Başarılı] Username=${username}, Rol=${role}, Timestamp=${timestamp}`);
+        console.log(`[parseToken] Token başarıyla ayrıştırıldı: Username=${username}, Rol=${role}, Timestamp=${timestamp}`);
         return {
             username: username,
             role: role,
             timestamp: timestamp
         };
     }
-    // Hatalı token formatını logla
-    console.warn(`[parseToken HATA] Hatalı token formatı: Beklenen 3 parça, alınan ${parts.length} parça. Token: ${token.substring(0, 50)}...`);
+    console.warn(`[parseToken] Hatalı token formatı: Beklenen 3 parça, alınan ${parts.length} parça. Token: ${token}`);
     return null;
 };
 
@@ -989,17 +983,6 @@ app.post('/api/update-order-delivery-status', isAdminOrRiderMiddleware, async (r
 app.get('/api/rider/delivered-count/:username', isAdminOrRiderMiddleware, (req, res) => {
     const { username } = req.params;
     const today = new Date().toISOString().split('T')[0];
-    
-    // YENİ LOG EKLE: Eşleşme kontrolü için
-    if (req.user.role === 'rider') {
-        console.log(`[RIDER COUNT KONTROLÜ] Token Kullanıcı: ${req.user.username}, URL Kullanıcı: ${username}`);
-    }
-
-    // KONTROL: Eğer istek yapan kullanıcı bir motorcu ise, sadece kendi kullanıcı adını kullanabilir.
-    if (req.user.role === 'rider' && req.user.username !== username) {
-        console.warn(`[Yetkisiz Erişim] Motorcu ${req.user.username}, başka bir motorcunun (${username}) teslimat sayısını çekmeye çalıştı.`);
-        return res.status(403).json({ message: 'Sadece kendi teslimat sayınızı görüntüleyebilirsiniz.' });
-    }
 
     try {
         console.log(`[${new Date().toLocaleTimeString()}] /api/rider/delivered-count/${username} isteği alındı. Bugünün tarihi (UTC): ${today}`);
@@ -1021,18 +1004,6 @@ app.get('/api/rider/delivered-count/:username', isAdminOrRiderMiddleware, (req, 
 app.get('/api/rider/orders/:username', isAdminOrRiderMiddleware, (req, res) => {
     const { username } = req.params;
     console.log(`[${new Date().toLocaleTimeString()}] /api/rider/orders/${username} isteği alındı.`);
-    
-    // YENİ LOG EKLE: Eşleşme kontrolü için
-    if (req.user.role === 'rider') {
-        console.log(`[RIDER ORDERS KONTROLÜ] Token Kullanıcı: ${req.user.username}, URL Kullanıcı: ${username}`);
-    }
-
-    // KONTROL: Eğer istek yapan kullanıcı bir motorcu ise, sadece kendi kullanıcı adını kullanabilir.
-    if (req.user.role === 'rider' && req.user.username !== username) {
-        console.warn(`[Yetkisiz Erişim] Motorcu ${req.user.username}, başka bir motorcunun (${username}) siparişlerini çekmeye çalıştı.`);
-        return res.status(403).json({ message: 'Sadece kendi atanmış siparişlerinizi görüntüleyebilirsiniz.' });
-    }
-
     try {
         const orders = db.prepare(`
            SELECT * FROM orders
