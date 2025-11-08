@@ -983,6 +983,12 @@ app.post('/api/update-order-delivery-status', isAdminOrRiderMiddleware, async (r
 app.get('/api/rider/delivered-count/:username', isAdminOrRiderMiddleware, (req, res) => {
     const { username } = req.params;
     const today = new Date().toISOString().split('T')[0];
+    
+    // YENİ KONTROL: Eğer istek yapan kullanıcı bir motorcu ise, sadece kendi kullanıcı adını kullanabilir.
+    if (req.user.role === 'rider' && req.user.username !== username) {
+        console.warn(`[Yetkisiz Erişim] Motorcu ${req.user.username}, başka bir motorcunun (${username}) teslimat sayısını çekmeye çalıştı.`);
+        return res.status(403).json({ message: 'Sadece kendi teslimat sayınızı görüntüleyebilirsiniz.' });
+    }
 
     try {
         console.log(`[${new Date().toLocaleTimeString()}] /api/rider/delivered-count/${username} isteği alındı. Bugünün tarihi (UTC): ${today}`);
@@ -1004,6 +1010,13 @@ app.get('/api/rider/delivered-count/:username', isAdminOrRiderMiddleware, (req, 
 app.get('/api/rider/orders/:username', isAdminOrRiderMiddleware, (req, res) => {
     const { username } = req.params;
     console.log(`[${new Date().toLocaleTimeString()}] /api/rider/orders/${username} isteği alındı.`);
+    
+    // YENİ KONTROL: Eğer istek yapan kullanıcı bir motorcu ise, sadece kendi kullanıcı adını kullanabilir.
+    if (req.user.role === 'rider' && req.user.username !== username) {
+        console.warn(`[Yetkisiz Erişim] Motorcu ${req.user.username}, başka bir motorcunun (${username}) siparişlerini çekmeye çalıştı.`);
+        return res.status(403).json({ message: 'Sadece kendi atanmış siparişlerinizi görüntüleyebilirsiniz.' });
+    }
+
     try {
         const orders = db.prepare(`
            SELECT * FROM orders
