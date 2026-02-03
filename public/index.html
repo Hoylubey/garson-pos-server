@@ -226,7 +226,7 @@ background-color: #fff;
 border-radius: 8px;
 box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 padding: 15px;
-height: 80vh;
+height: 60vh;
 position: sticky;
 top: 20px;
 display: flex;
@@ -531,7 +531,7 @@ display: flex;
 justify-content: space-between;
 align-items: center;
 padding: 10px 20px;
-background-color: #2c3e50;
+background-color: #f07d1e;
 color: #ffffff;
 box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
@@ -809,17 +809,17 @@ showLogin();
 
 // HARİTA VE KONUM İŞLEMLERİ
 function initMap() {
-const initialLat = 41.0082;
-const initialLng = 28.9784;
+const initialLat = 41.0248;
+const initialLng = 29.1023;
 
 if (document.getElementById('map')) {
 if (map) {
 map.remove();
 }
-map = L.map('map').setView([initialLat, initialLng], 12);
+map = L.map('map').setView([initialLat, initialLng], 17);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+
 }).addTo(map);
 
 // YENİ EKLE: Kullanıcı manuel olarak haritayı kaydırdığında otomatik takibi kapat
