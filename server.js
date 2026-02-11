@@ -1330,27 +1330,22 @@ const cartsObserver = admin.firestore().collection('carts');
 const productsRef = admin.firestore().collection('products'); 
 
 cartsObserver.onSnapshot(async (snapshot) => {
-    console.log(`\n--- [${new Date().toLocaleTimeString()}] FIRESTORE TETİKLENDİ ---`);
+    // docChanges yerine direkt snapshot.docs kullanarak mevcutları da alabiliriz
+    const allDocs = snapshot.docs;
     
-    for (const change of snapshot.docChanges()) {
-        const cartData = change.doc.data();
-        const masaId = change.doc.id;
+    for (const doc of allDocs) {
+        const cartData = doc.data();
+        const masaId = doc.id;
 
-        if (change.type === 'removed') {
-            console.log(`[TEMİZLE] Masa ${masaId} sepeti silindi.`);
-            io.emit('removeOrderFromDisplay', { orderId: "LIVE-" + masaId });
-            continue;
-        }
-
-        console.log(`[İŞLEM] Masa ${masaId} güncelleniyor. Ürün sayısı: ${Object.keys(cartData.items || {}).length}`);
-
+        // liveOrder objesine owner (Kullanıcı) bilgisini ekliyoruz
         const liveOrder = {
             orderId: "LIVE-" + masaId,
             masaId: masaId,
             masaAdi: "Masa " + masaId,
+            garson: cartData.owner || "Bilinmiyor", // KİMİN MASASI
             timestamp: cartData.lastUpdated || Date.now(),
             status: 'pending',
-            isCompleted: cartData.isCompleted || false,
+            isCompleted: cartData.isCompleted || false, // TAMAMLANDI MI?
             sepetItems: [],
             toplamFiyat: 0
         };
@@ -1358,52 +1353,31 @@ cartsObserver.onSnapshot(async (snapshot) => {
         if (cartData.items && Object.keys(cartData.items).length > 0) {
             let totalPrice = 0;
             const itemEntries = Object.entries(cartData.items);
-
-            try {
-                // Ürünleri tek tek ve güvenli bir şekilde çekiyoruz
-                const processedItems = [];
-                for (const [prodId, count] of itemEntries) {
-                    const cleanId = prodId.toString().trim();
-                    const productDoc = await productsRef.doc(cleanId).get();
-                    
-                    if (productDoc.exists) {
-                        const product = productDoc.data();
-                        const itemPrice = Number(product.fiyat) || 0;
-                        totalPrice += (itemPrice * count);
-                        
-                        processedItems.push({
-                            urunAdi: product.ad || "İsimsiz Ürün",
-                            adet: count,
-                            fiyat: itemPrice
-                        });
-                        console.log(`   > Bulundu: ${product.ad} (${count} adet)`);
-                    } else {
-                        console.warn(`   > Eksik: ID ${cleanId} Firestore'da yok!`);
-                        processedItems.push({
-                            urunAdi: `Bilinmeyen Ürün (${cleanId})`,
-                            adet: count,
-                            fiyat: 0
-                        });
-                    }
+            
+            const processedItems = [];
+            for (const [prodId, count] of itemEntries) {
+                const cleanId = prodId.toString().trim();
+                const productDoc = await productsRef.doc(cleanId).get();
+                
+                if (productDoc.exists) {
+                    const product = productDoc.data();
+                    const itemPrice = Number(product.fiyat) || 0;
+                    totalPrice += (itemPrice * count);
+                    processedItems.push({
+                        urunAdi: product.ad,
+                        adet: count,
+                        fiyat: itemPrice
+                    });
                 }
-
-                liveOrder.sepetItems = processedItems;
-                liveOrder.toplamFiyat = totalPrice;
-
-                // WEB PANELİNE GÖNDERİM
-                io.emit('newOrder', liveOrder);
-                console.log(`[SOCKET] Masa ${masaId} verisi web paneline başarıyla gönderildi.`);
-
-            } catch (err) {
-                console.error(`[KRİTİK HATA] Ürünler işlenirken hata oluştu:`, err.message);
             }
+            liveOrder.sepetItems = processedItems;
+            liveOrder.toplamFiyat = totalPrice;
+
+            io.emit('newOrder', liveOrder);
         } else {
-            console.log(`[BİLGİ] Masa ${masaId} sepeti boş, ekrandan kaldırılıyor.`);
             io.emit('removeOrderFromDisplay', { orderId: "LIVE-" + masaId });
         }
     }
-}, error => {
-    console.error('!!! FIRESTORE DINLEME HATASI !!!:', error.message);
 });
 server.listen(PORT, () => {
     console.log(`🟢 Sunucu ayakta: http://localhost:${PORT}`);
@@ -1417,6 +1391,7 @@ process.on('exit', () => {
 process.on('SIGHUP', () => process.exit(1));
 process.on('SIGINT', () => process.exit(1));
 process.on('SIGTERM', () => process.exit(1));
+
 
 
 
