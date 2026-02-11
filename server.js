@@ -1324,6 +1324,56 @@ io.on('connection', (socket) => {
     });
 });
 
+const cartsObserver = admin.firestore().collection('carts');
+
+cartsObserver.onSnapshot(snapshot => {
+    snapshot.docChanges().forEach(change => {
+        const cartData = change.doc.data();
+        const masaId = change.doc.id;
+
+        if (change.type === 'removed') {
+            // Sepet silindiyse (sipariş bittiyse) Web'den de kaldırt
+            io.emit('removeOrderFromDisplay', { orderId: "LIVE-" + masaId });
+        } else {
+            // ANLIK SENKRONİZASYON: Telefondan sepete her dokunuşta burası tetiklenir
+            const liveOrder = {
+                orderId: "LIVE-" + masaId,
+                masaId: masaId,
+                masaAdi: "Masa " + masaId,
+                timestamp: cartData.lastUpdated || Date.now(),
+                status: 'pending',
+                isCompleted: cartData.isCompleted || false, // TİK BİLGİSİ
+                sepetItems: [], // Ürün detayları istemci tarafında veya burada eşlenebilir
+                toplamFiyat: 0
+            };
+
+            // Ürün ID'lerini isim ve fiyata dönüştür (Sunucudaki SQLite'ı kullanır)
+            if (cartData.items) {
+                const itemsArray = Object.entries(cartData.items);
+                let totalPrice = 0;
+                
+                liveOrder.sepetItems = itemsArray.map(([prodId, count]) => {
+                    // SQLite'dan ürün bilgilerini çek
+                    const product = db.prepare("SELECT name, price FROM products WHERE id = ?").get(prodId);
+                    const itemPrice = product ? product.price : 0;
+                    totalPrice += (itemPrice * count);
+                    
+                    return {
+                        urunAdi: product ? product.name : "Yükleniyor...",
+                        adet: count,
+                        fiyat: itemPrice
+                    };
+                });
+                liveOrder.toplamFiyat = totalPrice;
+            }
+
+            // Web paneline gönder
+            io.emit('newOrder', liveOrder);
+            console.log(`[Canlı Takip] Masa ${masaId} güncellendi ve Web'e gönderildi.`);
+        }
+    });
+});
+
 server.listen(PORT, () => {
     console.log(`🟢 Sunucu ayakta: http://localhost:${PORT}`);
 });
@@ -1336,4 +1386,5 @@ process.on('exit', () => {
 process.on('SIGHUP', () => process.exit(1));
 process.on('SIGINT', () => process.exit(1));
 process.on('SIGTERM', () => process.exit(1));
+
 
