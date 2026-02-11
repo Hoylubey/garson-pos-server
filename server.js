@@ -1332,40 +1332,44 @@ cartsObserver.onSnapshot(snapshot => {
         const masaId = change.doc.id;
 
         if (change.type === 'removed') {
-            // Sepet boşaltıldıysa Web panelinden kartı sildir
+            // Sepet tamamen silindiyse webden kaldır
             io.emit('removeOrderFromDisplay', { orderId: "LIVE-" + masaId });
         } else {
-            // Sepete ürün eklendiyse veya 'Tamamla'ya basıldıysa bilgileri hazırla
+            // Sepette değişiklik olduysa (Ekleme/Çıkarma/Tamamlama)
             const liveOrder = {
                 orderId: "LIVE-" + masaId,
                 masaId: masaId,
                 masaAdi: "Masa " + masaId,
                 timestamp: cartData.lastUpdated || Date.now(),
                 status: 'pending',
-                isCompleted: cartData.isCompleted || false, // TİK BURADAN GİDİYOR
+                isCompleted: cartData.isCompleted || false, 
                 sepetItems: [],
                 toplamFiyat: 0
             };
 
-            if (cartData.items) {
+            if (cartData.items && Object.keys(cartData.items).length > 0) {
                 let totalPrice = 0;
                 liveOrder.sepetItems = Object.entries(cartData.items).map(([prodId, count]) => {
-                    // SQLite veritabanından ürünün ismini ve fiyatını çekiyoruz
-                   const product = db.prepare("SELECT name, price FROM products WHERE id = ?").get(Number(prodId));
+                    // Ürün bilgilerini SQLite'tan anlık çek
+                    const product = db.prepare("SELECT name, price FROM products WHERE id = ?").get(Number(prodId));
                     const itemPrice = product ? product.price : 0;
                     totalPrice += (itemPrice * count);
+                    
                     return {
-                        urunAdi: product ? product.name : "Bilinmeyen Ürün",
+                        urunAdi: product ? product.name : "Ürün Bekleniyor...",
                         adet: count,
                         fiyat: itemPrice
                     };
                 });
                 liveOrder.toplamFiyat = totalPrice;
-            }
 
-            // Web paneline Socket üzerinden gönder (newOrder olayını tetikler)
-            io.emit('newOrder', liveOrder);
-            console.log(`[Anlık Takip] Masa ${masaId} Web Paneline gönderildi.`);
+                // WEB PANELİNE ANLIK GÖNDER
+                io.emit('newOrder', liveOrder);
+                console.log(`[CANLI TAKIP] Masa ${masaId} güncellendi, Web'e gönderildi.`);
+            } else {
+                // Eğer items boşaldıysa (ama döküman silinmediyse) yine de kaldır
+                io.emit('removeOrderFromDisplay', { orderId: "LIVE-" + masaId });
+            }
         }
     });
 });
@@ -1382,6 +1386,7 @@ process.on('exit', () => {
 process.on('SIGHUP', () => process.exit(1));
 process.on('SIGINT', () => process.exit(1));
 process.on('SIGTERM', () => process.exit(1));
+
 
 
 
