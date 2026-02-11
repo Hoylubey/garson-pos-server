@@ -1337,35 +1337,29 @@ const cartsObserver = admin.firestore().collection('carts');
 const productsRef = admin.firestore().collection('products'); 
 
 cartsObserver.onSnapshot(async (snapshot) => {
-    // docChanges yerine direkt snapshot.docs kullanarak mevcutları da alabiliriz
-    const allDocs = snapshot.docs;
-    
-    for (const doc of allDocs) {
+    // Sayfa yenilendiğinde verilerin gelmesi için snapshot.docs kullanıyoruz
+    for (const doc of snapshot.docs) {
         const cartData = doc.data();
         const masaId = doc.id;
 
-        // liveOrder objesine owner (Kullanıcı) bilgisini ekliyoruz
         const liveOrder = {
             orderId: "LIVE-" + masaId,
             masaId: masaId,
             masaAdi: "Masa " + masaId,
-            garson: cartData.owner || "Bilinmiyor", // KİMİN MASASI
+            garson: cartData.owner || "Bilinmiyor",
             timestamp: cartData.lastUpdated || Date.now(),
             status: 'pending',
-            isCompleted: cartData.isCompleted || false, // TAMAMLANDI MI?
+            isCompleted: cartData.isCompleted || false,
             sepetItems: [],
             toplamFiyat: 0
         };
 
         if (cartData.items && Object.keys(cartData.items).length > 0) {
             let totalPrice = 0;
-            const itemEntries = Object.entries(cartData.items);
-            
             const processedItems = [];
-            for (const [prodId, count] of itemEntries) {
-                const cleanId = prodId.toString().trim();
-                const productDoc = await productsRef.doc(cleanId).get();
-                
+            
+            for (const [prodId, count] of Object.entries(cartData.items)) {
+                const productDoc = await productsRef.doc(prodId.toString()).get();
                 if (productDoc.exists) {
                     const product = productDoc.data();
                     const itemPrice = Number(product.fiyat) || 0;
@@ -1379,12 +1373,11 @@ cartsObserver.onSnapshot(async (snapshot) => {
             }
             liveOrder.sepetItems = processedItems;
             liveOrder.toplamFiyat = totalPrice;
-
             io.emit('newOrder', liveOrder);
-        } else {
-            io.emit('removeOrderFromDisplay', { orderId: "LIVE-" + masaId });
         }
     }
+}, error => {
+    console.error('Firestore Hatası:', error);
 });
 server.listen(PORT, () => {
     console.log(`🟢 Sunucu ayakta: http://localhost:${PORT}`);
@@ -1398,6 +1391,7 @@ process.on('exit', () => {
 process.on('SIGHUP', () => process.exit(1));
 process.on('SIGINT', () => process.exit(1));
 process.on('SIGTERM', () => process.exit(1));
+
 
 
 
