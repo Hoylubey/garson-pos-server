@@ -1327,26 +1327,18 @@ io.on('connection', (socket) => {
 });
 
 const cartsObserver = admin.firestore().collection('carts');
+const productsRef = admin.firestore().collection('products'); // Ürünler koleksiyonu referansı
 
-console.log("[SİSTEM] Firestore 'carts' koleksiyonu dinlenmeye başlandı...");
-
-cartsObserver.onSnapshot(snapshot => {
-    const now = new Date().toLocaleTimeString();
-    console.log(`\n--- [${now}] FIRESTORE TETİKLENDİ ---`);
-    console.log(`[BİLGİ] Değişiklik sayısı: ${snapshot.docChanges().length}`);
-
-    snapshot.docChanges().forEach(change => {
+cartsObserver.onSnapshot(async (snapshot) => {
+    console.log(`--- [CANLI TAKİP] Firestore Tetiklendi ---`);
+    
+    for (const change of snapshot.docChanges()) {
         const cartData = change.doc.data();
         const masaId = change.doc.id;
-        const changeType = change.type;
 
-        console.log(`[İŞLEM] Tip: ${changeType.toUpperCase()} | Masa ID: ${masaId}`);
-
-        if (changeType === 'removed') {
-            console.log(`[TEMİZLE] Masa ${masaId} sepeti silindi, Web paneline 'remove' komutu gidiyor.`);
+        if (change.type === 'removed') {
             io.emit('removeOrderFromDisplay', { orderId: "LIVE-" + masaId });
         } else {
-            // Canlı Sipariş Hazırlama Süreci
             const liveOrder = {
                 orderId: "LIVE-" + masaId,
                 masaId: masaId,
@@ -1358,49 +1350,42 @@ cartsObserver.onSnapshot(snapshot => {
                 toplamFiyat: 0
             };
 
-            console.log(`[VERİ] Masa ${masaId} içeriği:`, JSON.stringify(cartData.items || {}));
-            console.log(`[DURUM] isCompleted: ${liveOrder.isCompleted}`);
-
-            if (cartData.items && Object.keys(cartData.items).length > 0) {
+            if (cartData.items) {
                 let totalPrice = 0;
-                
-                try {
-                    liveOrder.sepetItems = Object.entries(cartData.items).map(([prodId, count]) => {
-                        // SQLite'tan ürün bilgilerini çek
-                        const product = db.prepare("SELECT name, price FROM products WHERE id = ?").get(Number(prodId));
-                        const itemPrice = product ? product.price : 0;
-                        const itemTotal = (itemPrice * count);
-                        totalPrice += itemTotal;
+                const itemEntries = Object.entries(cartData.items);
 
+                // Tüm ürün detaylarını Firestore'dan getir
+                const itemPromises = itemEntries.map(async ([prodId, count]) => {
+                    // SQLite yerine Firestore 'products' koleksiyonuna bakıyoruz
+                    const productDoc = await productsRef.document(prodId.toString()).get();
+                    
+                    if (productDoc.exists) {
+                        const product = productDoc.data();
+                        const itemPrice = product.fiyat || 0; // Android tarafındaki 'fiyat' alanı
+                        totalPrice += (itemPrice * count);
+                        
                         return {
-                            urunAdi: product ? product.name : `Bilinmeyen Ürün (${prodId})`,
+                            urunAdi: product.ad || "İsimsiz Ürün", // Android tarafındaki 'ad' alanı
                             adet: count,
                             fiyat: itemPrice
                         };
-                    });
-                    liveOrder.toplamFiyat = totalPrice;
+                    } else {
+                        return {
+                            urunAdi: `Bilinmeyen Ürün (${prodId})`,
+                            adet: count,
+                            fiyat: 0
+                        };
+                    }
+                });
 
-                    // WEB PANELİNE ANLIK SOCKET YAYINI
-                    io.emit('newOrder', liveOrder);
-                    console.log(`[OK] Web Paneline Gönderildi -> Masa: ${masaId}, Toplam: ${totalPrice} TL`);
-                } catch (dbError) {
-                    console.error(`[HATA] SQLite ürün sorgusu sırasında hata (Masa ${masaId}):`, dbError.message);
-                }
-            } else {
-                console.log(`[BİLGİ] Masa ${masaId} sepeti boş görünüyor, ekrandan kaldırılıyor.`);
-                io.emit('removeOrderFromDisplay', { orderId: "LIVE-" + masaId });
+                liveOrder.sepetItems = await Promise.all(itemPromises);
+                liveOrder.toplamFiyat = totalPrice;
+
+                // Web paneline gönder
+                io.emit('newOrder', liveOrder);
+                console.log(`[OK] Masa ${masaId} - Ürünler Firestore'dan çekildi ve gönderildi.`);
             }
         }
-    });
-}, error => {
-    // BAĞLANTI HATASINI YAKALAYAN KRİTİK BÖLÜM
-    const now = new Date().toLocaleTimeString();
-    console.error(`\n!!! [${now}] FIRESTORE BAĞLANTI HATASI !!!`);
-    console.error(`Hata Mesajı: ${error.message}`);
-    console.error(`Hata Kodu: ${error.code}`);
-    
-    if (error.message.includes('retries')) {
-        console.error("ÖNERİ: Firebase anahtarını (JSON) ve Project ID uyumunu kontrol et.");
     }
 });
 
@@ -1416,6 +1401,7 @@ process.on('exit', () => {
 process.on('SIGHUP', () => process.exit(1));
 process.on('SIGINT', () => process.exit(1));
 process.on('SIGTERM', () => process.exit(1));
+
 
 
 
