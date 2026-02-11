@@ -13,6 +13,8 @@ crossorigin=""/>
 integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
 crossorigin=""></script>
 <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 
 <style>
 /* GENEL CSS STILLERI */
@@ -51,12 +53,23 @@ margin-bottom: 20px;
 text-align: center;
 }
 .card {
+position: relative;
 background-color: #fcfcfc;
 border-radius: 10px;
 box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
 padding: 20px;
 margin-bottom: 15px;
 transition: transform 0.2s ease-in-out;
+}
+
+.complete-tick {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    font-size: 28px;
+    color: #2ecc71;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
 }
 .card:hover {
 transform: translateY(-3px);
@@ -66,7 +79,13 @@ display: flex;
 justify-content: space-between;
 margin-bottom: 5px;
 padding-bottom: 5px;
-border-bottom: 1px dashed #eee;
+padding-left: 5px;
+padding-right: 5px;
+border-bottom: 2px solid #000000;
+border-radius: 6px;
+background-color: #ffffff;
+color: #000;
+font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
 }
 .order-item:last-child {
 border-bottom: none;
@@ -316,12 +335,13 @@ cursor: pointer;
 font-size: 1em;
 box-sizing: border-box;
 transition: background-color 0.2s ease;
+margin-bottom: -10px;
 }
 .pay-button { background-color: #28a745; }
 .pay-button:hover { background-color: #218838; }
 .print-button { background-color: #007bff; }
 .print-button:hover { background-color: #0056b3; }
-.assign-rider-btn { background-color: #f39c12; }
+.assign-rider-btn { background-color: #ff0000; }
 .assign-rider-btn:hover { background-color: #e67e22; }
 #order-status-box {
 position: absolute;
@@ -568,11 +588,13 @@ background-color: #c82333;
 
 /* YENİ: Kaydırılabilir ürün listesi stilini ekle */
 .order-items-scroll {
-    max-height: 150px; /* Sabit yükseklik */
+    max-height: 650px; /* Sabit yükseklik */
     overflow-y: auto;
     padding-right: 5px;
     margin-bottom: 10px;
 }
+
+
 
 </style>
 </head>
@@ -669,6 +691,8 @@ background-color: #c82333;
 // Global Değişkenler
 const SOCKET_SERVER_URL = 'https://garson-pos-server.onrender.com';
 const API_BASE_URL = 'https://garson-pos-server.onrender.com';
+
+
 
 const socket = io(SOCKET_SERVER_URL, {
 reconnection: true,
@@ -1019,52 +1043,45 @@ function renderOrders() {
         const orderCard = document.createElement('div');
         orderCard.id = `order-${order.orderId}`;
         orderCard.className = `card ${getStatusClass(order.deliveryStatus || order.status)}`;
-        orderCard.dataset.orderId = order.orderId;
+        
+        // TİK İŞARETİ KONTROLÜ
+        const tickHtml = order.isCompleted ? '<span class="complete-tick">✔</span>' : '';
 
         let riderInfoHtml = '';
-        if (order.riderUsername && order.deliveryAddress && order.paymentMethod) {
-            riderInfoHtml = `
-                       <div class="rider-info">
-                           <p class="text-xs text-gray-600 mt-1">Atanan Motorcu: ${order.riderUsername}</p>
-                           <p class="text-xs text-gray-600">Teslimat Adresi: ${order.deliveryAddress}</p>
-                           ${order.customerPhone ? `<p class="text-xs text-gray-600">Telefon: ${order.customerPhone}</p>` : ''}
-                           <p class="text-xs text-gray-600">Ödeme Yöntemi: ${order.paymentMethod}</p>
-                       </div>
-                   `;
+        if (order.riderUsername) {
+            riderInfoHtml = `<div class="rider-info"><p class="text-xs text-gray-600 mt-1">Atanan: ${order.riderUsername}</p></div>`;
         }
 
-        const showAssignButton = (order.deliveryStatus === 'pending' && order.status !== 'paid');
+        const showAssignButton = (order.deliveryStatus === 'pending' || !order.deliveryStatus) && order.status !== 'paid';
 
         orderCard.innerHTML = `
-                   <h3 class="text-lg font-bold mb-2">Masa: ${order.masaAdi} (ID: ${order.masaId})</h3>
-                   <p class="text-gray-700 text-sm mb-1">Sipariş ID: ${order.orderId.substring(0, 8)}...</p>
-                   <p class="text-gray-700 text-sm mb-1">Zaman: ${new Date(order.timestamp).toLocaleString()}</p>
-                   
-                   <div class="mt-3 mb-2">
-                       <p class="font-semibold text-gray-800">Ürünler:</p>
-                       <div class="order-items-scroll">
-                           ${order.sepetItems.map(item => `
-                               <div class="order-item">
-                                   <span>${item.urunAdi} x ${item.adet}</span>
-                                   <span>${formatPrice(item.fiyat * item.adet)}</span>
-                               </div>
-                           `).join('')}
-                       </div>
-                   </div>
-                   <p class="text-lg font-bold text-right mt-3">Toplam: ${formatPrice(order.toplamFiyat)}</p>
-                   <p class="order-status-text text-sm font-semibold mt-2 ${getStatusClass(order.deliveryStatus || order.status)}">Durum: ${getOrderStatusText(order.status, order.deliveryStatus)}</p>
-                   ${riderInfoHtml}
+            ${tickHtml}
+            <h3 class="text-lg font-bold mb-2">Masa: ${order.masaAdi}</h3>
+            <p class="text-gray-700 text-xs mb-1">Zaman: ${new Date(order.timestamp).toLocaleTimeString()}</p>
+            
+            <div class="mt-3 mb-2">
+                <div class="order-items-scroll">
+                    ${order.sepetItems.map(item => `
+                        <div class="order-item">
+                            <span>${item.urunAdi} x ${item.adet}</span>
+                            <span>${formatPrice(item.fiyat * item.adet)}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            <p class="text-lg font-bold text-right mt-3">Toplam: ${formatPrice(order.toplamFiyat)}</p>
+            <p class="order-status-text text-sm font-semibold mt-2 ${getStatusClass(order.deliveryStatus || order.status)}">Durum: ${getOrderStatusText(order.status, order.deliveryStatus)}</p>
+            ${riderInfoHtml}
 
-                   <div class="flex justify-end mt-4 space-x-2">
-                       <button class="pay-button" onclick="markOrderAsPaid('${order.orderId}')" ${order.status === 'paid' ? 'disabled' : ''}>Ödendi Olarak İşaretle</button>
-                       <button class="print-button" onclick="printOrderReceipt('${order.orderId}')">Yazdır</button>
-                       ${showAssignButton ? `<button class="assign-rider-btn" onclick="openAssignOrderModal('${order.orderId}')">Motorcuya Gönder</button>` : ''}
-                   </div>
-               `;
-        ordersContainer.prepend(orderCard);
+            <div class="order-actions flex gap-2 mt-4">
+                <button class="pay-button" onclick="markOrderAsPaid('${order.orderId}')" ${order.status === 'paid' ? 'disabled' : ''}>Ödendi</button>
+                <button class="print-button" onclick="printOrderReceipt('${order.orderId}')">Yazdır</button>
+                ${showAssignButton ? `<button class="assign-rider-btn" onclick="openAssignOrderModal('${order.orderId}')">Gönder</button>` : ''}
+            </div>
+        `;
+        ordersContainer.appendChild(orderCard);
     });
 }
-
 function formatPrice(price) {
 return price.toFixed(2).replace('.', ',') + ' TL';
 }
@@ -1500,7 +1517,22 @@ fetchOrderReceptionStatus();
 socket.on('newOrder', (order) => {
 console.log('Yeni sipariş alındı:', JSON.stringify(order, null, 2));
 if (order && order.orderId) {
-orders[order.orderId] = order;
+orders["live-" + masaId] = {
+    orderId: "LIVE-" + masaId,
+    masaId: masaId,
+    masaAdi: "Masa " + masaId,
+    timestamp: cartData.lastUpdated || Date.now(),
+    status: 'pending',
+    isCompleted: cartData.isCompleted || false, // <--- TİK BURADAN GELİYOR
+    sepetItems: Object.entries(cartData.items || {}).map(([prodId, count]) => {
+        const p = menuProducts[prodId] || { ad: "Yükleniyor...", fiyat: 0 };
+        return { urunAdi: p.ad || p.name, adet: count, fiyat: p.fiyat || p.price };
+    }),
+    toplamFiyat: Object.entries(cartData.items || {}).reduce((total, [prodId, count]) => {
+        const p = menuProducts[prodId] || { fiyat: 0, price: 0 };
+        return total + ((p.fiyat || p.price) * count);
+    }, 0)
+};
 renderOrders();
 notificationSound.play().catch(err => console.error('Bildirim sesi oynatılamadı:', err));
 notificationBell.classList.add('ringing');
