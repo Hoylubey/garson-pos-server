@@ -589,7 +589,8 @@ app.post('/api/order', async (req, res) => {
             toplamFiyat: toplamFiyat,
             timestamp: timestamp,
             status: 'pending',
-            deliveryStatus: 'pending'
+            deliveryStatus: 'pending',
+            isCompleted: false
         };
 
         console.log(`[${new Date().toLocaleTimeString()}] Socket.IO üzerinden 'newOrder' olayını tetikliyor. Bağlı client sayısı: ${connectedClients.size}`);
@@ -1335,3 +1336,4 @@ process.on('exit', () => {
 process.on('SIGHUP', () => process.exit(1));
 process.on('SIGINT', () => process.exit(1));
 process.on('SIGTERM', () => process.exit(1));
+
