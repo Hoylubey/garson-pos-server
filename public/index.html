@@ -689,8 +689,8 @@ background-color: #c82333;
 <script>
 
 // Global Değişkenler
-const SOCKET_SERVER_URL = 'https://garson-pos-server.onrender.com';
-const API_BASE_URL = 'https://garson-pos-server.onrender.com';
+const SOCKET_SERVER_URL = 'https://garson-pos-server.on.com';
+const API_BASE_URL = 'https://garson-pos-server.on.com';
 
 
 
@@ -1030,54 +1030,55 @@ orderStatusToggleButton.style.backgroundColor = '#dc3545';
 }
 }
 
-// SİPARİŞLERİ RENDER ETME
+// SİPARİŞLERİ  ETME
 function renderOrders() {
+    console.log("Ekrana basılıyor. Toplam sipariş:", Object.keys(orders).length);
     const sortedOrders = Object.values(orders).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     ordersContainer.innerHTML = '';
 
     if (sortedOrders.length === 0) {
-        ordersContainer.innerHTML = '<p>Aktif sipariş bulunamadı.</p>';
+        ordersContainer.innerHTML = '<p class="text-center text-gray-500">Aktif sipariş bulunamadı.</p>';
         return;
     }
 
     sortedOrders.forEach(order => {
         const orderCard = document.createElement('div');
         orderCard.id = `order-${order.orderId}`;
-        orderCard.className = `card ${getStatusClass(order.deliveryStatus || order.status)}`;
         
-        // TİK İŞARETİ: Sunucudan gelen isCompleted bayrağına göre ✔ basar
+        // YEŞİL ARKA PLAN MANTIĞI: isCompleted true ise yeşil, değilse beyaz
+        const bgColor = order.isCompleted ? "#d4edda" : "#ffffff";
+        const borderColor = order.isCompleted ? "#28a745" : "#4CAF50";
+        
+        orderCard.className = `card`;
+        orderCard.style.backgroundColor = bgColor;
+        orderCard.style.borderLeft = `5px solid ${borderColor}`;
+        
         const tickHtml = order.isCompleted ? '<span class="complete-tick">✔</span>' : '';
-
-        let riderInfoHtml = '';
-        if (order.riderUsername) {
-            riderInfoHtml = `<div class="rider-info"><p class="text-xs text-gray-600 mt-1">Atanan: ${order.riderUsername}</p></div>`;
-        }
-
-        const showAssignButton = (order.deliveryStatus === 'pending' || !order.deliveryStatus) && order.status !== 'paid';
 
         orderCard.innerHTML = `
             ${tickHtml}
-            <h3 class="text-lg font-bold mb-2">${order.masaAdi}</h3>
-            <p class="text-gray-700 text-xs mb-1">Zaman: ${new Date(order.timestamp).toLocaleTimeString()}</p>
-            
-            <div class="mt-3 mb-2">
-                <div class="order-items-scroll">
-                    ${order.sepetItems.map(item => `
-                        <div class="order-item">
-                            <span>${item.urunAdi} x ${item.adet}</span>
-                            <span>${formatPrice(item.fiyat * item.adet)}</span>
-                        </div>
-                    `).join('')}
-                </div>
+            <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                <h3 class="text-lg font-bold mb-1">Masa: ${order.masaAdi}</h3>
+                <span style="font-size: 0.8rem; color: #666; font-weight: bold;">[${order.garson}]</span>
             </div>
-            <p class="text-lg font-bold text-right mt-3">Toplam: ${formatPrice(order.toplamFiyat)}</p>
-            <p class="order-status-text text-sm font-semibold mt-2 ${getStatusClass(order.deliveryStatus || order.status)}">Durum: ${getOrderStatusText(order.status, order.deliveryStatus)}</p>
-            ${riderInfoHtml}
+            <p class="text-gray-500 text-xs mb-3">Zaman: ${new Date(order.timestamp).toLocaleTimeString()}</p>
+            
+            <div class="order-items-scroll" style="max-height: 200px; overflow-y: auto;">
+                ${order.sepetItems.map(item => `
+                    <div class="order-item" style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed #ccc;">
+                        <span>${item.urunAdi} x ${item.adet}</span>
+                        <span>${formatPrice(item.fiyat * item.adet)}</span>
+                    </div>
+                `).join('')}
+            </div>
+            
+            <div class="border-t border-gray-300 mt-2 pt-2">
+                <p class="text-lg font-extrabold text-right">Toplam: ${formatPrice(order.toplamFiyat)}</p>
+            </div>
 
-            <div class="order-actions flex gap-2 mt-4">
-                <button class="pay-button" onclick="markOrderAsPaid('${order.orderId}')" ${order.status === 'paid' ? 'disabled' : ''}>Ödendi</button>
+            <div class="order-actions mt-4 flex gap-2">
+                <button class="pay-button" onclick="markOrderAsPaid('${order.orderId}')">Ödendi</button>
                 <button class="print-button" onclick="printOrderReceipt('${order.orderId}')">Yazdır</button>
-                ${showAssignButton ? `<button class="assign-rider-btn" onclick="openAssignOrderModal('${order.orderId}')">Gönder</button>` : ''}
             </div>
         `;
         ordersContainer.appendChild(orderCard);
@@ -1695,4 +1696,5 @@ alert(`${data.username} adlı motorcu gününü sonlandırdı. Bugün ${data.del
 </script>
 </body>
 </html>
+
 
