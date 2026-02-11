@@ -1515,31 +1515,67 @@ fetchOrderReceptionStatus();
 });
 
 socket.on('newOrder', (order) => {
-    console.log('Sipariş güncellendi/alındı:', order.orderId);
+    console.log('Sipariş alındı/güncellendi:', order.orderId);
     if (order && order.orderId) {
-        // Gelen siparişi listeye ekle veya güncelle
+        // Siparişi ana listeye ekle/güncelle
         orders[order.orderId] = order;
         renderOrders();
-        
-        // Eğer yeni bir siparişse (veya kasanın haberi yoksa) ses çıkar
-        if (!order.orderId.startsWith("LIVE-")) {
-             notificationSound.play().catch(err => {});
-             notificationBell.classList.add('ringing');
-             setTimeout(() => notificationBell.classList.remove('ringing'), 1500);
+
+        // Sadece GERÇEK (LIVE olmayan) yeni siparişlerde sesli uyarı ver
+        if (!order.orderId.toString().startsWith("LIVE-")) {
+            notificationSound.play().catch(err => console.error('Bildirim sesi hatası:', err));
+            notificationBell.classList.add('ringing');
+            setTimeout(() => {
+                notificationBell.classList.remove('ringing');
+            }, 1500);
         }
+    } else {
+        console.error('Geçersiz sipariş verisi alındı.');
     }
 });
-renderOrders();
-notificationSound.play().catch(err => console.error('Bildirim sesi oynatılamadı:', err));
-notificationBell.classList.add('ringing');
-setTimeout(() => {
-notificationBell.classList.remove('ringing');
-}, 1500);
-} else {
-console.error('Geçersiz sipariş verisi:', order);
-}
-});
+function renderOrders() {
+    const sortedOrders = Object.values(orders).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    ordersContainer.innerHTML = '';
 
+    if (sortedOrders.length === 0) {
+        ordersContainer.innerHTML = '<p class="text-center text-gray-500">Aktif sipariş bulunamadı.</p>';
+        return;
+    }
+
+    sortedOrders.forEach(order => {
+        const orderCard = document.createElement('div');
+        orderCard.id = `order-${order.orderId}`;
+        orderCard.className = `card ${getStatusClass(order.deliveryStatus || order.status)}`;
+        
+        // YEŞİL TİK KONTROLÜ
+        const tickHtml = order.isCompleted ? '<span class="complete-tick">✔</span>' : '';
+
+        orderCard.innerHTML = `
+            ${tickHtml}
+            <h3 class="text-lg font-bold mb-1">Masa: ${order.masaAdi}</h3>
+            <p class="text-gray-500 text-xs mb-3">Zaman: ${new Date(order.timestamp).toLocaleTimeString()}</p>
+            
+            <div class="order-items-scroll">
+                ${order.sepetItems.map(item => `
+                    <div class="order-item">
+                        <span>${item.urunAdi} x ${item.adet}</span>
+                        <span>${(item.fiyat * item.adet).toFixed(2)} TL</span>
+                    </div>
+                `).join('')}
+            </div>
+            
+            <div class="border-t border-dashed border-gray-300 mt-2 pt-2">
+                <p class="text-lg font-extrabold text-right">Toplam: ${order.toplamFiyat.toFixed(2)} TL</p>
+            </div>
+
+            <div class="order-actions mt-4 flex gap-2">
+                <button class="pay-button" onclick="markOrderAsPaid('${order.orderId}')">Ödendi</button>
+                <button class="print-button" onclick="printOrderReceipt('${order.orderId}')">Yazdır</button>
+            </div>
+        `;
+        ordersContainer.appendChild(orderCard);
+    });
+}
 socket.on('orderPaidConfirmation', (data) => {
 console.log('Sipariş ödendi onayı alındı:', JSON.stringify(data, null, 2));
 if (orders[data.orderId]) {
@@ -1661,5 +1697,4 @@ alert(`${data.username} adlı motorcu gününü sonlandırdı. Bugün ${data.del
 </script>
 </body>
 </html>
-
 
