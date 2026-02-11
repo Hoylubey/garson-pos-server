@@ -1332,34 +1332,30 @@ cartsObserver.onSnapshot(snapshot => {
         const masaId = change.doc.id;
 
         if (change.type === 'removed') {
-            // Sepet silindiyse (sipariş bittiyse) Web'den de kaldırt
+            // Sepet boşaltıldıysa Web panelinden kartı sildir
             io.emit('removeOrderFromDisplay', { orderId: "LIVE-" + masaId });
         } else {
-            // ANLIK SENKRONİZASYON: Telefondan sepete her dokunuşta burası tetiklenir
+            // Sepete ürün eklendiyse veya 'Tamamla'ya basıldıysa bilgileri hazırla
             const liveOrder = {
                 orderId: "LIVE-" + masaId,
                 masaId: masaId,
                 masaAdi: "Masa " + masaId,
                 timestamp: cartData.lastUpdated || Date.now(),
                 status: 'pending',
-                isCompleted: cartData.isCompleted || false, // TİK BİLGİSİ
-                sepetItems: [], // Ürün detayları istemci tarafında veya burada eşlenebilir
+                isCompleted: cartData.isCompleted || false, // TİK BURADAN GİDİYOR
+                sepetItems: [],
                 toplamFiyat: 0
             };
 
-            // Ürün ID'lerini isim ve fiyata dönüştür (Sunucudaki SQLite'ı kullanır)
             if (cartData.items) {
-                const itemsArray = Object.entries(cartData.items);
                 let totalPrice = 0;
-                
-                liveOrder.sepetItems = itemsArray.map(([prodId, count]) => {
-                    // SQLite'dan ürün bilgilerini çek
+                liveOrder.sepetItems = Object.entries(cartData.items).map(([prodId, count]) => {
+                    // SQLite veritabanından ürünün ismini ve fiyatını çekiyoruz
                     const product = db.prepare("SELECT name, price FROM products WHERE id = ?").get(prodId);
                     const itemPrice = product ? product.price : 0;
                     totalPrice += (itemPrice * count);
-                    
                     return {
-                        urunAdi: product ? product.name : "Yükleniyor...",
+                        urunAdi: product ? product.name : "Bilinmeyen Ürün",
                         adet: count,
                         fiyat: itemPrice
                     };
@@ -1367,9 +1363,9 @@ cartsObserver.onSnapshot(snapshot => {
                 liveOrder.toplamFiyat = totalPrice;
             }
 
-            // Web paneline gönder
+            // Web paneline Socket üzerinden gönder (newOrder olayını tetikler)
             io.emit('newOrder', liveOrder);
-            console.log(`[Canlı Takip] Masa ${masaId} güncellendi ve Web'e gönderildi.`);
+            console.log(`[Anlık Takip] Masa ${masaId} Web Paneline gönderildi.`);
         }
     });
 });
@@ -1386,5 +1382,6 @@ process.on('exit', () => {
 process.on('SIGHUP', () => process.exit(1));
 process.on('SIGINT', () => process.exit(1));
 process.on('SIGTERM', () => process.exit(1));
+
 
 
