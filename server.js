@@ -1351,7 +1351,7 @@ cartsObserver.onSnapshot(snapshot => {
                 let totalPrice = 0;
                 liveOrder.sepetItems = Object.entries(cartData.items).map(([prodId, count]) => {
                     // SQLite veritabanından ürünün ismini ve fiyatını çekiyoruz
-                    const product = db.prepare("SELECT name, price FROM products WHERE id = ?").get(prodId);
+                   const product = db.prepare("SELECT name, price FROM products WHERE id = ?").get(Number(prodId));
                     const itemPrice = product ? product.price : 0;
                     totalPrice += (itemPrice * count);
                     return {
@@ -1382,6 +1382,7 @@ process.on('exit', () => {
 process.on('SIGHUP', () => process.exit(1));
 process.on('SIGINT', () => process.exit(1));
 process.on('SIGTERM', () => process.exit(1));
+
 
 
 
