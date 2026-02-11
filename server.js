@@ -29,8 +29,10 @@ try {
     const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY); 
     admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
+        // Avrupa sunucusu kullandığın için bu URL hayati önem taşır
+        databaseURL: `https://${serviceAccount.project_id}-default-rtdb.europe-west1.firebasedatabase.app`
     });
-    console.log('Firebase Admin SDK başlatıldı.');
+    console.log(`Firebase Admin SDK başarıyla başlatıldı: ${serviceAccount.project_id}`);
 } catch (error) {
     console.error('Firebase Admin SDK başlatılırken hata:', error);
     process.exit(1);
@@ -1326,23 +1328,25 @@ io.on('connection', (socket) => {
 
 const cartsObserver = admin.firestore().collection('carts');
 
+console.log("[SİSTEM] Firestore 'carts' koleksiyonu dinlenmeye başlandı...");
+
 cartsObserver.onSnapshot(snapshot => {
-    console.log(`--- [DEBUG] Firestore Tetiklendi: ${snapshot.docChanges().length} adet değişiklik var ---`);
-    
+    const now = new Date().toLocaleTimeString();
+    console.log(`\n--- [${now}] FIRESTORE TETİKLENDİ ---`);
+    console.log(`[BİLGİ] Değişiklik sayısı: ${snapshot.docChanges().length}`);
+
     snapshot.docChanges().forEach(change => {
         const cartData = change.doc.data();
         const masaId = change.doc.id;
         const changeType = change.type;
 
-        console.log(`[DEBUG] İşlem Tipi: ${changeType} | Masa: ${masaId}`);
-        console.log(`[DEBUG] Ham Veri (Items):`, cartData.items);
-        console.log(`[DEBUG] Tamamlandı Bayrağı (isCompleted):`, cartData.isCompleted);
+        console.log(`[İŞLEM] Tip: ${changeType.toUpperCase()} | Masa ID: ${masaId}`);
 
         if (changeType === 'removed') {
+            console.log(`[TEMİZLE] Masa ${masaId} sepeti silindi, Web paneline 'remove' komutu gidiyor.`);
             io.emit('removeOrderFromDisplay', { orderId: "LIVE-" + masaId });
-            console.log(`[DEBUG] Masa ${masaId} sepeti silindi, webden kaldırılıyor.`);
         } else {
-            // Canlı Sipariş Hazırlama
+            // Canlı Sipariş Hazırlama Süreci
             const liveOrder = {
                 orderId: "LIVE-" + masaId,
                 masaId: masaId,
@@ -1354,30 +1358,50 @@ cartsObserver.onSnapshot(snapshot => {
                 toplamFiyat: 0
             };
 
+            console.log(`[VERİ] Masa ${masaId} içeriği:`, JSON.stringify(cartData.items || {}));
+            console.log(`[DURUM] isCompleted: ${liveOrder.isCompleted}`);
+
             if (cartData.items && Object.keys(cartData.items).length > 0) {
                 let totalPrice = 0;
-                liveOrder.sepetItems = Object.entries(cartData.items).map(([prodId, count]) => {
-                    const product = db.prepare("SELECT name, price FROM products WHERE id = ?").get(Number(prodId));
-                    const itemPrice = product ? product.price : 0;
-                    totalPrice += (itemPrice * count);
-                    return {
-                        urunAdi: product ? product.name : "Bilinmeyen Ürün",
-                        adet: count,
-                        fiyat: itemPrice
-                    };
-                });
-                liveOrder.toplamFiyat = totalPrice;
+                
+                try {
+                    liveOrder.sepetItems = Object.entries(cartData.items).map(([prodId, count]) => {
+                        // SQLite'tan ürün bilgilerini çek
+                        const product = db.prepare("SELECT name, price FROM products WHERE id = ?").get(Number(prodId));
+                        const itemPrice = product ? product.price : 0;
+                        const itemTotal = (itemPrice * count);
+                        totalPrice += itemTotal;
 
-                // KRİTİK NOKTA: Herhangi bir filtre koymadan direkt fırlatıyoruz
-                io.emit('newOrder', liveOrder);
-                console.log(`[DEBUG] Web Paneline Gönderildi: Masa ${masaId} | Toplam Ürün: ${liveOrder.sepetItems.length}`);
+                        return {
+                            urunAdi: product ? product.name : `Bilinmeyen Ürün (${prodId})`,
+                            adet: count,
+                            fiyat: itemPrice
+                        };
+                    });
+                    liveOrder.toplamFiyat = totalPrice;
+
+                    // WEB PANELİNE ANLIK SOCKET YAYINI
+                    io.emit('newOrder', liveOrder);
+                    console.log(`[OK] Web Paneline Gönderildi -> Masa: ${masaId}, Toplam: ${totalPrice} TL`);
+                } catch (dbError) {
+                    console.error(`[HATA] SQLite ürün sorgusu sırasında hata (Masa ${masaId}):`, dbError.message);
+                }
             } else {
-                // Sepet var ama içi boşsa yine de temizle
+                console.log(`[BİLGİ] Masa ${masaId} sepeti boş görünüyor, ekrandan kaldırılıyor.`);
                 io.emit('removeOrderFromDisplay', { orderId: "LIVE-" + masaId });
-                console.log(`[DEBUG] Masa ${masaId} boş (items yok), webden kaldırılıyor.`);
             }
         }
     });
+}, error => {
+    // BAĞLANTI HATASINI YAKALAYAN KRİTİK BÖLÜM
+    const now = new Date().toLocaleTimeString();
+    console.error(`\n!!! [${now}] FIRESTORE BAĞLANTI HATASI !!!`);
+    console.error(`Hata Mesajı: ${error.message}`);
+    console.error(`Hata Kodu: ${error.code}`);
+    
+    if (error.message.includes('retries')) {
+        console.error("ÖNERİ: Firebase anahtarını (JSON) ve Project ID uyumunu kontrol et.");
+    }
 });
 
 server.listen(PORT, () => {
@@ -1392,6 +1416,7 @@ process.on('exit', () => {
 process.on('SIGHUP', () => process.exit(1));
 process.on('SIGINT', () => process.exit(1));
 process.on('SIGTERM', () => process.exit(1));
+
 
 
 
