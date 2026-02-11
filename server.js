@@ -1330,73 +1330,76 @@ const cartsObserver = admin.firestore().collection('carts');
 const productsRef = admin.firestore().collection('products'); 
 
 cartsObserver.onSnapshot(async (snapshot) => {
-    console.log(`--- [CANLI TAKİP] Firestore Tetiklendi ---`);
+    console.log(`\n--- [${new Date().toLocaleTimeString()}] FIRESTORE TETİKLENDİ ---`);
     
-    // Her bir değişiklik (Masa güncellemesi) için döngü
     for (const change of snapshot.docChanges()) {
         const cartData = change.doc.data();
         const masaId = change.doc.id;
-        const changeType = change.type;
 
-        if (changeType === 'removed') {
+        if (change.type === 'removed') {
+            console.log(`[TEMİZLE] Masa ${masaId} sepeti silindi.`);
             io.emit('removeOrderFromDisplay', { orderId: "LIVE-" + masaId });
-            console.log(`[TEMİZLE] Masa ${masaId} silindi.`);
-        } else {
-            const liveOrder = {
-                orderId: "LIVE-" + masaId,
-                masaId: masaId,
-                masaAdi: "Masa " + masaId,
-                timestamp: cartData.lastUpdated || Date.now(),
-                status: 'pending',
-                isCompleted: cartData.isCompleted || false,
-                sepetItems: [],
-                toplamFiyat: 0
-            };
+            continue;
+        }
 
-            if (cartData.items && Object.keys(cartData.items).length > 0) {
-                let totalPrice = 0;
-                const itemEntries = Object.entries(cartData.items);
+        console.log(`[İŞLEM] Masa ${masaId} güncelleniyor. Ürün sayısı: ${Object.keys(cartData.items || {}).length}`);
 
-                // HATA DÜZELTİLDİ: .document() yerine .doc() kullanıldı
-                // Paralel veri çekme (Performans için)
-                const itemPromises = itemEntries.map(async ([prodId, count]) => {
-                    try {
-                        const productDoc = await productsRef.doc(prodId.toString()).get();
+        const liveOrder = {
+            orderId: "LIVE-" + masaId,
+            masaId: masaId,
+            masaAdi: "Masa " + masaId,
+            timestamp: cartData.lastUpdated || Date.now(),
+            status: 'pending',
+            isCompleted: cartData.isCompleted || false,
+            sepetItems: [],
+            toplamFiyat: 0
+        };
+
+        if (cartData.items && Object.keys(cartData.items).length > 0) {
+            let totalPrice = 0;
+            const itemEntries = Object.entries(cartData.items);
+
+            try {
+                // Ürünleri tek tek ve güvenli bir şekilde çekiyoruz
+                const processedItems = [];
+                for (const [prodId, count] of itemEntries) {
+                    const cleanId = prodId.toString().trim();
+                    const productDoc = await productsRef.doc(cleanId).get();
+                    
+                    if (productDoc.exists) {
+                        const product = productDoc.data();
+                        const itemPrice = Number(product.fiyat) || 0;
+                        totalPrice += (itemPrice * count);
                         
-                        if (productDoc.exists) {
-                            const product = productDoc.data();
-                            const itemPrice = product.fiyat || 0; 
-                            totalPrice += (itemPrice * count);
-                            
-                            return {
-                                urunAdi: product.ad || "İsimsiz Ürün", 
-                                adet: count,
-                                fiyat: itemPrice
-                            };
-                        } else {
-                            console.warn(`[UYARI] Ürün ID ${prodId} Firestore'da bulunamadı.`);
-                            return {
-                                urunAdi: `Bilinmeyen Ürün (${prodId})`,
-                                adet: count,
-                                fiyat: 0
-                            };
-                        }
-                    } catch (err) {
-                        console.error(`[HATA] Ürün çekilirken hata (ID: ${prodId}):`, err.message);
-                        return { urunAdi: "Hata Oluştu", adet: count, fiyat: 0 };
+                        processedItems.push({
+                            urunAdi: product.ad || "İsimsiz Ürün",
+                            adet: count,
+                            fiyat: itemPrice
+                        });
+                        console.log(`   > Bulundu: ${product.ad} (${count} adet)`);
+                    } else {
+                        console.warn(`   > Eksik: ID ${cleanId} Firestore'da yok!`);
+                        processedItems.push({
+                            urunAdi: `Bilinmeyen Ürün (${cleanId})`,
+                            adet: count,
+                            fiyat: 0
+                        });
                     }
-                });
+                }
 
-                liveOrder.sepetItems = await Promise.all(itemPromises);
+                liveOrder.sepetItems = processedItems;
                 liveOrder.toplamFiyat = totalPrice;
 
-                // Web paneline Socket üzerinden fırlat
+                // WEB PANELİNE GÖNDERİM
                 io.emit('newOrder', liveOrder);
-                console.log(`[OK] Masa ${masaId} güncellendi. Toplam: ${totalPrice} TL`);
-            } else {
-                // Sepet boşsa ekrandan kaldır
-                io.emit('removeOrderFromDisplay', { orderId: "LIVE-" + masaId });
+                console.log(`[SOCKET] Masa ${masaId} verisi web paneline başarıyla gönderildi.`);
+
+            } catch (err) {
+                console.error(`[KRİTİK HATA] Ürünler işlenirken hata oluştu:`, err.message);
             }
+        } else {
+            console.log(`[BİLGİ] Masa ${masaId} sepeti boş, ekrandan kaldırılıyor.`);
+            io.emit('removeOrderFromDisplay', { orderId: "LIVE-" + masaId });
         }
     }
 }, error => {
@@ -1414,6 +1417,7 @@ process.on('exit', () => {
 process.on('SIGHUP', () => process.exit(1));
 process.on('SIGINT', () => process.exit(1));
 process.on('SIGTERM', () => process.exit(1));
+
 
 
 
