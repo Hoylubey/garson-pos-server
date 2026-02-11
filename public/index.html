@@ -1515,24 +1515,20 @@ fetchOrderReceptionStatus();
 });
 
 socket.on('newOrder', (order) => {
-console.log('Yeni sipariş alındı:', JSON.stringify(order, null, 2));
-if (order && order.orderId) {
-orders["live-" + masaId] = {
-    orderId: "LIVE-" + masaId,
-    masaId: masaId,
-    masaAdi: "Masa " + masaId,
-    timestamp: cartData.lastUpdated || Date.now(),
-    status: 'pending',
-    isCompleted: cartData.isCompleted || false, // <--- TİK BURADAN GELİYOR
-    sepetItems: Object.entries(cartData.items || {}).map(([prodId, count]) => {
-        const p = menuProducts[prodId] || { ad: "Yükleniyor...", fiyat: 0 };
-        return { urunAdi: p.ad || p.name, adet: count, fiyat: p.fiyat || p.price };
-    }),
-    toplamFiyat: Object.entries(cartData.items || {}).reduce((total, [prodId, count]) => {
-        const p = menuProducts[prodId] || { fiyat: 0, price: 0 };
-        return total + ((p.fiyat || p.price) * count);
-    }, 0)
-};
+    console.log('Sipariş güncellendi/alındı:', order.orderId);
+    if (order && order.orderId) {
+        // Gelen siparişi listeye ekle veya güncelle
+        orders[order.orderId] = order;
+        renderOrders();
+        
+        // Eğer yeni bir siparişse (veya kasanın haberi yoksa) ses çıkar
+        if (!order.orderId.startsWith("LIVE-")) {
+             notificationSound.play().catch(err => {});
+             notificationBell.classList.add('ringing');
+             setTimeout(() => notificationBell.classList.remove('ringing'), 1500);
+        }
+    }
+});
 renderOrders();
 notificationSound.play().catch(err => console.error('Bildirim sesi oynatılamadı:', err));
 notificationBell.classList.add('ringing');
@@ -1665,4 +1661,5 @@ alert(`${data.username} adlı motorcu gününü sonlandırdı. Bugün ${data.del
 </script>
 </body>
 </html>
+
 
