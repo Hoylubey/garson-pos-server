@@ -694,6 +694,7 @@ const API_BASE_URL = 'https://garson-pos-server.onrender.com';
 
 
 
+
 const socket = io(SOCKET_SERVER_URL, {
 reconnection: true,
 reconnectionAttempts: 10,
@@ -1514,26 +1515,8 @@ fetchOrderReceptionStatus();
 }
 });
 
-socket.on('newOrder', (order) => {
-    console.log('Sipariş alındı/güncellendi:', order.orderId);
-    if (order && order.orderId) {
-        // Siparişi ana listeye ekle/güncelle
-        orders[order.orderId] = order;
-        renderOrders();
-
-        // Sadece GERÇEK (LIVE olmayan) yeni siparişlerde sesli uyarı ver
-        if (!order.orderId.toString().startsWith("LIVE-")) {
-            notificationSound.play().catch(err => console.error('Bildirim sesi hatası:', err));
-            notificationBell.classList.add('ringing');
-            setTimeout(() => {
-                notificationBell.classList.remove('ringing');
-            }, 1500);
-        }
-    } else {
-        console.error('Geçersiz sipariş verisi alındı.');
-    }
-});
 function renderOrders() {
+    console.log("Ekrana basılıyor. Toplam sipariş:", Object.keys(orders).length);
     const sortedOrders = Object.values(orders).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
     ordersContainer.innerHTML = '';
 
@@ -1547,7 +1530,6 @@ function renderOrders() {
         orderCard.id = `order-${order.orderId}`;
         orderCard.className = `card ${getStatusClass(order.deliveryStatus || order.status)}`;
         
-        // YEŞİL TİK KONTROLÜ
         const tickHtml = order.isCompleted ? '<span class="complete-tick">✔</span>' : '';
 
         orderCard.innerHTML = `
@@ -1555,17 +1537,17 @@ function renderOrders() {
             <h3 class="text-lg font-bold mb-1">Masa: ${order.masaAdi}</h3>
             <p class="text-gray-500 text-xs mb-3">Zaman: ${new Date(order.timestamp).toLocaleTimeString()}</p>
             
-            <div class="order-items-scroll">
+            <div class="order-items-scroll" style="max-height: 200px; overflow-y: auto;">
                 ${order.sepetItems.map(item => `
-                    <div class="order-item">
+                    <div class="order-item" style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed #ccc;">
                         <span>${item.urunAdi} x ${item.adet}</span>
-                        <span>${(item.fiyat * item.adet).toFixed(2)} TL</span>
+                        <span>${formatPrice(item.fiyat * item.adet)}</span>
                     </div>
                 `).join('')}
             </div>
             
-            <div class="border-t border-dashed border-gray-300 mt-2 pt-2">
-                <p class="text-lg font-extrabold text-right">Toplam: ${order.toplamFiyat.toFixed(2)} TL</p>
+            <div class="border-t border-gray-300 mt-2 pt-2">
+                <p class="text-lg font-extrabold text-right">Toplam: ${formatPrice(order.toplamFiyat)}</p>
             </div>
 
             <div class="order-actions mt-4 flex gap-2">
@@ -1576,6 +1558,22 @@ function renderOrders() {
         ordersContainer.appendChild(orderCard);
     });
 }
+
+socket.on('newOrder', (order) => {
+    console.log('Canlı veri geldi:', order.orderId);
+    if (order && order.orderId) {
+        orders[order.orderId] = order; // Listeye ekle/güncelle
+        renderOrders(); // Ekrana basma fonksiyonunu çağır
+
+        if (!order.orderId.toString().startsWith("LIVE-")) {
+            const sound = document.getElementById('notificationSound');
+            if(sound) sound.play().catch(e => {});
+            document.getElementById('notificationBell').classList.add('ringing');
+            setTimeout(() => document.getElementById('notificationBell').classList.remove('ringing'), 1500);
+        }
+    }
+});
+
 socket.on('orderPaidConfirmation', (data) => {
 console.log('Sipariş ödendi onayı alındı:', JSON.stringify(data, null, 2));
 if (orders[data.orderId]) {
